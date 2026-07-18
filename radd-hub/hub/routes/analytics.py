@@ -126,7 +126,7 @@ _HTML = """
     <!-- Plan breakdown bars -->
     <div class="table-card">
       <h3>📋 Subscription Breakdown</h3>
-      {% set plan_colors = {'basic':'#E8002D','standard':'#7c5cff','premium':'#00C853','free':'#7e859b'} %}
+      {% set plan_colors = {'basic':'#D4784A','standard':'#7c5cff','premium':'#00C853','free':'#7e859b'} %}
       {% if plan_dist %}
         {% set total_s = plan_dist | sum(attribute='count') %}
         {% for p in plan_dist %}
@@ -177,8 +177,8 @@ _HTML = """
           <td style="padding:8px 10px;font-size:13px">{{ u.name or '—' }}</td>
           <td style="padding:8px 10px">
             <span style="padding:2px 8px;border-radius:10px;font-size:12px;font-weight:700;
-              background:{% if u.plan=='premium' %}rgba(0,200,83,.15){% elif u.plan=='basic' or u.plan=='standard' %}rgba(232,0,45,.15){% else %}rgba(126,133,155,.15){% endif %};
-              color:{% if u.plan=='premium' %}var(--ok){% elif u.plan=='basic' or u.plan=='standard' %}#E8002D{% else %}var(--muted){% endif %}">
+              background:{% if u.plan=='premium' %}rgba(0,200,83,.15){% elif u.plan=='basic' or u.plan=='standard' %}rgba(212,120,74,.15){% else %}rgba(126,133,155,.15){% endif %};
+              color:{% if u.plan=='premium' %}var(--ok){% elif u.plan=='basic' or u.plan=='standard' %}#D4784A{% else %}var(--muted){% endif %}">
               {{ (u.plan or 'free') | upper }}
             </span>
           </td>
@@ -248,7 +248,7 @@ new Chart(document.getElementById('planChart'), {
     labels: {{ plan_dist | map(attribute='plan') | list | tojson }},
     datasets: [{
       data: {{ plan_dist | map(attribute='count') | list | tojson }},
-      backgroundColor: ['#E8002D','#7c5cff','#00C853','#7e859b'],
+      backgroundColor: ['#D4784A','#7c5cff','#00C853','#7e859b'],
       borderWidth: 2,
       borderColor: '#12151e',
     }]

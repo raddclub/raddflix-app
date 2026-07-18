@@ -302,7 +302,7 @@ class _ResumeFabState extends State<ResumeFab> with SingleTickerProviderStateMix
   }
 
   Widget _posterFallback() => Container(
-    color: const Color(0xFF2A2A2A),
+    color: const Color(0xFF2C2219),
     child: Center(
       child: Icon(AppIcons.movieFill, color: Colors.white24, size: 40),
     ),

@@ -954,7 +954,7 @@ class _HeroCardState extends ConsumerState<_HeroCard>
         fit: BoxFit.cover,
         placeholder: (_, __) => Shimmer.fromColors(
           baseColor: AppColors.card,
-          highlightColor: const Color(0xFF2A2A2A),
+          highlightColor: const Color(0xFF2C2219),
           child: Container(color: AppColors.card),
         ),
         errorWidget: (_, __, ___) => placeholder,

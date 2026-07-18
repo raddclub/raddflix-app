@@ -248,9 +248,9 @@ def xor_encoding_status():
     <!doctype html><html lang="en">
     <head><meta charset="utf-8"><title>XOR Encoding — RaddHub</title>
     <style>
-      body { font-family: monospace; background: #0e0e18; color: #e0e0ff; padding: 24px; }
-      h1 { color: #e8002d; }
-      .status { background: #1a1a2e; border: 1px solid #252540; padding: 16px; border-radius: 8px; margin: 16px 0; }
+      body { font-family: monospace; background: #130F0C; color: #F5EFE6; padding: 24px; }
+      h1 { color: #D4784A; }
+      .status { background: #352A1F; border: 1px solid #4A3828; padding: 16px; border-radius: 8px; margin: 16px 0; }
       .ok  { color: #22c55e; } .warn { color: #f59e0b; } .err { color: #ef4444; }
       code { background: #0d0d1a; padding: 2px 6px; border-radius: 4px; }
       pre  { background: #0d0d1a; padding: 16px; border-radius: 8px; overflow-x: auto; }

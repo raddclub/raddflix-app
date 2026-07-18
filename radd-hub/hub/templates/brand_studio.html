@@ -49,13 +49,13 @@
         <h3 style="margin-bottom:14px">🎨 Color Palette</h3>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           {% set colors = [
-            ('brand_primary_color',    'Primary',    cfg.brand_primary_color or '#E8002D',    'Main brand color — buttons, icons, active states'),
-            ('brand_accent_color',     'Accent',     cfg.brand_accent_color  or '#FF5C5C',    'Gradient end color, secondary highlights'),
-            ('brand_background_color', 'Background', cfg.brand_background_color or '#08080E', 'Dark mode app background'),
-            ('brand_surface_color',    'Surface',    cfg.brand_surface_color or '#0E0E1C',    'Cards, modals, nav bar background'),
-            ('brand_card_color',       'Card',       cfg.brand_card_color    or '#1A1A2E',    'Content card fill color'),
-            ('brand_text_primary_color','Text',      cfg.brand_text_primary_color or '#F2F2FF','Main text / heading color'),
-            ('brand_splash_color',     'Splash BG',  cfg.brand_splash_color  or '#08080E',    'Splash screen background color'),
+            ('brand_primary_color',    'Primary',    cfg.brand_primary_color or '#D4784A',    'Main brand color — buttons, icons, active states'),
+            ('brand_accent_color',     'Accent',     cfg.brand_accent_color  or '#E8A070',    'Gradient end color, secondary highlights'),
+            ('brand_background_color', 'Background', cfg.brand_background_color or '#130F0C', 'Dark mode app background'),
+            ('brand_surface_color',    'Surface',    cfg.brand_surface_color or '#211A15',    'Cards, modals, nav bar background'),
+            ('brand_card_color',       'Card',       cfg.brand_card_color    or '#352A1F',    'Content card fill color'),
+            ('brand_text_primary_color','Text',      cfg.brand_text_primary_color or '#F5EFE6','Main text / heading color'),
+            ('brand_splash_color',     'Splash BG',  cfg.brand_splash_color  or '#130F0C',    'Splash screen background color'),
           ] %}
           {% for id, label, val, tip in colors %}
           <div class="bs-color-row">
@@ -288,10 +288,10 @@
         {% for shape, r in [('Circle','50%'),('Squircle','28px'),('Square','10px')] %}
         <div style="text-align:center">
           <div id="icon-shape-{{ loop.index }}" style="width:80px;height:80px;border-radius:{{ r }};
-               overflow:hidden;background:#1a1a2e;border:1px solid var(--border);
+               overflow:hidden;background:#352A1F;border:1px solid var(--border);
                display:flex;align-items:center;justify-content:center">
             <img id="icon-shape-img-{{ loop.index }}" src="" style="width:100%;height:100%;object-fit:cover;display:none">
-            <span id="icon-shape-fb-{{ loop.index }}" style="font-size:32px;font-weight:900;color:#E8002D">R</span>
+            <span id="icon-shape-fb-{{ loop.index }}" style="font-size:32px;font-weight:900;color:#D4784A">R</span>
           </div>
           <div class="muted" style="font-size:10px;margin-top:6px">{{ shape }}</div>
         </div>
@@ -308,7 +308,7 @@
                  object-fit:cover;opacity:.35;display:none">
             <div style="position:relative;z-index:1;text-align:center">
               <div style="font-size:20px;font-weight:900;color:white">
-                Radd<span id="splash-mock-flix" style="color:#E8002D">Flix</span>
+                Radd<span id="splash-mock-flix" style="color:#D4784A">Flix</span>
               </div>
               <div id="splash-mock-tagline" style="font-size:7.5px;color:#7e859b;margin-top:1px"></div>
             </div>
@@ -387,13 +387,13 @@
 <script>
 /* ─── Current colours (initialised from server values) ─────────────────────── */
 const C = {
-  primary:    '{{ cfg.brand_primary_color or "#E8002D" }}',
-  accent:     '{{ cfg.brand_accent_color  or "#FF5C5C" }}',
-  bg:         '{{ cfg.brand_background_color or "#08080E" }}',
-  surface:    '{{ cfg.brand_surface_color or "#0E0E1C" }}',
-  card:       '{{ cfg.brand_card_color    or "#1A1A2E" }}',
-  text:       '{{ cfg.brand_text_primary_color or "#F2F2FF" }}',
-  splash:     '{{ cfg.brand_splash_color  or "#08080E" }}',
+  primary:    '{{ cfg.brand_primary_color or "#D4784A" }}',
+  accent:     '{{ cfg.brand_accent_color  or "#E8A070" }}',
+  bg:         '{{ cfg.brand_background_color or "#130F0C" }}',
+  surface:    '{{ cfg.brand_surface_color or "#211A15" }}',
+  card:       '{{ cfg.brand_card_color    or "#352A1F" }}',
+  text:       '{{ cfg.brand_text_primary_color or "#F5EFE6" }}',
+  splash:     '{{ cfg.brand_splash_color  or "#130F0C" }}',
 };
 const KEYS = ['primary','accent','bg','surface','card','text','splash'];
 const IDS  = ['brand_primary_color','brand_accent_color','brand_background_color',
@@ -632,7 +632,7 @@ function resetOnboarding(){
     {"icon":"📶","gradient":["#22C55E","#16A34A"],"title":"Zero-Rated Streaming","body":"Watch movies on Jazz SIM without spending any data. Completely free."},
     {"icon":"📱","gradient":["#3B82F6","#1D4ED8"],"title":"Offline Catalog","body":"Browse 7000+ titles without internet. Full catalog downloads to your phone."},
     {"icon":"🎬","gradient":["#F59E0B","#D97706"],"title":"Pakistani Content","body":"Urdu dramas, Punjabi films and international hits. New titles every week."},
-    {"icon":"⭐","gradient":["#E8002D","#B5001F"],"title":"Subscribe to Unlock","body":"Start free. Upgrade to Basic, Standard or Premium for HD quality."}
+    {"icon":"⭐","gradient":["#D4784A","#A85A32"],"title":"Subscribe to Unlock","body":"Start free. Upgrade to Basic, Standard or Premium for HD quality."}
   ],null,2);
 }
 

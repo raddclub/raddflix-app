@@ -56,13 +56,13 @@ BRAND_KEYS = [
 ]
 
 _DEFAULTS = {
-    "brand_primary_color":    "#E8002D",
-    "brand_accent_color":     "#FF5C5C",
-    "brand_splash_color":     "#08080E",
-    "brand_background_color": "#08080E",
-    "brand_surface_color":    "#0E0E1C",
-    "brand_card_color":       "#1A1A2E",
-    "brand_text_primary_color": "#F2F2FF",
+    "brand_primary_color":    "#D4784A",
+    "brand_accent_color":     "#E8A070",
+    "brand_splash_color":     "#130F0C",
+    "brand_background_color": "#130F0C",
+    "brand_surface_color":    "#211A15",
+    "brand_card_color":       "#352A1F",
+    "brand_text_primary_color": "#F5EFE6",
     "brand_tagline":          "Zero-rated Pakistani streaming",
     "brand_app_name":         "RaddFlix",
     "brand_font":             "inter",

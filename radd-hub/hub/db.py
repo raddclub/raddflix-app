@@ -651,7 +651,7 @@ def init_db() -> None:
     # Once seeded the admin can edit/add/remove plans freely via /plans/.
     import json as _json
     _default_plans = [
-        ("Starter",  150, 10.0,  1, 30, "#E8002D",
+        ("Starter",  150, 10.0,  1, 30, "#D4784A",
          _json.dumps(["Zero-data streaming", "HD quality", "All content"]),           ""),
         ("Basic",    250, 30.0,  1, 30, "#7C5CFF",
          _json.dumps(["Zero-data streaming", "HD 720p quality", "All content"]),      "POPULAR"),

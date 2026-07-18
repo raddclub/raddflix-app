@@ -12,7 +12,7 @@ from hub.auth import login_required
 log = logging.getLogger("hub.plans_panel")
 bp = Blueprint("plans_panel", __name__, url_prefix="/plans")
 
-COLORS = ['#7c5cff','#E8002D','#00C853','#FF6D00','#00B0FF','#FFD600','#AA00FF','#00E5FF','#FF4081','#1de9b6']
+COLORS = ['#7c5cff','#D4784A','#00C853','#FF6D00','#00B0FF','#FFD600','#AA00FF','#00E5FF','#FF4081','#1de9b6']
 
 # ── Shared CSS ────────────────────────────────────────────────────────────────
 _SHARED_CSS = """

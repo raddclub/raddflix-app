@@ -114,10 +114,10 @@ _PANEL_HTML = """
   <meta charset="utf-8">
   <title>Tamper Reports — RaddHub</title>
   <style>
-    body { font-family: monospace; background: #0e0e18; color: #e0e0ff; padding: 24px; }
-    h1   { color: #e8002d; }
+    body { font-family: monospace; background: #130F0C; color: #F5EFE6; padding: 24px; }
+    h1   { color: #D4784A; }
     table{ border-collapse: collapse; width: 100%; font-size: 13px; }
-    th   { background: #1a1a2e; padding: 8px 12px; text-align: left; color: #aaa; }
+    th   { background: #352A1F; padding: 8px 12px; text-align: left; color: #aaa; }
     td   { padding: 6px 12px; border-bottom: 1px solid #252540; }
     .sig { color: #ef4444; }
     .fri { color: #f59e0b; }

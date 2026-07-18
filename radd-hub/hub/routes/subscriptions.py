@@ -32,7 +32,7 @@ _HTML = """
 .sub-table th { background: var(--panel2); padding: 10px 14px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; text-align: left; }
 .sub-table td { padding: 10px 14px; font-size: 13px; border-top: 1px solid var(--border); vertical-align: middle; }
 .plan-badge { padding: 2px 9px; border-radius: 10px; font-size: 11px; font-weight: 700; }
-.plan-basic    { background: rgba(232,0,45,.15);   color: #E8002D; }
+.plan-basic    { background: rgba(212,120,74,.15);  color: #D4784A; }
 .plan-standard { background: rgba(124,92,255,.15); color: #7c5cff; }
 .plan-premium  { background: rgba(0,200,83,.15);   color: var(--ok); }
 .plan-free     { background: rgba(126,133,155,.15);color: var(--muted); }

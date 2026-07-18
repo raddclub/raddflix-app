@@ -146,7 +146,7 @@ class _VaultLockScreenState extends State<VaultLockScreen> {
     final isLocked = _lockedUntil != null && DateTime.now().isBefore(_lockedUntil!);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF07090F),
+      backgroundColor: const Color(0xFF130F0C),
       body: SafeArea(
         child: Column(
           children: [

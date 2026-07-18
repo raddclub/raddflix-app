@@ -45,7 +45,7 @@ _HTML = """
   background: #12151e; color: #7e859b; cursor: pointer; font-size: .85rem;
   text-decoration: none;
 }
-.tab-btn.active { background: #E8002D; color: #fff; border-color: #E8002D; }
+.tab-btn.active { background: #D4784A; color: #fff; border-color: #D4784A; }
 .tab-btn.sms-tab.active { background: #1565C0; border-color: #1565C0; }
 .card {
   background: #12151e; border: 1px solid #252d3d; border-radius: 12px;
@@ -60,9 +60,9 @@ _HTML = """
 .badge-unmatched { background: rgba(255,193,7,.15);  color: #ffc107; }
 .plan-tag {
   padding: 3px 10px; border-radius: 20px; font-size: .75rem; font-weight: 700;
-  background: rgba(232,0,45,.15); color: #E8002D;
+  background: rgba(212,120,74,.15); color: #D4784A;
 }
-.source-jc { background: rgba(232,0,45,.15); color: #E8002D; padding: 3px 10px; border-radius: 20px; font-size: .75rem; font-weight: 700; }
+.source-jc { background: rgba(212,120,74,.15); color: #D4784A; padding: 3px 10px; border-radius: 20px; font-size: .75rem; font-weight: 700; }
 .source-ep { background: rgba(21,101,192,.15); color: #5cb4ff; padding: 3px 10px; border-radius: 20px; font-size: .75rem; font-weight: 700; }
 .card-meta { font-size: .82rem; color: #7e859b; margin-top: 8px; }
 .card-meta span { margin-right: 18px; }
@@ -113,7 +113,7 @@ _HTML = """
 
   <div class="tabs">
     <a href="?tab=pending"  class="tab-btn {% if tab=='pending' %}active{% endif %}">
-      Pending {% if pending_count %}<span style="background:#E8002D;border-radius:10px;padding:1px 7px;font-size:.75rem;margin-left:4px">{{ pending_count }}</span>{% endif %}
+      Pending {% if pending_count %}<span style="background:#D4784A;border-radius:10px;padding:1px 7px;font-size:.75rem;margin-left:4px">{{ pending_count }}</span>{% endif %}
     </a>
     <a href="?tab=approved" class="tab-btn {% if tab=='approved' %}active{% endif %}">Approved</a>
     <a href="?tab=rejected" class="tab-btn {% if tab=='rejected' %}active{% endif %}">Rejected</a>

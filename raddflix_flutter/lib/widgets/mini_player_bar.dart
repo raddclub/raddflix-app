@@ -312,7 +312,7 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar>
   }
 
   Widget _posterFallback() => Container(
-        color: const Color(0xFF2A2A2A),
+        color: const Color(0xFF2C2219),
         child: Center(
           child: Icon(AppIcons.movieFill, color: Colors.white24, size: 24),
         ),
@@ -511,7 +511,7 @@ class _LiveMiniPlayerBar extends StatelessWidget {
   }
 
   Widget _posterFallback() => Container(
-        color: const Color(0xFF2A2A2A),
+        color: const Color(0xFF2C2219),
         child: Center(
           child: Icon(AppIcons.movieFill, color: Colors.white24, size: 24),
         ),

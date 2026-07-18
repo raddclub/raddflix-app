@@ -748,7 +748,7 @@ def plans():
             "duration_days":   p.get("duration_days") or 30,
             "features":        features,
             "is_active":       bool(p.get("is_active", 1)),
-            "color":           p.get("color") or "#E8002D",
+            "color":           p.get("color") or "#D4784A",
             "jazz_savings_msg": savings_msg,
         })
     # Seed default plans if none exist in DB
@@ -757,7 +757,7 @@ def plans():
             {"id": "starter",  "name": "Starter",  "price_monthly": 150,
              "data_gb": 10,  "max_devices": 1, "duration_days": 30,
              "features": ["Zero-data streaming", "HD quality", "All content"],
-             "is_active": True, "color": "#E8002D",
+             "is_active": True, "color": "#D4784A",
              "jazz_savings_msg": "67% cheaper than Jazz data"},
             {"id": "basic",    "name": "Basic",    "price_monthly": 250,
              "data_gb": 30,  "max_devices": 1, "duration_days": 30,
@@ -1235,15 +1235,15 @@ def app_config():
         }
 
         _brand_defaults = {
-            "brand_primary_color":      "#E8002D",
-            "brand_accent_color":       "#FF5C5C",
+            "brand_primary_color":      "#D4784A",
+            "brand_accent_color":       "#E8A070",
             "brand_tagline":            "Zero-rated Pakistani streaming",
             "brand_logo_url":           "",
-            "brand_splash_color":       "#08080E",
-            "brand_background_color":   "#08080E",
-            "brand_surface_color":      "#0E0E1C",
-            "brand_card_color":         "#1A1A2E",
-            "brand_text_primary_color": "#F2F2FF",
+            "brand_splash_color":       "#130F0C",
+            "brand_background_color":   "#130F0C",
+            "brand_surface_color":      "#211A15",
+            "brand_card_color":         "#352A1F",
+            "brand_text_primary_color": "#F5EFE6",
             "brand_app_name":           "RaddFlix",
             "brand_font":               "inter",
             "brand_button_radius":      "14",
