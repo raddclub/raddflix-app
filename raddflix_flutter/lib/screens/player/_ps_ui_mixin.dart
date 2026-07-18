@@ -257,7 +257,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   ];
 
   static const _allSidebarIds = [
-    'cc','audio','eq','speed','loop','rotate','lock','pip',
+    'bgaudio','cc','audio','eq','speed','loop','rotate','lock','pip',
     'screenshot','sleep','ab','episodes','settings','vivid',
     'mute','frame','onehanded','zoom','silence','more',
   ];
@@ -829,29 +829,70 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
               opacity: _showControls ? 1.0 : 0.0,
               duration: const Duration(milliseconds: 200),
               child: SafeArea(
-                child: Align(
-                  alignment: Alignment.topRight,
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: GestureDetector(
-                      onTap: () => setState(() {
-                        _isLocked = false;
-                        _showControls = true;
-                        _applySubtitleMargin(controlsVisible: true);
-                        _scheduleHide();
-                      }),
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.55),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.white24),
+                child: Stack(
+                  children: [
+                    // ── Background audio quick-toggle (top-left) ─────────────
+                    // Accessible even while the screen is locked so users can
+                    // flip BG audio on/off before minimising without unlocking.
+                    Align(
+                      alignment: Alignment.topLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() => _backgroundAudio = !_backgroundAudio);
+                            _scheduleSavePrefs();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: _backgroundAudio
+                                  ? Colors.orange.withOpacity(0.25)
+                                  : Colors.black.withOpacity(0.55),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: _backgroundAudio
+                                    ? Colors.orange.withOpacity(0.6)
+                                    : Colors.white24,
+                              ),
+                            ),
+                            child: Icon(
+                              _backgroundAudio
+                                  ? Icons.headphones_rounded
+                                  : Icons.headphones_outlined,
+                              color: _backgroundAudio ? Colors.orange : Colors.white,
+                              size: 22,
+                            ),
+                          ),
                         ),
-                        child: const Icon(Icons.lock_rounded,
-                            color: Colors.white, size: 22),
                       ),
                     ),
-                  ),
+                    // ── Unlock button (top-right) ────────────────────────────
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: GestureDetector(
+                          onTap: () => setState(() {
+                            _isLocked = false;
+                            _showControls = true;
+                            _applySubtitleMargin(controlsVisible: true);
+                            _scheduleHide();
+                          }),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.55),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.white24),
+                            ),
+                            child: const Icon(Icons.lock_rounded,
+                                color: Colors.white, size: 22),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1005,6 +1046,21 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
               icon: Icons.picture_in_picture_rounded,
               size: 20,
               onTap: _enterPiP,
+            ),
+            const SizedBox(height: 6),
+            // ── Background audio quick-toggle ─────────────────────────────
+            // Persistent 1-tap access without opening any panel or sidebar.
+            // Orange tint makes "active" state unambiguous at a glance.
+            _RaddIconBtn(
+              icon: _backgroundAudio
+                  ? Icons.headphones_rounded
+                  : Icons.headphones_outlined,
+              size: 20,
+              color: _backgroundAudio ? Colors.orange : null,
+              onTap: () {
+                setState(() => _backgroundAudio = !_backgroundAudio);
+                _scheduleSavePrefs();
+              },
             ),
             const SizedBox(height: 6),
             GestureDetector(
@@ -1194,6 +1250,21 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                 ),
               ),
 
+            // Background audio active badge — persistent cue so the user
+            // always knows BG audio is on without opening any panel.
+            if (_backgroundAudio)
+              Container(
+                margin: const EdgeInsets.only(right: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(color: Colors.orange.withOpacity(0.45), width: 0.8),
+                ),
+                child: const Text('♫ BG',
+                    style: TextStyle(
+                        color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
+              ),
 
           ],
         ),
