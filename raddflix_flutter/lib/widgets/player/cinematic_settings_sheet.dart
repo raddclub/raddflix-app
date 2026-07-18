@@ -72,7 +72,7 @@ class _ModeSettingsSheetState extends State<_ModeSettingsSheet> {
   bool   _imShowIcon       = true;
   bool   _loading          = true;
 
-  static const _blue   = Color(0xFF3B82F6);
+  static const _blue   = Color(0xFF5B9BD4);
   static const _purple = Color(0xFF8B5CF6);
 
   @override

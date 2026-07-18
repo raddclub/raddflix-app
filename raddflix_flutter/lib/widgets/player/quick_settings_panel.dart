@@ -796,7 +796,7 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
           label: 'Screen Wake',
           child: DropdownButton<int>(
             value: _p.wakeTimeoutMins,
-            dropdownColor: const Color(0xFF1A1A2E),
+            dropdownColor: const Color(0xFF352A1F),
             style: const TextStyle(color: Colors.white70, fontSize: 12),
             underline: const SizedBox(),
             items: const [

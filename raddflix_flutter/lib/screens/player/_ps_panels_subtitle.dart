@@ -404,7 +404,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
           gradient: const LinearGradient(
-            colors: [Color(0xFF1A1A2E), Color(0xFF16213E)],
+            colors: [Color(0xFF352A1F), Color(0xFF2C2219)],
             begin: Alignment.topLeft, end: Alignment.bottomRight,
           ),
           border: Border.all(color: const Color(0xFF4A9EFF).withOpacity(0.35), width: 1),

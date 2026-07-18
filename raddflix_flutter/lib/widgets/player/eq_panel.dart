@@ -284,14 +284,14 @@ class _EqChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: active ? const Color(0x33E8002D) : Colors.white10,
-        border: Border.all(color: active ? const Color(0xFFE8002D) : Colors.white12),
+        border: Border.all(color: active ? const Color(0xFFD4784A) : Colors.white12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 14, color: active ? const Color(0xFFE8002D) : Colors.white60),
+        Icon(icon, size: 14, color: active ? const Color(0xFFD4784A) : Colors.white60),
         const SizedBox(width: 4),
         Text(label, style: TextStyle(
-          color: active ? const Color(0xFFE8002D) : Colors.white60,
+          color: active ? const Color(0xFFD4784A) : Colors.white60,
           fontSize: 12,
         )),
       ]),

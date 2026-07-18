@@ -120,7 +120,7 @@ class SkipSegmentButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFF1A1A2E).withOpacity(0.9),
+            color: const Color(0xFF352A1F).withOpacity(0.9),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: accentColor, width: 1.5),
             boxShadow: [BoxShadow(color: accentColor.withOpacity(0.3), blurRadius: 12)],
