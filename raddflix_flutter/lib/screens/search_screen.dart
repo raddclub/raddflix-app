@@ -96,47 +96,48 @@ const _sentinel = Object();
 
 // ── Per-genre gradient palette (derived from design-system signal/surface tones)
 // Each entry: [color0, color1] — pulled from AppColors palette only, no hex outside it.
+// Dark endpoints synced to Warm Hearth bg/surface/card tokens.
 const List<List<Color>> _kGenreGradients = [
-  // Action / Thriller — primary red to dark
-  [Color(0xFFE8002D), Color(0xFF07070F)],
-  // Drama — accent blue to deep navy surface
-  [Color(0xFF3B82F6), Color(0xFF060D1A)],
+  // Action / Thriller — primary amber to warm dark bg
+  [Color(0xFFD4784A), Color(0xFF130F0C)],
+  // Drama — dusty blue to deep navy surface
+  [Color(0xFF5B9BD4), Color(0xFF130F0C)],
   // Comedy — warm amber to card dark
-  [Color(0xFFF59E0B), Color(0xFF0B0B1C)],
-  // Romance — rose primaryLight to surface
-  [Color(0xFFFF4D6A), Color(0xFF0F0F22)],
-  // Horror — deep red-dark to amoled
-  [Color(0xFFB5001F), Color(0xFF000000)],
-  // Sci-Fi — info blue to cobalt deep
-  [Color(0xFF3B82F6), Color(0xFF060A1A)],
-  // Fantasy — simosa purple to dark bg
-  [Color(0xFF7C5CFF), Color(0xFF07070F)],
-  // Crime — muted primaryDark to surface
-  [Color(0xFFB5001F), Color(0xFF0F0F22)],
-  // Animation — success green to bg
-  [Color(0xFF22C55E), Color(0xFF060E09)],
+  [Color(0xFFF59E0B), Color(0xFF1A1410)],
+  // Romance — soft peach primaryLight to surface
+  [Color(0xFFE8A070), Color(0xFF211A15)],
+  // Horror — deep primaryDark to amoled
+  [Color(0xFFA85A32), Color(0xFF000000)],
+  // Sci-Fi — dusty blue to warm surface
+  [Color(0xFF5B9BD4), Color(0xFF211A15)],
+  // Fantasy — simosa purple to warm dark bg
+  [Color(0xFF7C5CFF), Color(0xFF130F0C)],
+  // Crime — muted primaryDark to warm surface
+  [Color(0xFFA85A32), Color(0xFF211A15)],
+  // Animation — success green to warm bg
+  [Color(0xFF22C55E), Color(0xFF130F0C)],
   // Documentary — warm orange to bgAlt
-  [Color(0xFFFF9800), Color(0xFF0B0B1C)],
-  // Thriller — primaryDark to card
-  [Color(0xFFE8002D), Color(0xFF1E1E3C)],
-  // Mystery — info to deep dark
-  [Color(0xFF3B82F6), Color(0xFF0A0A0A)],
-  // Historical — accent amber to surface
-  [Color(0xFFF59E0B), Color(0xFF0F0F22)],
-  // Family — success to background
-  [Color(0xFF22C55E), Color(0xFF07070F)],
-  // Sport — primary to card
-  [Color(0xFFE8002D), Color(0xFF1E1E3C)],
-  // Music — simosa purple to bg
-  [Color(0xFF7C5CFF), Color(0xFF0B0B1C)],
-  // War — dark red to amoled
-  [Color(0xFFB5001F), Color(0xFF000000)],
-  // Biography — blue to surface
-  [Color(0xFF3B82F6), Color(0xFF0F0F22)],
-  // Adventure — orange to bg
-  [Color(0xFFFF9800), Color(0xFF07070F)],
-  // Western — amber to card
-  [Color(0xFFF59E0B), Color(0xFF1E1E3C)],
+  [Color(0xFFFF9800), Color(0xFF1A1410)],
+  // Thriller — primary amber to warm card
+  [Color(0xFFD4784A), Color(0xFF352A1F)],
+  // Mystery — dusty blue to amoled
+  [Color(0xFF5B9BD4), Color(0xFF0A0A0A)],
+  // Historical — accent amber to warm surface
+  [Color(0xFFF59E0B), Color(0xFF211A15)],
+  // Family — success to warm background
+  [Color(0xFF22C55E), Color(0xFF130F0C)],
+  // Sport — primary amber to warm card
+  [Color(0xFFD4784A), Color(0xFF352A1F)],
+  // Music — simosa purple to warm bgAlt
+  [Color(0xFF7C5CFF), Color(0xFF1A1410)],
+  // War — dark primaryDark to amoled
+  [Color(0xFFA85A32), Color(0xFF000000)],
+  // Biography — dusty blue to warm surface
+  [Color(0xFF5B9BD4), Color(0xFF211A15)],
+  // Adventure — orange to warm bg
+  [Color(0xFFFF9800), Color(0xFF130F0C)],
+  // Western — amber to warm card
+  [Color(0xFFF59E0B), Color(0xFF352A1F)],
 ];
 
 List<Color> _gradientForGenre(int index) {

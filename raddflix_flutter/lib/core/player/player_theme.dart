@@ -24,9 +24,9 @@ class PlayerTheme {
 const List<PlayerTheme> kBuiltInThemes = [
   PlayerTheme(
     id: 'raddflix_red',
-    name: 'RaddFlix Red',
-    emoji: '🔴',
-    accentColor: Color(0xFFE8002D),
+    name: 'RaddFlix Amber',
+    emoji: '🟠',
+    accentColor: Color(0xFFD4784A),
     seekBarStyle: 'classic',
   ),
   PlayerTheme(

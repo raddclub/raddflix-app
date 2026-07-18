@@ -41,9 +41,9 @@ Color _accentForProfile(Profile p) {
 
   // Curated palette — varied hues that look great on dark surfaces.
   const palette = [
-    Color(0xFFE8002D), // signal red
+    Color(0xFFD4784A), // primary amber-terracotta
     Color(0xFF7C5CFF), // simosa purple
-    Color(0xFF3B82F6), // info blue
+    Color(0xFF5B9BD4), // dusty steel blue
     Color(0xFF10B981), // teal
     Color(0xFFF59E0B), // amber
     Color(0xFFEC4899), // rose
