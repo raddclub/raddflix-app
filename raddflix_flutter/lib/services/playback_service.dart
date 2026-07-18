@@ -228,6 +228,9 @@ class PlaybackService extends ChangeNotifier with WidgetsBindingObserver {
       'isPlaying': p.state.playing,
       'positionMs': p.state.position.inMilliseconds,
       'durationMs': p.state.duration.inMilliseconds,
+      // Pass poster URL so the Kotlin service can fetch and display real
+      // content artwork in the lock-screen / notification shade.
+      'artworkUrl': posterUrl ?? '',
     }).catchError((_) {});
   }
 

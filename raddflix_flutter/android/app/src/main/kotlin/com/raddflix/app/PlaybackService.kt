@@ -9,12 +9,16 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
+import java.net.URL
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
@@ -61,6 +65,7 @@ class PlaybackService : Service() {
         const val ACTION_SEEK_FWD   = "com.raddflix.app.SEEK_FWD"
         const val ACTION_SEEK_TO    = "com.raddflix.app.SEEK_TO"
         const val EXTRA_SEEK_TO_MS  = "seek_to_ms"
+        const val EXTRA_ARTWORK_URL = "artwork_url"
         // Sent to Flutter when audio focus is regained after a transient loss,
         // so the player can resume without a toggle (play_pause would flip to pause
         // if the user had manually paused during the interruption).
@@ -75,6 +80,12 @@ class PlaybackService : Service() {
     private var isPlaying     = true
     private var positionMs    = 0L
     private var durationMs    = 0L
+    // Artwork for the lock-screen / notification shade.
+    // Loaded asynchronously from the poster URL passed by Flutter so
+    // the foreground service never blocks the main thread on a network call.
+    // Falls back to the app launcher icon if the URL is missing or fails.
+    private var artworkBitmap : Bitmap? = null
+    private var artworkUrl    : String?  = null
 
     // ── Audio focus ───────────────────────────────────────────────────────────
     // Track whether WE paused playback due to a focus loss so we can distinguish
@@ -179,6 +190,25 @@ class PlaybackService : Service() {
             if (it.hasExtra(EXTRA_IS_PLAYING)) isPlaying    = it.getBooleanExtra(EXTRA_IS_PLAYING, true)
             if (it.hasExtra(EXTRA_POSITION))   positionMs   = it.getLongExtra(EXTRA_POSITION, 0L)
             if (it.hasExtra(EXTRA_DURATION))   durationMs   = it.getLongExtra(EXTRA_DURATION, 0L)
+            // Artwork — only fetch when the URL actually changes so we don't
+            // re-download on every 5-second progress update.
+            val newUrl = it.getStringExtra(EXTRA_ARTWORK_URL)
+            if (!newUrl.isNullOrEmpty() && newUrl != artworkUrl) {
+                artworkUrl = newUrl
+                val handler = Handler(Looper.getMainLooper())
+                Thread {
+                    try {
+                        val bmp = BitmapFactory.decodeStream(URL(newUrl).openStream())
+                        if (bmp != null) {
+                            handler.post {
+                                artworkBitmap = bmp
+                                getSystemService(NotificationManager::class.java)
+                                    ?.notify(NOTIFICATION_ID, buildNotification())
+                            }
+                        }
+                    } catch (_: Exception) { /* fall back to launcher icon */ }
+                }.start()
+            }
         }
         updateMediaSession()
         getSystemService(NotificationManager::class.java)
@@ -261,9 +291,10 @@ class PlaybackService : Service() {
             ((positionMs.toFloat() / durationMs) * PROGRESS_MAX).toInt().coerceIn(0, PROGRESS_MAX)
         else 0
 
-        // Use the app launcher icon as lock-screen artwork so the notification
-        // looks recognisable when the device is locked — no network required.
-        val largeIcon = BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)
+        // Use the poster artwork fetched from the content URL if available,
+        // falling back to the app launcher icon until it loads (or if none).
+        val largeIcon = artworkBitmap
+            ?: BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(currentTitle)

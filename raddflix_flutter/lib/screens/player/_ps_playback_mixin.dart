@@ -1177,6 +1177,9 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
       'isPlaying':  _player.state.playing,
       'positionMs': _position.inMilliseconds,
       'durationMs': _duration.inMilliseconds,
+      // Pass poster URL so the Kotlin service can fetch and display
+      // real content artwork in the lock-screen / notification shade.
+      'artworkUrl': widget.posterUrl ?? '',
     }).catchError((_) {});
   }
 

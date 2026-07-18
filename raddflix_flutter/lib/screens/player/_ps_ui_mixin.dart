@@ -253,7 +253,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   bool _sidebarExpanded = true;
 
   List<String> _sidebarOrder = [
-    'cc','audio','eq','vivid','episodes','speed','loop','pip',
+    'bgaudio','cc','audio','eq','vivid','episodes','speed','loop','pip',
   ];
 
   static const _allSidebarIds = [
@@ -1250,21 +1250,37 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                 ),
               ),
 
-            // Background audio active badge — persistent cue so the user
-            // always knows BG audio is on without opening any panel.
-            if (_backgroundAudio)
-              Container(
-                margin: const EdgeInsets.only(right: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+            // Background audio toggle button — always visible so the user can
+            // turn BG audio on without opening the sidebar or switching to
+            // one-handed mode.  Orange headphones = active; dimmed outline =
+            // inactive.  Tapping while active also turns it off — one tap
+            // in either direction from the top bar.
+            GestureDetector(
+              onTap: () {
+                setState(() => _backgroundAudio = !_backgroundAudio);
+                _scheduleSavePrefs();
+              },
+              child: Container(
+                margin: const EdgeInsets.only(right: 2),
+                padding: const EdgeInsets.all(5),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(5),
-                  border: Border.all(color: Colors.orange.withOpacity(0.45), width: 0.8),
+                  color: _backgroundAudio
+                      ? Colors.orange.withOpacity(0.18)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(6),
+                  border: _backgroundAudio
+                      ? Border.all(color: Colors.orange.withOpacity(0.45), width: 0.8)
+                      : null,
                 ),
-                child: const Text('♫ BG',
-                    style: TextStyle(
-                        color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
+                child: Icon(
+                  _backgroundAudio
+                      ? Icons.headphones_rounded
+                      : Icons.headphones_outlined,
+                  color: _backgroundAudio ? Colors.orange : Colors.white38,
+                  size: 18,
+                ),
               ),
+            ),
 
           ],
         ),
