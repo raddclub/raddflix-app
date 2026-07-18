@@ -156,58 +156,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         validator: (v) {
                           if (v == null || v.trim().isEmpty) return 'Enter your phone number';
                           final digits = v.replaceAll('-', '');
-                          if (!RegExp(r'^03\d{9}
-                  ])),
-                  if (_error != null) ...[
-                    const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(color: context.accentError.withOpacity(0.1),
-                          borderRadius: RaddRadius.smRadius,
-                          border: Border.all(color: context.accentError.withOpacity(0.3))),
-                      child: Row(children: [
-                        Icon(AppIcons.errorIcon, color: context.accentError, size: 18),
-                        const SizedBox(width: 10),
-                        Expanded(child: Text(_error!, style: TextStyle(color: context.accentError, fontSize: 13))),
-                      ]),
-                    ).animate().fadeIn(duration: 250.ms).shakeX(hz: 3, amount: 4),
-                  ],
-                  const SizedBox(height: 28),
-                  RaddButton(
-                    label: 'Create Account',
-                    onPressed: _loading ? null : _register,
-                    loading: _loading,
-                    fullWidth: true,
-                  )
-                      .animate(delay: 300.ms).fadeIn(duration: 350.ms)
-                      .slideY(begin: 0.2, end: 0, duration: 350.ms, curve: AppCurves.standard),
-                  SizedBox(height: 12),
-                  RaddButton(
-                    variant: RaddButtonVariant.ghost,
-                    label: 'Continue as Guest',
-                    onPressed: _loading ? null : _guest,
-                    fullWidth: true,
-                  )
-                      .animate(delay: 350.ms).fadeIn(duration: 300.ms),
-                  SizedBox(height: 20),
-                  Center(child: GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    child: Text.rich(TextSpan(
-                        text: 'Already have an account? ',
-                        style: TextStyle(color: t.textMuted, fontSize: 14),
-                        children: [TextSpan(text: 'Sign In',
-                            style: TextStyle(color: context.signalPrimary, fontWeight: FontWeight.w700))])),
-                  )).animate(delay: 400.ms).fadeIn(duration: 300.ms),
-                  const SizedBox(height: 40),
-                ]),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}).hasMatch(digits)) return 'Must be a Pakistani mobile number (03XX-XXXXXXX)';
+                          if (digits.length != 11 || !digits.startsWith('03')) {
+                            return 'Enter a valid Pakistani number (03XX-XXXXXXX)';
+                          }
                           return null;
                         })
                         .animate(delay: 120.ms).fadeIn(duration: 350.ms)
