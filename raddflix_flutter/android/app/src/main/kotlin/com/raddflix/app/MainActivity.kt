@@ -75,6 +75,10 @@ class MainActivity : FlutterActivity() {
                         pipMethodChannel?.invokeMethod("onNotificationAction", "seek_to:$pos")
                     }
                 }
+                // Audio-focus regained after call / other-app interruption — force
+                // resume rather than toggle so we don't flip a manually-paused player.
+                PlaybackService.ACTION_RESUME     ->
+                    pipMethodChannel?.invokeMethod("onNotificationAction", "resume")
             }
         }
     }
@@ -109,6 +113,7 @@ class MainActivity : FlutterActivity() {
             addAction(PlaybackService.ACTION_SEEK_BACK)
             addAction(PlaybackService.ACTION_SEEK_FWD)
             addAction(PlaybackService.ACTION_SEEK_TO)
+            addAction(PlaybackService.ACTION_RESUME)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(notifReceiver, filter, Context.RECEIVER_NOT_EXPORTED)

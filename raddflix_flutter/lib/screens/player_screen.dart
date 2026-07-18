@@ -263,6 +263,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           } else if (action.startsWith('seek_to:')) {
             final ms = int.tryParse(action.split(':').last) ?? -1;
             if (ms >= 0) _player.seek(Duration(milliseconds: ms));
+          } else if (action == 'resume') {
+            // Audio focus regained (call ended, other app stopped) — resume only
+            // if we were actually playing before the interruption. Using a
+            // dedicated 'resume' action (rather than 'play_pause') prevents a
+            // double-toggle that would pause if the user had manually paused
+            // during the interruption.
+            if (!_player.state.playing) _player.play();
+            Future.delayed(const Duration(milliseconds: 150), _notifyBgState);
           }
           break;
       }

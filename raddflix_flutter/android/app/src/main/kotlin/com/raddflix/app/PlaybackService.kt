@@ -5,7 +5,14 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.graphics.BitmapFactory
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.os.Build
 import android.os.IBinder
 import android.support.v4.media.MediaMetadataCompat
@@ -25,6 +32,9 @@ import androidx.media.app.NotificationCompat as MediaNotificationCompat
  *   • Three transport actions in compact view: −10 s | ▶︎/⏸ | +30 s
  *   • Determinate progress bar that reflects the current position inside the episode
  *   • On Android 13+ the progress bar is also swipe-seekable (ACTION_SEEK_TO via MediaSession)
+ *   • Headphone unplug (BECOME_NOISY) → auto-pause to prevent embarrassing public playback
+ *   • Audio focus management → pauses on incoming calls / other media apps; resumes on gain
+ *   • Lock-screen artwork via app launcher icon
  *
  * Life-cycle:
  *   • Started / refreshed via "startBgPlayback" or "updateBgNotification" on the pip channel.
@@ -51,6 +61,10 @@ class PlaybackService : Service() {
         const val ACTION_SEEK_FWD   = "com.raddflix.app.SEEK_FWD"
         const val ACTION_SEEK_TO    = "com.raddflix.app.SEEK_TO"
         const val EXTRA_SEEK_TO_MS  = "seek_to_ms"
+        // Sent to Flutter when audio focus is regained after a transient loss,
+        // so the player can resume without a toggle (play_pause would flip to pause
+        // if the user had manually paused during the interruption).
+        const val ACTION_RESUME     = "com.raddflix.app.RESUME"
 
         // Resolution of the progress bar (1 000 = 0.1 % granularity)
         private const val PROGRESS_MAX = 1000
@@ -62,12 +76,78 @@ class PlaybackService : Service() {
     private var positionMs    = 0L
     private var durationMs    = 0L
 
+    // ── Audio focus ───────────────────────────────────────────────────────────
+    // Track whether WE paused playback due to a focus loss so we can distinguish
+    // "user paused" from "system interrupted" on focus regain.
+    private var pausedByFocusLoss = false
+    private var audioFocusRequest: AudioFocusRequest? = null   // API 26+
+
+    private val audioFocusListener = AudioManager.OnAudioFocusChangeListener { change ->
+        when (change) {
+            AudioManager.AUDIOFOCUS_LOSS,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                // Pause only if we were actually playing — avoids a spurious
+                // play_pause broadcast that would restart a user-paused video.
+                if (isPlaying) {
+                    pausedByFocusLoss = true
+                    broadcast(ACTION_PLAY_PAUSE)   // → Flutter pauses
+                }
+            }
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                if (pausedByFocusLoss) {
+                    pausedByFocusLoss = false
+                    broadcast(ACTION_RESUME)        // → Flutter resumes
+                }
+            }
+        }
+    }
+
+    // ── Headphone unplug ──────────────────────────────────────────────────────
+    // When headphones/BT headset disconnects, Android fires AUDIO_BECOMING_NOISY.
+    // Without this receiver the video would silently switch to the speaker and
+    // continue playing at full volume — a major privacy/embarrassment risk.
+    private val noisyReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
+                broadcast(ACTION_PLAY_PAUSE)        // → Flutter pauses
+            }
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         setupMediaSession()
+
+        // Register headphone-unplug receiver
+        registerReceiver(noisyReceiver, IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY))
+
+        // Request audio focus so we play nicely with calls and other media apps
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+                        .build()
+                )
+                .setOnAudioFocusChangeListener(audioFocusListener)
+                .setAcceptsDelayedFocusGain(false)
+                .setWillPauseWhenDucked(true)   // we handle ducking ourselves (via pause)
+                .build()
+            audioFocusRequest = req
+            am.requestAudioFocus(req)
+        } else {
+            @Suppress("DEPRECATION")
+            am.requestAudioFocus(
+                audioFocusListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN
+            )
+        }
+
         startForeground(NOTIFICATION_ID, buildNotification())
     }
 
@@ -107,6 +187,18 @@ class PlaybackService : Service() {
     }
 
     override fun onDestroy() {
+        // Abandon audio focus so other apps know we are done
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            audioFocusRequest?.let { am.abandonAudioFocusRequest(it) }
+        } else {
+            @Suppress("DEPRECATION")
+            am.abandonAudioFocus(audioFocusListener)
+        }
+
+        // Unregister headphone receiver
+        try { unregisterReceiver(noisyReceiver) } catch (_: Exception) {}
+
         mediaSession?.apply { isActive = false; release() }
         mediaSession = null
         super.onDestroy()
@@ -169,10 +261,15 @@ class PlaybackService : Service() {
             ((positionMs.toFloat() / durationMs) * PROGRESS_MAX).toInt().coerceIn(0, PROGRESS_MAX)
         else 0
 
+        // Use the app launcher icon as lock-screen artwork so the notification
+        // looks recognisable when the device is locked — no network required.
+        val largeIcon = BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)
+
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(currentTitle)
             .setContentText(if (isPlaying) "Playing on RaddFlix" else "Paused · RaddFlix")
             .setSmallIcon(android.R.drawable.ic_media_play)
+            .setLargeIcon(largeIcon)
             .setContentIntent(openPending)
             .setOngoing(true)
             .setSilent(true)
