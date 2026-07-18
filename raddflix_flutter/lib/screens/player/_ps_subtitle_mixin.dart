@@ -79,24 +79,6 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
     _scheduleSavePrefs(); // was previously never persisted — reset to 0 on next open
   }
 
-    // ── Subtitle style helpers (duplicated from _SubtitlePanelState since that ──
-  // class is a separate StatefulWidget and its private statics are not visible
-  // here). Keep in sync with _toMpvColor / _toMpvBackColor in _ps_panels_subtitle.dart.
-  static String _subMpvColor(Color c) =>
-      '#${c.red.toRadixString(16).padLeft(2, '0')}'
-      '${c.green.toRadixString(16).padLeft(2, '0')}'
-      '${c.blue.toRadixString(16).padLeft(2, '0')}';
-
-  static String _subMpvBackColor(Color c) {
-    if (c.opacity == 0) return '#000000ff';
-    final r  = c.red  .toRadixString(16).padLeft(2, '0');
-    final g  = c.green.toRadixString(16).padLeft(2, '0');
-    final b  = c.blue .toRadixString(16).padLeft(2, '0');
-    final aa = ((1.0 - c.opacity) * 255).round()
-                   .toRadixString(16).padLeft(2, '0');
-    return '#$r$g$b$aa';
-  }
-
   // Called from _loadPrefs() at player startup so saved subtitle style/position
   // is applied to MPV immediately — without requiring the user to open the
   // subtitle panel first (which was the only place _loadSubPrefs() ran before).
@@ -122,8 +104,8 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
       _np.setProperty('sub-font',                  mpvFonts[fontIdx.clamp(0, 3)]);
       _np.setProperty('sub-font-size',             size.round().toString());
       _np.setProperty('sub-bold',                  bold ? 'yes' : 'no');
-      _np.setProperty('sub-color',                 _subMpvColor(Color(colorVal)));
-      _np.setProperty('sub-back-color',            _subMpvBackColor(Color(bgColorVal)));
+      _np.setProperty('sub-color',                 _mpvSubColor(Color(colorVal)));
+      _np.setProperty('sub-back-color',            _mpvSubBackColor(Color(bgColorVal)));
       _np.setProperty('sub-opacity',               opacity.toStringAsFixed(2));
       _np.setProperty('sub-align-x',               ['left','center','right'][alignX.clamp(0, 2)]);
       _np.setProperty('sub-align-y',               ['top','center','bottom'][alignY.clamp(0, 2)]);
@@ -243,4 +225,30 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
       );
       _openPanel(panel: panel, title: 'Subtitles', widthFactor: 0.42, maxHeightFraction: 0.90);
     }
+}
+
+// ── Shared MPV colour helpers ─────────────────────────────────────────────────
+//
+// mpv colour format: #RRGGBBAA  (AA=00 → fully opaque, AA=FF → transparent)
+//
+// Both _PlayerSubtitleMixin and _SubtitlePanelState are part-files of the same
+// library (player_screen.dart), so these top-level private functions are
+// visible to both without any class prefix — no need to duplicate them.
+
+/// Text colour — always fully opaque in mpv format.
+String _mpvSubColor(Color c) =>
+    '#${c.red.toRadixString(16).padLeft(2, '0')}'
+    '${c.green.toRadixString(16).padLeft(2, '0')}'
+    '${c.blue.toRadixString(16).padLeft(2, '0')}';
+
+/// Background colour — supports partial/full transparency in mpv format.
+String _mpvSubBackColor(Color c) {
+  if (c.opacity == 0) return '#000000ff'; // fully transparent
+  final r  = c.red  .toRadixString(16).padLeft(2, '0');
+  final g  = c.green.toRadixString(16).padLeft(2, '0');
+  final b  = c.blue .toRadixString(16).padLeft(2, '0');
+  // mpv AA=00 → opaque. Flutter opacity 1.0 → AA=00, opacity 0.0 → AA=FF
+  final aa = ((1.0 - c.opacity) * 255).round()
+                 .toRadixString(16).padLeft(2, '0');
+  return '#$r$g$b$aa';
 }

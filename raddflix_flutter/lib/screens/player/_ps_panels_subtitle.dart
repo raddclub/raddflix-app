@@ -98,28 +98,6 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   static const _mpvFonts     = ['sans-serif', 'serif', 'monospace', 'sans-serif'];
   static const _shadowLabels = ['None', 'Outline', 'Shadow', 'Box'];
 
-  // ── MPV colour helpers ────────────────────────────────────────────────────
-  //
-  // mpv colour format: #RRGGBBAA  (AA=00 → fully opaque, AA=FF → transparent)
-  //
-  /// Text colour — always fully opaque.
-  static String _toMpvColor(Color c) =>
-      '#${c.red.toRadixString(16).padLeft(2, '0')}'
-      '${c.green.toRadixString(16).padLeft(2, '0')}'
-      '${c.blue.toRadixString(16).padLeft(2, '0')}';
-
-  /// Background colour — supports partial/full transparency.
-  static String _toMpvBackColor(Color c) {
-    if (c.opacity == 0) return '#000000ff'; // fully transparent
-    final r  = c.red  .toRadixString(16).padLeft(2, '0');
-    final g  = c.green.toRadixString(16).padLeft(2, '0');
-    final b  = c.blue .toRadixString(16).padLeft(2, '0');
-    // mpv AA=00 → opaque. Flutter opacity 1.0 → AA=00, opacity 0.0 → AA=FF
-    final aa = ((1.0 - c.opacity) * 255).round()
-                   .toRadixString(16).padLeft(2, '0');
-    return '#$r$g$b$aa';
-  }
-
   // ── Lifecycle ──────────────────────────────────────────────────────────────
   @override
   void initState() {
@@ -179,8 +157,8 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     _setProp('sub-font',                  _mpvFonts[fontIdx]);
     _setProp('sub-font-size',             size.round().toString());
     _setProp('sub-bold',                  bold ? 'yes' : 'no');
-    _setProp('sub-color',                 _toMpvColor(Color(colorVal)));
-    _setProp('sub-back-color',            _toMpvBackColor(Color(bgColorVal)));
+    _setProp('sub-color',                 _mpvSubColor(Color(colorVal)));
+    _setProp('sub-back-color',            _mpvSubBackColor(Color(bgColorVal)));
     _setProp('sub-opacity',               opacity.toStringAsFixed(2));
     _setProp('sub-align-x',              ['left','center','right'][alignX]);
     _setProp('sub-align-y',              ['top','center','bottom'][alignY]);
@@ -825,14 +803,14 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       _secLabel('Text Colour'),
       _buildColorRow(presets: textColors, current: _subColor, onPick: (c) {
         setState(() => _subColor = c);
-        _setProp('sub-color', _toMpvColor(c));
+        _setProp('sub-color', _mpvSubColor(c));
         _saveSubPrefs();
       }),
       const SizedBox(height: 14),
       _secLabel('Background'),
       _buildColorRow(presets: bgColors, current: _subBgColor, onPick: (c) {
         setState(() => _subBgColor = c);
-        _setProp('sub-back-color', _toMpvBackColor(c));
+        _setProp('sub-back-color', _mpvSubBackColor(c));
         _saveSubPrefs();
       }),
       const SizedBox(height: 14),
