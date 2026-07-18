@@ -280,9 +280,9 @@ class _DebugDiagnosticsScreenState extends ConsumerState<DebugDiagnosticsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF050510),
+      backgroundColor: const Color(0xFF130F0C),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0A0A1A),
+        backgroundColor: const Color(0xFF1A1410),
         elevation: 0,
         leading: IconButton(
           icon: Icon(AppIcons.back, size: 18),
@@ -475,7 +475,7 @@ class _LogsTab extends StatelessWidget {
               label: Text(f, style: TextStyle(fontSize: 11)),
               selected: selected, onSelected: (_) => onFilter(f),
               selectedColor: Colors.orange.withOpacity(0.2),
-              backgroundColor: const Color(0xFF0A0A1A),
+              backgroundColor: const Color(0xFF1A1410),
               side: BorderSide(color: selected ? Colors.orange : Colors.grey.withOpacity(0.3)),
               labelStyle: TextStyle(color: selected ? Colors.orange : Colors.grey),
               checkmarkColor: Colors.orange,
@@ -608,7 +608,7 @@ class _DiagResult {
         // Session selector chips
         Container(
           height: 36,
-          color: const Color(0xFF0A0A1A),
+          color: const Color(0xFF1A1410),
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),

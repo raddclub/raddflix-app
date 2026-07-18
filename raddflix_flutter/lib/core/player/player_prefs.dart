@@ -434,7 +434,7 @@ class PlayerPrefs {
     this.cinematicTapBehavior = 'pause_resume',
     this.cinematicOpacity = 0.5,
     this.transparentModeFrosted = false,
-    this.accentColorValue = 0xFFE8002D,
+    this.accentColorValue = 0xFFD4784A,
     this.seekBarStyle = 'classic',
     this.playerTheme = 'raddflix_red',
     this.buttonShape = 'circle',
@@ -894,7 +894,7 @@ class PlayerPrefs {
       cinematicTapBehavior:   s.getString('${_p}cinematic_tap')   ?? 'pause_resume',
       cinematicOpacity:       s.getDouble('${_p}cinematic_opacity') ?? 0.5, // BACKLOG-01
       transparentModeFrosted: s.getBool('${_p}transparent_frosted') ?? false,
-      accentColorValue:       s.getInt('${_p}accent_color')       ?? 0xFFE8002D,
+      accentColorValue:       s.getInt('${_p}accent_color')       ?? 0xFFD4784A,
       seekBarStyle:           s.getString('${_p}seek_bar_style')  ?? 'classic',
       playerTheme:            s.getString('${_p}player_theme')    ?? 'raddflix_red',
       buttonShape:            s.getString('${_p}button_shape')     ?? 'circle',

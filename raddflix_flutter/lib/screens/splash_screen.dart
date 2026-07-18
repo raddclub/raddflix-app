@@ -219,7 +219,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             gradient: const RadialGradient(
-              colors: [Color(0xFFFF2D50), Color(0xFFB5001F)],
+              colors: [Color(0xFFD4784A), Color(0xFFA85A32)],
               center: Alignment(-0.3, -0.3),
             ),
             boxShadow: [

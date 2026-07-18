@@ -143,9 +143,9 @@ final Map<SubtitlePreset, SubtitleStyle> kSubtitlePresets = {
     preset: SubtitlePreset.neon,
     fontSize: 18, textColor: Colors.white,
     fontWeight: FontWeight.w600,
-    outlineColor: const Color(0xFFE8002D), outlineWidth: 2,
+    outlineColor: const Color(0xFFD4784A), outlineWidth: 2,
     bgOpacity: 0.0, shadow: true, shadowBlur: 10,
-    shadowColor: const Color(0xFFE8002D).withOpacity(0.6)),
+    shadowColor: const Color(0xFFD4784A).withOpacity(0.6)),
 
   SubtitlePreset.custom: const SubtitleStyle(
     preset: SubtitlePreset.custom),

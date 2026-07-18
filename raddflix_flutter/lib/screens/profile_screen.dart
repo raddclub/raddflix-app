@@ -362,7 +362,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     padding: EdgeInsets.all(RaddSpace.md),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [AppColors.primary.withOpacity(0.18), const Color(0x0A8B002D), AppColors.primary.withOpacity(0.08)],
+                        colors: [AppColors.primary.withOpacity(0.18), AppColors.primary.withOpacity(0.04), AppColors.primary.withOpacity(0.08)],
                         begin: Alignment.topLeft, end: Alignment.bottomRight,
                         stops: const [0.0, 0.5, 1.0]),
                       borderRadius: BorderRadius.circular(AppRadius.md),
