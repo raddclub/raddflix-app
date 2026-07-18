@@ -84,10 +84,10 @@ class _SubtitleOverlayState extends State<SubtitleOverlay> {
       fontWeight: widget.prefs.subtitleBold ? FontWeight.bold : FontWeight.normal,
       fontStyle:  widget.prefs.subtitleItalic ? FontStyle.italic : FontStyle.normal,
       shadows: outline > 0 ? [
-        Shadow(offset: Offset( outline,  outline), blurRadius: outline * 2, color: outlineColor),
-        Shadow(offset: Offset(-outline, -outline), blurRadius: outline * 2, color: outlineColor),
-        Shadow(offset: Offset( outline, -outline), blurRadius: outline * 2, color: outlineColor),
-        Shadow(offset: Offset(-outline,  outline), blurRadius: outline * 2, color: outlineColor),
+        Shadow(offset: Offset( outline / 2,  outline / 2), blurRadius: outline, color: outlineColor),
+        Shadow(offset: Offset(-outline / 2, -outline / 2), blurRadius: outline, color: outlineColor),
+        Shadow(offset: Offset( outline / 2, -outline / 2), blurRadius: outline, color: outlineColor),
+        Shadow(offset: Offset(-outline / 2,  outline / 2), blurRadius: outline, color: outlineColor),
       ] : null,
     );
 
