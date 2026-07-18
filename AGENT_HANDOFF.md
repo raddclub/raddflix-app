@@ -5,7 +5,24 @@
 
 ---
 
-## Current State (2026-07-18 — Warm Hearth theme audit complete, CI ✅ `6febd59e`)
+## Current State (2026-07-18 — Subtitle defaults + bug fixes, CI ✅ `e3f3ea51`)
+
+Two subtitle fixes in one commit (`e3f3ea514d`):
+
+1. **Default shadow: Outline → Drop Shadow** — first-time users (and any user who has never touched the shadow setting) now get a soft directional shadow (3px offset, 0.5px outline) instead of a hard 2px black border around every character. Three fallback sites updated: `_subShadowIdx` field initializer in `_SubtitlePanelState`, plus `?? 1` → `?? 2` in both `_loadSubPrefs()` (`_ps_panels_subtitle.dart`) and `_applySubtitleStylePrefs()` (`_ps_subtitle_mixin.dart`).
+
+2. **Bottom margin slider shows stale 100px on panel reopen** — `_loadSubPrefs()` never read `pref_sub_margin` back from SharedPrefs, so the position tab's Bottom Margin slider always showed 100px even after the user had moved it. Added `final margin = prefs.getDouble('pref_sub_margin') ?? 100.0` + `_subBottomMargin = margin` inside `setState` in `_loadSubPrefs()`.
+
+**Other bugs found (not fixed — report only):**
+- `onStyleSynced` doesn't sync shadow style to `PlayerPrefs.subtitleOutlineThickness` → Flutter overlay silently ignores the user's shadow choice (dual-sub mode only)
+- `SubtitleOverlay` and `DualSubtitleOverlay._SubLine` use different shadow offset math (outline vs outline/2) → same setting, different look in dual-sub mode
+- Duplicate MPV colour helper functions (`_subMpvColor`/`_subMpvBackColor` in mixin vs `_toMpvColor`/`_toMpvBackColor` in panel) — "keep in sync" comment is fragile
+
+**No Oracle push needed** — zero `radd-hub/**` files touched.
+
+---
+
+## Previous State (2026-07-18 — Warm Hearth theme audit complete, CI ✅ `6febd59e`)
 
 Comprehensive audit of every active theme's colour implementation. Warm Hearth (the `dark` default) was the primary focus; all other themes (`amoled`, `light`, `midnight`, `navy`, `forest`, `cobalt`, `rose`, `charcoal`) were verified as correct — their tokens live in `radd_theme.dart` and were already consistent.
 
