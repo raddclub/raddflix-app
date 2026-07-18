@@ -229,7 +229,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       _setProp('sub-outline-size', '0');
       if (_subBgColor.opacity == 0) {
         setState(() => _subBgColor = Colors.black87);
-        _setProp('sub-back-color', _toMpvBackColor(Colors.black87));
+        _setProp('sub-back-color', _mpvSubBackColor(Colors.black87));
       }
     }
     _saveSubPrefs();
