@@ -1056,7 +1056,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                   ? Icons.headphones_rounded
                   : Icons.headphones_outlined,
               size: 20,
-              color: _backgroundAudio ? Colors.orange : null,
+              color: _backgroundAudio ? Colors.orange : Colors.white,
               onTap: () {
                 setState(() => _backgroundAudio = !_backgroundAudio);
                 _scheduleSavePrefs();
