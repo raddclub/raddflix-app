@@ -34,7 +34,7 @@ class SubtitleStyle {
 
   const SubtitleStyle({
     this.preset       = SubtitlePreset.clean,
-    this.fontSize     = 18.0,
+    this.fontSize     = 22.0,
     this.textColor    = Colors.white,
     this.outlineColor = Colors.black,
     this.outlineWidth = 1.5,
@@ -99,7 +99,7 @@ class SubtitleStyle {
 final Map<SubtitlePreset, SubtitleStyle> kSubtitlePresets = {
   SubtitlePreset.clean: const SubtitleStyle(
     preset: SubtitlePreset.clean,
-    fontSize: 18, textColor: Colors.white,
+    fontSize: 22, textColor: Colors.white,
     outlineColor: Colors.black, outlineWidth: 1.5,
     bgOpacity: 0.0, shadow: true, shadowBlur: 3),
 
@@ -113,7 +113,7 @@ final Map<SubtitlePreset, SubtitleStyle> kSubtitlePresets = {
 
   SubtitlePreset.highContrast: const SubtitleStyle(
     preset: SubtitlePreset.highContrast,
-    fontSize: 18, textColor: Colors.white,
+    fontSize: 22, textColor: Colors.white,
     fontWeight: FontWeight.bold,
     outlineColor: Colors.black, outlineWidth: 0,
     bgColor: Colors.black, bgOpacity: 0.85,
@@ -141,7 +141,7 @@ final Map<SubtitlePreset, SubtitleStyle> kSubtitlePresets = {
 
   SubtitlePreset.neon: SubtitleStyle(
     preset: SubtitlePreset.neon,
-    fontSize: 18, textColor: Colors.white,
+    fontSize: 22, textColor: Colors.white,
     fontWeight: FontWeight.w600,
     outlineColor: const Color(0xFFD4784A), outlineWidth: 2,
     bgOpacity: 0.0, shadow: true, shadowBlur: 10,
