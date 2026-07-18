@@ -5,7 +5,23 @@
 
 ---
 
-## Current State (2026-07-17 — Z2: broad improvements, CI ✅ `90bf0a3`)
+## Current State (2026-07-18 — Warm Hearth theme audit complete, CI ✅ `6febd59e`)
+
+Comprehensive audit of every active theme's colour implementation. Warm Hearth (the `dark` default) was the primary focus; all other themes (`amoled`, `light`, `midnight`, `navy`, `forest`, `cobalt`, `rose`, `charcoal`) were verified as correct — their tokens live in `radd_theme.dart` and were already consistent.
+
+**What was fixed (24 files, 1 commit):**
+1. **Critical** — `sync_panel.dart` Reset button bg was still old-red `0x22E8002D` → `0x22D4784A` (Warm Hearth glow)
+2. **High — cold player panels** — 15 player files (`player_settings_screen`, `video_enhance_panel/suite`, `speed_picker/presets_sheet`, `zoom_crop_overlay`, `word_definition_sheet`, `_ps_panels_sidebar/audio/subtitle`, `_ps_playback_mixin`, `resume_fab`, four `core/player/` services) were using Midnight-era darks (`0xFF0D0D1A`, `0xFF12121E`, `0xFF1C1C1C`, `0xFF0D1117`, etc.) → replaced with correct Warm Hearth tokens (`AppColors.background/surface/surfaceHigh/card`) or their inline hex equivalents
+3. **Medium — hardcoded warm hexes** — `layout_designer_screen`, `debug_diagnostics_screen`, `app_lock_screen`, `home_screen`, `splash_screen` (logo gradient), `resume_fab` used correct values but as raw hex literals → now use `AppColors.*` named tokens
+4. **Minor — semantic misses** — `profile_screen.dart` subscription countdown used literal `#FFB300`/`#00C853` → `AppColors.warning/success`; `login_screen.dart` "or" divider used `Color(0x33FFFFFF)` → `t.border`
+
+**Intentionally left unchanged:** player overlay whites (`Colors.white12/24/38`), subtitle preset colour pickers, EQ blue selection indicator, WhatsApp green, Simosa brand purple, Vault purple, tier badge gold/silver, genre card gradients, log category colours.
+
+**No Oracle push needed** — zero `radd-hub/**` files touched.
+
+---
+
+## Previous State (2026-07-17 — Z2: broad improvements, CI ✅ `90bf0a3`)
 
 Completed the audio-mode music player UX:
 1. **Embedded cover art** — `flutter_media_metadata: ^1.0.3` added to pubspec; `_scanCoverArt()` now falls back to `MetadataRetriever.fromFile()` after sidecar probe fails. Embedded bytes stored as `_embeddedArtBytes: Uint8List?`; passed as `MemoryImage` to disc, backdrop, and `_extractPalette()`. Sidecar path still wins when both exist.

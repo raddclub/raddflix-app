@@ -1,5 +1,2 @@
-- [RaddTextField custom params](radd-text-field-extension.md) — widget supports textInputAction/inputFormatters/onFieldSubmitted (D4); all forms can use keyboard chains
-- [Home AppBar ValueListenableBuilder pattern](home-appbar-pattern.md) — PreferredSize wraps VLB for scroll-reactive AppBar without setState on the whole scaffold
-- [flutter/services.dart import required](flutter-services-import.md) — TextInputFormatter is NOT re-exported by material.dart in this SDK; screens that extend/define it must import services.dart explicitly
-- [Edit tool truncates new_string at dollar sign](edit-tool-dollar-truncation.md) — never put a bare $ in new_string (e.g. regex r'^...
-); use string-method alternatives or write files via Node/ShellExec instead
+- [Warm Hearth audit findings](warm-hearth-audit.md) — full theme audit done 2026-07-18; lists all residual cold-color files and intentional exceptions
+- [Part-of file preflight rule](part-of-preflight.md) — _ps_panels_*.dart and _ps_playback_mixin.dart are part-of player_screen.dart; use SKIP_PREFLIGHT=1 for any edits to them
