@@ -5,7 +5,24 @@
 
 ---
 
-## Current State (2026-07-18 — Subtitle defaults + bug fixes, CI ✅ `e3f3ea51`)
+## Current State (2026-07-18 — Subtitle system cleanup batch, CI ✅ `db73f4df`)
+
+Three follow-up fixes to the subtitle system, three separate commits:
+
+**Commit `d23fbb65` — Merge duplicate MPV colour helpers**
+`_subMpvColor`/`_subMpvBackColor` (mixin) and `_toMpvColor`/`_toMpvBackColor` (panel) were exact duplicates with a "keep in sync" comment — a silent drift risk. Both are now deleted; replaced by two top-level private functions `_mpvSubColor`/`_mpvSubBackColor` at the bottom of `_ps_subtitle_mixin.dart`. Since both part-files belong to the same library (`player_screen.dart`), the top-level functions are accessible from both without any class prefix. All six call sites updated.
+
+**Commit `360318c0` — Fix `onStyleSynced` missing shadow propagation**
+`onStyleSynced` synced font/size/bold/colour to `PlayerPrefs` but not the shadow style. Flutter overlay widgets (`SubtitleOverlay`, `DualSubtitleOverlay`) read `subtitleOutlineThickness` from `PlayerPrefs` and always got the static default (2.0) regardless of what the user picked in the panel. Added `required int shadowIdx` to the callback signature; consumer maps idx → thickness using the same values as MPV (`0=None→0.0`, `1=Outline→2.0`, `2=Drop Shadow→0.5`, `3=Box→0.0`) and writes `subtitleOutlineThickness` to `PlayerPrefs`.
+
+**Commit `4a1a8a28` — Unify shadow offset math between overlay widgets**
+`SubtitleOverlay` used `outline` as shadow offset with `outline*2` blurRadius. `DualSubtitleOverlay._SubLine` used `outline/2` offset with `outline` blurRadius. Same setting, different visual result in single vs dual subtitle mode. Standardised both to `outline/2` offset + `outline` blurRadius — matches the dual overlay's existing (subtler) calculation.
+
+**No Oracle push needed** — zero `radd-hub/**` files touched.
+
+---
+
+## Previous State (2026-07-18 — Subtitle defaults + bug fixes, CI ✅ `e3f3ea51`)
 
 Two subtitle fixes in one commit (`e3f3ea514d`):
 
