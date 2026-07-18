@@ -380,7 +380,7 @@ class _Backdrop extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         // Near-black base so any bleed areas are consistent.
-        const ColoredBox(color: Color(0xFF07090F)),
+        const ColoredBox(color: Color(0xFF130F0C)),
 
         // Art or animated blobs.
         artLayer,
