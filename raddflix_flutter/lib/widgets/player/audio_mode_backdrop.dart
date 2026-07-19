@@ -181,7 +181,8 @@ class _AudioModeBackdropState extends State<AudioModeBackdrop>
     );
 
     if (widget.isPlaying) {
-      _discCtrl.repeat(from: _discAngle);
+      _discCtrl.value = _discAngle;
+      _discCtrl.repeat();
       _tonearmCtrl.forward();
       _pulseCtrl.duration = const Duration(milliseconds: 1600);
     } else {
@@ -203,7 +204,8 @@ class _AudioModeBackdropState extends State<AudioModeBackdrop>
         // Spin up from saved position.
         _spinDownCtrl.stop();
         _spinDownCtrl.reset();
-        _discCtrl.repeat(from: _discAngle);
+        _discCtrl.value = _discAngle;
+        _discCtrl.repeat();
         _tonearmCtrl.forward();
         // Faster pulse when playing.
         _pulseCtrl.duration = const Duration(milliseconds: 1600);
