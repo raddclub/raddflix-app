@@ -11,6 +11,7 @@ enum SubtitlePreset {
   streaming,   // Netflix-style mid-bottom
   minimal,     // Small, light text, no bg
   neon,        // Coloured outline matching accent
+  broadcast,   // BB3: Bold white + thick outline, broadcast-TV look
   custom,      // User-defined values
 }
 
@@ -147,6 +148,15 @@ final Map<SubtitlePreset, SubtitleStyle> kSubtitlePresets = {
     bgOpacity: 0.0, shadow: true, shadowBlur: 10,
     shadowColor: const Color(0xFFD4784A).withOpacity(0.6)),
 
+  // BB3: broadcast — bold white text with thick outline, zero background.
+  // Mirrors the style used in broadcast TV captioning standards.
+  SubtitlePreset.broadcast: const SubtitleStyle(
+    preset: SubtitlePreset.broadcast,
+    fontSize: 22, textColor: Colors.white,
+    fontWeight: FontWeight.bold,
+    outlineColor: Colors.black, outlineWidth: 3.0,
+    bgOpacity: 0.0, shadow: false),
+
   SubtitlePreset.custom: const SubtitleStyle(
     preset: SubtitlePreset.custom),
 };
@@ -161,6 +171,7 @@ String subtitlePresetName(SubtitlePreset p) {
     case SubtitlePreset.streaming:    return 'Streaming';
     case SubtitlePreset.minimal:      return 'Minimal';
     case SubtitlePreset.neon:         return 'Neon';
+    case SubtitlePreset.broadcast:    return 'Broadcast';
     case SubtitlePreset.custom:       return 'Custom';
   }
 }
