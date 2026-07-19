@@ -55,6 +55,9 @@ import '../design_system/spacing/radd_space.dart';
 import '../widgets/player/audio_mode_backdrop.dart';
 import '../core/player/word_dict.dart';
 import '../widgets/player/word_definition_sheet.dart';
+import '../core/player/subtitle_style.dart';
+import '../core/utils/anim_config.dart';
+import '../core/utils/anim_durations.dart';
 
 // ── Phase J: panel classes extracted to part files ─────────────────────────
 part 'player/_ps_panels_subtitle.dart';
