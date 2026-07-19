@@ -155,13 +155,24 @@ class _SubtitleOverlayState extends State<SubtitleOverlay> {
                 color: bgColor,
                 borderRadius: BorderRadius.circular(4),
               ),
-              child: widget.prefs.dictEnabled
-                  ? _buildTappableText(context, widget.currentLine!, baseStyle)
-                  : Text(
-                      widget.currentLine!,
-                      textAlign: TextAlign.center,
-                      style: baseStyle,
-                    ),
+              // BB8: crossfade when subtitle line changes — 150ms FadeTransition.
+              // KeyedSubtree provides the key without changing _buildTappableText.
+              // Tier-gate: AnimatedSwitcher is lightweight — safe on all tiers.
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 150),
+                transitionBuilder: (child, animation) =>
+                    FadeTransition(opacity: animation, child: child),
+                child: KeyedSubtree(
+                  key: ValueKey(widget.currentLine),
+                  child: widget.prefs.dictEnabled
+                      ? _buildTappableText(context, widget.currentLine!, baseStyle)
+                      : Text(
+                          widget.currentLine!,
+                          textAlign: TextAlign.center,
+                          style: baseStyle,
+                        ),
+                ),
+              ),
             ),
           ),
         ),

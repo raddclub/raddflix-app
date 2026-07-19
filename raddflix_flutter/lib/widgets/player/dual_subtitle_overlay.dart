@@ -88,38 +88,51 @@ class _DualSubtitleOverlayState extends State<DualSubtitleOverlay> {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Secondary track — smaller, slightly dimmer
+          // BB8: AnimatedSwitcher wraps each track so line transitions crossfade.
           if (widget.secondaryLine.isNotEmpty)
-            _SubLine(
-              text: widget.secondaryLine,
-              fontSize: (fontSize * 0.82).clamp(10, 22),
-              textColor: textColor.withOpacity(0.75),
-              outlineColor: outlineColor,
-              bgColor: bgColor,
-              bold: widget.prefs.subtitleBold,
-              italic: widget.prefs.subtitleItalic,
-              outline: outline,
-              dictEnabled: widget.prefs.dictEnabled,
-              accentColor: widget.prefs.accentColor,
-              tappedWord: _tappedWord,
-              onWordTap: (word) => _onWordTap(context, word, widget.secondaryLine),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 150),
+              transitionBuilder: (child, anim) =>
+                  FadeTransition(opacity: anim, child: child),
+              child: _SubLine(
+                key: ValueKey('sec_${widget.secondaryLine}'),
+                text: widget.secondaryLine,
+                fontSize: (fontSize * 0.82).clamp(10, 22),
+                textColor: textColor.withOpacity(0.75),
+                outlineColor: outlineColor,
+                bgColor: bgColor,
+                bold: widget.prefs.subtitleBold,
+                italic: widget.prefs.subtitleItalic,
+                outline: outline,
+                dictEnabled: widget.prefs.dictEnabled,
+                accentColor: widget.prefs.accentColor,
+                tappedWord: _tappedWord,
+                onWordTap: (word) => _onWordTap(context, word, widget.secondaryLine),
+              ),
             ),
           if (widget.secondaryLine.isNotEmpty && widget.primaryLine.isNotEmpty)
             const SizedBox(height: 4),
           // Primary track — full size
           if (widget.primaryLine.isNotEmpty)
-            _SubLine(
-              text: widget.primaryLine,
-              fontSize: fontSize,
-              textColor: textColor,
-              outlineColor: outlineColor,
-              bgColor: bgColor,
-              bold: widget.prefs.subtitleBold,
-              italic: widget.prefs.subtitleItalic,
-              outline: outline,
-              dictEnabled: widget.prefs.dictEnabled,
-              accentColor: widget.prefs.accentColor,
-              tappedWord: _tappedWord,
-              onWordTap: (word) => _onWordTap(context, word, widget.primaryLine),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 150),
+              transitionBuilder: (child, anim) =>
+                  FadeTransition(opacity: anim, child: child),
+              child: _SubLine(
+                key: ValueKey('pri_${widget.primaryLine}'),
+                text: widget.primaryLine,
+                fontSize: fontSize,
+                textColor: textColor,
+                outlineColor: outlineColor,
+                bgColor: bgColor,
+                bold: widget.prefs.subtitleBold,
+                italic: widget.prefs.subtitleItalic,
+                outline: outline,
+                dictEnabled: widget.prefs.dictEnabled,
+                accentColor: widget.prefs.accentColor,
+                tappedWord: _tappedWord,
+                onWordTap: (word) => _onWordTap(context, word, widget.primaryLine),
+              ),
             ),
         ],
       ),
@@ -141,7 +154,9 @@ class _SubLine extends StatelessWidget {
   static final _reTokenize = RegExp(r"[\w']+|[^\w']+");
   static final _reWord     = RegExp(r"^[\w']+$");
 
+  // BB8: super.key so AnimatedSwitcher can key on line changes for crossfade.
   const _SubLine({
+    super.key,
     required this.text,
     required this.fontSize,
     required this.textColor,
