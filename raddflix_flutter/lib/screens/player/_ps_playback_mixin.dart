@@ -140,6 +140,9 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
   }
   // ── Watch position ──────────────────────────────────────────────────────────
   Timer? _posTimer;
+  // BB1 — non-blocking resume strip (replaces blocking AlertDialog)
+  OverlayEntry? _resumeStripEntry;
+  Timer?        _resumeStripTimer;
   // ── P3: Auto-retry countdown ─────────────────────────────────────────────────
   Timer? _autoRetryTimer;
   Timer? _savePrefsDebounce; // C2: debounce SharedPreferences writes off the main thread hot path
@@ -1021,35 +1024,44 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
     final prefs = await SharedPreferences.getInstance();
     final ms = prefs.getInt(_posKey) ?? 0;
     if (ms <= 30000 || ms >= (_duration.inMilliseconds - 10000)) return;
-    // For content watched > 30s in: ask user instead of silently seeking
     if (!mounted) return;
-    final cont = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.card,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        title: const Text('Resume Playback', style: TextStyle(color: Colors.white, fontSize: 16)),
-        content: Text(
-          'Continue from ${_formatDuration(Duration(milliseconds: ms))}?',
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Start Over', style: TextStyle(color: Colors.white54)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Resume', style: TextStyle(
-                color: AppColors.primary, fontWeight: FontWeight.bold)),
-          ),
-        ],
+    // BB1: auto-seek immediately — no blocking dialog.
+    // A non-blocking _ResumeStrip appears above the seek bar for 4 s so the user
+    // can tap Restart if they want to start over. Video is already playing.
+    _player.seek(Duration(milliseconds: ms));
+    if (mounted) _showResumeStrip(ms);
+  }
+
+  // BB1 — show the non-blocking resume strip via an OverlayEntry.
+  void _showResumeStrip(int ms) {
+    _resumeStripEntry?.remove();
+    _resumeStripTimer?.cancel();
+    final timeStr = _formatDuration(Duration(milliseconds: ms));
+    late final OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => _ResumeStrip(
+        time: timeStr,
+        onRestart: () {
+          entry.remove();
+          _resumeStripEntry = null;
+          _resumeStripTimer?.cancel();
+          _player.seek(Duration.zero);
+        },
+        onDismiss: () {
+          entry.remove();
+          _resumeStripEntry = null;
+          _resumeStripTimer?.cancel();
+        },
       ),
     );
-    if (cont == true && mounted) {
-      await Future.delayed(const Duration(milliseconds: 300));
-      _player.seek(Duration(milliseconds: ms));
-    }
+    _resumeStripEntry = entry;
+    Overlay.of(context).insert(entry);
+    _resumeStripTimer = Timer(const Duration(seconds: 4), () {
+      if (_resumeStripEntry != null) {
+        _resumeStripEntry!.remove();
+        _resumeStripEntry = null;
+      }
+    });
   }
 
   void _scheduleHide() {
@@ -1236,4 +1248,97 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
         ),
       );
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  BB1 — _ResumeStrip
+//  Non-blocking overlay strip shown when a watch position is auto-restored.
+//  Slide+fade in 180ms easeOutCubic, auto-dismissed after 4 s.
+//  "Restart ↺" tap seeks back to t=0 and dismisses.
+// ─────────────────────────────────────────────────────────────────────────────
+class _ResumeStrip extends StatefulWidget {
+  final String        time;
+  final VoidCallback  onRestart;
+  final VoidCallback  onDismiss;
+  const _ResumeStrip({
+    required this.time,
+    required this.onRestart,
+    required this.onDismiss,
+  });
+  @override State<_ResumeStrip> createState() => _ResumeStripState();
+}
+
+class _ResumeStripState extends State<_ResumeStrip>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<Offset>   _slide;
+  late final Animation<double>   _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 180));
+    _slide = Tween<Offset>(begin: const Offset(0, 0.6), end: Offset.zero)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    _fade  = Tween<double>(begin: 0.0, end: 1.0)
+        .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() { _ctrl.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      bottom: 90, left: 0, right: 0,
+      child: FadeTransition(
+        opacity: _fade,
+        child: SlideTransition(
+          position: _slide,
+          child: Center(
+            child: GestureDetector(
+              onTap: widget.onDismiss,
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 24),
+                padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1C1410),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white12),
+                  boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 14)],
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 15),
+                  const SizedBox(width: 6),
+                  Text('Resumed from ${widget.time}',
+                      style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                  const SizedBox(width: 10),
+                  GestureDetector(
+                    onTap: widget.onRestart,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white24),
+                      ),
+                      child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text('Restart',
+                            style: TextStyle(color: Colors.white, fontSize: 12,
+                                fontWeight: FontWeight.w600)),
+                        SizedBox(width: 4),
+                        Icon(Icons.replay_rounded, color: Colors.white, size: 13),
+                      ]),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
