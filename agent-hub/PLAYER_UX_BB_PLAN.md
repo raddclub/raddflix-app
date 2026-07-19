@@ -307,6 +307,134 @@ Subtitle text replacement is a direct setState call. No animation layer.
 
 ---
 
+### BB10 — WORD LOOKUP UPGRADE: Subtitle Word Dictionary
+
+**Priority:** 🟡 Medium — feature already exists but is broken for most words; this makes it genuinely useful  
+
+---
+
+**What's already built (DO NOT rebuild from scratch):**
+
+| Component | File | State |
+|---|---|---|
+| Offline dict (241 words) | `lib/core/player/word_dict.dart` | ✅ Works |
+| `SavedWord` model (word, urdu, roman, pos, savedAt) | `word_dict.dart` | ✅ Complete |
+| Definition popup (bottom sheet) | `lib/widgets/player/word_definition_sheet.dart` | ✅ Works but needs upgrades |
+| Single-tap word trigger | `lib/widgets/player/subtitle_overlay.dart:154` | ✅ Keep as-is |
+| Dotted underline on known words | `subtitle_overlay.dart:164` | ✅ Keep |
+| Save/unsave word to SharedPrefs | `word_dict.dart` | ✅ Works |
+| dictEnabled toggle | `quick_settings_panel.dart:1337` | ✅ Keep |
+| `dictEnabled` pref | `player_prefs.dart:194` | ✅ Keep |
+
+**GESTURE DECISION: Keep single-tap** — it's already wired, works perfectly, and is faster than double-tap. Do NOT change the trigger.
+
+---
+
+**What to build on top of this:**
+
+#### 1. Online Dictionary Fallback (biggest improvement)
+When `WordDict.instance.lookup(word)` returns null (word not in 241-word offline dict):
+- Call **`dictionaryapi.dev`** API: `GET https://api.dictionaryapi.dev/api/v2/entries/en/{word}`
+- This API is free, requires no API key, and returns: definitions, phonetics, part of speech, example sentences, and an audio pronunciation URL (`.mp3`)
+- Use `dio` (already in pubspec at `^5.4.0`) for the request
+- Cache results in a session-scoped `Map<String, WordEntry?>` in `WordDict` — so the same word is instant the second time it's tapped in the same session
+- If API call fails (offline / timeout after 3s) → fall back gracefully, show "No definition found" state (same as current)
+- For the Urdu meaning of online-looked-up words: call **MyMemory API** `GET https://api.mymemory.translated.net/get?q={word}&langpair=en|{targetLangCode}` — free, no API key, returns translated text
+- Store the `dictTargetLanguage` code (default `'ur'`) in `PlayerPrefs` — so the translation is always into whatever the user has set
+
+#### 2. User-Selectable Target Language
+Add `dictTargetLanguage` pref to `PlayerPrefs` (type `String`, default `'ur'` for Urdu). The value is the ISO 639-1 language code passed to the MyMemory API `langpair`.
+
+In the subtitle panel Style tab (or a new settings row in the existing dict toggle area in `quick_settings_panel.dart`), add a language picker **only visible when `dictEnabled` is true**:
+- Label: "Translate meanings to:"
+- A dropdown / chip selector: `Urdu (ur)` · `Arabic (ar)` · `Hindi (hi)` · `Turkish (tr)` · `Spanish (es)` · `French (fr)` · `Persian (fa)` · `Bengali (bn)`
+- When changed, update `dictTargetLanguage` pref — affects all future lookups immediately
+- Update the quick settings subtitle text from "Tap subtitle words for Urdu translation" → "Tap subtitle words for word meanings" (language-agnostic label)
+
+#### 3. Video Pause on Word Tap
+In `subtitle_overlay.dart`, `_onWordTap` currently does NOT pause the video. Add a `VoidCallback? onPausedForLookup` parameter to the `SubtitleOverlay` widget. When a word is tapped and the sheet opens, call `onPausedForLookup?.call()`. When the sheet is dismissed (returned from `await showWordDefinition(...)`), call a matching `VoidCallback? onResumedAfterLookup` after an 800ms delay — so the user can re-read the subtitle before it changes.
+
+Thread these callbacks from `_ps_ui_mixin.dart` where `SubtitleOverlay` is constructed: `onPausedForLookup: () => _np.pause()` and `onResumedAfterLookup: () => _np.play()`.
+
+#### 4. Context Sentence from Current Subtitle
+The current popup shows an example sentence from the dictionary entry. Add the **actual subtitle line** the user was reading as a "context" field.
+
+In `_onWordTap`, pass `widget.currentLine` (the currently displayed subtitle text) as a new `contextSentence` parameter to `showWordDefinition`. In `word_definition_sheet.dart`, show it at the top of the popup **above** the definition:
+```
+📖  "She looked beautiful in the moonlight."
+         ─────────────
+```
+The tapped word is visually highlighted (accent color underline or bold) within the context sentence. This is more useful than a generic dictionary example because it's the actual usage the user encountered.
+
+#### 5. Pronunciation Audio Playback
+`dictionaryapi.dev` returns an audio URL (typically a `.mp3` file) in the `phonetics` array. In `word_definition_sheet.dart`:
+- Add a `🔊 Hear it` button below the phonetic line
+- On tap: use `url_launcher`'s `launchUrl` with `LaunchMode.externalNonBrowserApplication` to play the audio — OR (better) use `flutter_tts` (already in pubspec) to speak the word via `tts.speak(word)` as a fallback when no audio URL is available
+- If the API returned an audio URL, prefer it (real human voice). If not, fall back to TTS.
+- Show a brief loading indicator (circular, 20px) while the audio loads on first tap; subsequent taps are instant
+
+#### 6. Popup Animation — Scale from Word Position
+Currently the sheet slides up from the bottom (standard `showModalBottomSheet`). Upgrade to a **scale-up animation from the tapped word's position**:
+- Use `showGeneralDialog` with a custom `pageBuilder` instead of `showModalBottomSheet`
+- Compute the tapped word's position on screen (pass `RenderBox` offset from the word's `GestureDetector`'s `BuildContext`)
+- Animate: scale from 0.6 → 1.0 with `easeOutBack` curve, 220ms; origin point = word's screen position
+- The card itself is floating (not a full-height bottom sheet) — max height 55% of screen, centered horizontally, positioned vertically so it doesn't cover the word (above it if word is in the lower half, below if upper half)
+- Tier gate: standard+ gets scale-from-origin; basic tier gets standard slide-up; potato tier gets instant appear
+
+#### 7. Popup UI — Upgrade to RaddTheme Tokens
+The current `word_definition_sheet.dart` uses `AppColors.surface` and hardcoded `#D4784A`. Replace with:
+- Background: `RaddTheme.of(context).surface` (theme-change safe)
+- Accent: `PlayerPrefs.accentColor` (already available in the sheet via the prefs parameter)
+- Border radius: `RaddRadius.xlRadius` for the card
+- Typography: keep existing Lexend font for the word, Naskh/Noto for Urdu, use `RaddSpace` for spacing
+- Dividers: `RaddTheme.of(context).divider` color
+- POS chip: `RaddRadius.smRadius`, accent color fill at 15% opacity + accent border
+
+#### 8. Saved vs Known Word Underline Distinction
+Currently, ALL words in the offline dict (241 words) get a dotted underline. There's no visual distinction between "I've saved this word" and "this word is in the dictionary."
+
+New behavior in `_buildTappableText`:
+- Word is in offline dict OR returned from online cache AND **saved by user**: thick solid underline in accent color (saved = important)
+- Word is in offline dict OR returned from online cache AND **not saved**: thin dotted underline (just known/available)  
+- Word not in any dict yet: no underline (default, clean subtitle appearance)
+
+This makes the saved underline feel like an achievement — you can see your vocabulary growing.
+
+#### 9. "My Words" Tab — Vocab List in Subtitle Panel
+Add a **7th tab** to `_SubtitlePanel` in `_ps_panels_subtitle.dart` (after the existing 6 tabs: Tracks / Style / Position / Sync / Online / AI Dub):
+- Tab icon: `PhosphorIcons.bookOpen` 
+- Tab label: "My Words"
+- Content: A scrollable list of `SavedWord` entries from `WordDict.instance.savedWords` sorted by `savedAt` descending (most recent first)
+- Each row: word (left, bold) + POS chip + Urdu text (right, RTL) + `savedAt` date (small, muted)
+- Tap row → re-opens `word_definition_sheet` for that word
+- Long-press row → shows `RaddOverlay.confirm()` "Remove from saved words?" → on confirm, calls `WordDict.instance.unsaveWord(word)` + refreshes list
+- Empty state: `PhosphorIcons.bookOpenText` + "Tap any subtitle word while watching to build your vocabulary"
+- **Search bar** at top of the tab (filtered in real-time as user types, matches word or Urdu text)
+- **Word count pill** next to the tab label: "My Words ・ 34" (pulls from `savedWords.length`)
+
+#### 10. Extend Dict Support to Dual Subtitle Overlay
+`dual_subtitle_overlay.dart` currently has NO word-level interactivity. Add the same `_buildTappableText` logic from `subtitle_overlay.dart` to `dual_subtitle_overlay.dart`'s `_SubLine` widget. Both primary and secondary subtitle lines should support word lookup when `dictEnabled` is true.
+
+---
+
+**API references:**
+- Dictionary: `https://api.dictionaryapi.dev/api/v2/entries/en/{word}` — GET, no auth, returns JSON
+- Translation: `https://api.mymemory.translated.net/get?q={word}&langpair=en|{targetLang}` — GET, no auth, 5000 chars/day free
+- Both use `dio` (already in pubspec `^5.4.0`). No new packages needed.
+
+**Files to change:**
+- `lib/core/player/word_dict.dart` — add online lookup method, session cache, `dictTargetLanguage` param
+- `lib/widgets/player/word_definition_sheet.dart` — add context sentence, audio, RaddTheme tokens, scale animation, online entry display
+- `lib/widgets/player/subtitle_overlay.dart` — add pause/resume callbacks, upgrade saved vs known underline
+- `lib/widgets/player/dual_subtitle_overlay.dart` — add dict support to `_SubLine`
+- `lib/screens/player/_ps_panels_subtitle.dart` — add "My Words" 7th tab
+- `lib/core/player/player_prefs.dart` — add `dictTargetLanguage` pref (String, default `'ur'`)
+- `lib/widgets/player/quick_settings_panel.dart` — add language picker row; update subtitle text to be language-agnostic
+
+**DO NOT change:** the offline 241-word dictionary data (keep as instant fallback), the `SavedWord` model structure (already correct), the `dictEnabled` pref key, or any subtitle rendering logic outside word-level interaction.
+
+---
+
 ### BB9 — PORTRAIT PLAYER (Placeholder — Separate Execution)
 
 **Priority:** 🟢 Planned — already has full spec  
@@ -336,16 +464,23 @@ This audit does NOT mean rewriting untouched code. It means "I was here, I check
 ## EXECUTION ORDER
 
 ```
-BB5 (FAB fix) → BB2 (TTS) → BB1 (Resume strip) → BB6 (RaddOverlay) → BB3 (Subtitle presets) → BB4 (PiP minimize) → BB7 (Controls animation) → BB8 (Subtitle crossfade)
+BB5 → BB2 → BB1 → BB6 → BB3 → BB4 → BB10 → BB7 → BB8
 ```
 
-**Rationale:**
-- BB5 first: it's a pure bug, changes SharedPrefs keys only, zero risk
-- BB2 next: feature is broken, users see errors
-- BB1: annoying dialog, high-frequency trigger
-- BB6: build the overlay system BEFORE further dialog migrations so BB3/BB4 can use it
-- BB3/BB4: medium improvements using BB6 infrastructure
-- BB7/BB8: pure polish, last so they don't complicate debugging earlier tasks
+| Step | Task | Why here |
+|---|---|---|
+| 1 | BB5 — FAB Thumbnail Fix | Pure SharedPrefs key bug, zero risk, sets clean foundation |
+| 2 | BB2 — TTS Fix | Feature completely broken, users see errors every time they try AI Dub |
+| 3 | BB1 — Resume Strip | Most frequently triggered annoyance; blocking dialog removed |
+| 4 | BB6 — RaddOverlay System | Build the overlay system FIRST — BB3, BB4, BB10 all use it for confirmations and toasts |
+| 5 | BB3 — Subtitle Preset Picker | Wire already-built widget; clean, small |
+| 6 | BB4 — PiP Minimize | Small wiring change; uses BB6 for the first-use toast |
+| 7 | BB10 — Word Lookup Upgrade | Depends on BB6 (for RaddOverlay.confirm in vocab delete); medium task, standalone |
+| 8 | BB7 — Controls Slide+Fade | Pure animation polish; last so it doesn't complicate debugging above |
+| 9 | BB8 — Subtitle Crossfade | Smallest polish task; absolutely last |
+
+**BB-AUDIT runs with every task** — no separate step needed.  
+**BB9 (Portrait Player)** — separate approval + separate task, not part of this batch.
 
 ---
 
