@@ -2,19 +2,28 @@
 /// ~400 common English words with Urdu translations + part-of-speech.
 /// No internet required. Lookup is O(1) via Dart Map.
 /// For unknown words: morphological fallback strips common suffixes.
+/// BB10: adds online fallback (dictionaryapi.dev + MyMemory) with session cache.
 library word_dict;
 
+import 'dart:async';
+import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 
 // ── Data model ────────────────────────────────────────────────────────────────
 class WordEntry {
   final String word;
   final String pos;      // n=noun, v=verb, adj=adjective, adv=adverb, etc.
-  final String urdu;     // Urdu script
+  final String urdu;     // Urdu script (or translation for online entries)
   final String roman;    // Roman Urdu
   final String example;  // English example sentence (optional)
+
+  // Online-only fields (null for offline entries)
+  final String? phonetic;         // e.g. "/lɪv/"
+  final String? audioUrl;         // MP3 URL from dictionaryapi.dev (best-effort)
+  final List<String> definitions; // English definitions from online API
+  final bool isOnline;            // true = fetched from dictionaryapi.dev
 
   const WordEntry({
     required this.word,
@@ -22,6 +31,10 @@ class WordEntry {
     required this.urdu,
     required this.roman,
     this.example = '',
+    this.phonetic,
+    this.audioUrl,
+    this.definitions = const [],
+    this.isOnline = false,
   });
 
   Map<String, dynamic> toJson() =>
@@ -59,6 +72,16 @@ class WordDict {
   List<SavedWord> _saved = [];
   bool _savedLoaded = false;
 
+  // Session-scoped online cache — lives for the app process.
+  // null value = "looked up, not found online".
+  final Map<String, WordEntry?> _onlineCache = {};
+
+  static final _dio = Dio(BaseOptions(
+    connectTimeout: const Duration(seconds: 5),
+    receiveTimeout: const Duration(seconds: 5),
+    sendTimeout:    const Duration(seconds: 5),
+  ));
+
   // ── Public API ───────────────────────────────────────────────────────────
 
   /// Look up a word. Strips punctuation first. Falls back to morphological
@@ -76,28 +99,143 @@ class WordDict {
     return null;
   }
 
-  /// Whether this word exists in the dictionary.
+  /// Whether this word exists in the offline dictionary.
   bool contains(String word) => lookup(word) != null;
+
+  /// Whether this word already has a session-cache result (hit or miss).
+  bool hasOnlineCacheHit(String word) =>
+      _onlineCache.containsKey(_clean(word));
+
+  /// Retrieve the cached online entry (null = "not found online").
+  WordEntry? getCachedOnlineEntry(String word) =>
+      _onlineCache[_clean(word)];
+
+  /// Look up a word online via dictionaryapi.dev + MyMemory translation.
+  /// Caches result per session. Returns null if not found or device is offline.
+  Future<WordEntry?> lookupOnline(String raw,
+      {String targetLang = 'ur'}) async {
+    final word = _clean(raw);
+    if (word.isEmpty) return null;
+
+    // Return cached result immediately (null = known miss).
+    if (_onlineCache.containsKey(word)) return _onlineCache[word];
+
+    try {
+      // 1. Fetch English definition from dictionaryapi.dev (free, no key).
+      final defRes = await _dio.get(
+          'https://api.dictionaryapi.dev/api/v2/entries/en/$word');
+      if (defRes.statusCode != 200) {
+        _onlineCache[word] = null;
+        return null;
+      }
+      final data = defRes.data;
+      if (data is! List || data.isEmpty) {
+        _onlineCache[word] = null;
+        return null;
+      }
+
+      final first = data[0] as Map<String, dynamic>;
+
+      // Extract phonetic + audio URL.
+      String? phonetic;
+      String? audioUrl;
+      final phonetics = (first['phonetics'] as List? ?? []);
+      for (final ph in phonetics) {
+        final m = ph as Map<String, dynamic>;
+        phonetic ??= m['text'] as String?;
+        final url = m['audio'] as String? ?? '';
+        if (audioUrl == null && url.isNotEmpty) audioUrl = url;
+      }
+      phonetic ??= first['phonetic'] as String?;
+
+      // Extract part-of-speech + definitions (up to 3 distinct).
+      final meanings = (first['meanings'] as List? ?? []);
+      String pos = 'n';
+      final defs = <String>[];
+      for (final meaning in meanings.take(2)) {
+        final m = meaning as Map<String, dynamic>;
+        final partOfSpeech = m['partOfSpeech'] as String? ?? '';
+        if (defs.isEmpty) {
+          if (partOfSpeech.startsWith('verb'))      pos = 'v';
+          else if (partOfSpeech.startsWith('adj'))  pos = 'adj';
+          else if (partOfSpeech.startsWith('adv'))  pos = 'adv';
+        }
+        for (final d in (m['definitions'] as List? ?? []).take(2)) {
+          final def = (d as Map<String, dynamic>)['definition'] as String? ?? '';
+          if (def.isNotEmpty && defs.length < 3) defs.add(def);
+        }
+      }
+
+      // 2. Fetch translation from MyMemory (free, no key, 5k chars/day).
+      String translation = '';
+      try {
+        final transRes = await _dio.get(
+            'https://api.mymemory.translated.net/get',
+            queryParameters: {'q': word, 'langpair': 'en|$targetLang'});
+        if (transRes.statusCode == 200) {
+          final tData = transRes.data as Map<String, dynamic>;
+          final t = (tData['responseData'] as Map?)?['translatedText']
+                  as String? ?? '';
+          // MyMemory sometimes echoes the original word; skip that.
+          if (t.isNotEmpty && t.toLowerCase() != word) {
+            translation = t;
+          }
+        }
+      } catch (_) {
+        // Translation is best-effort; continue without it.
+      }
+
+      final entry = WordEntry(
+        word: word,
+        pos: pos,
+        urdu: translation,
+        roman: phonetic ?? '',
+        example: defs.isNotEmpty ? defs.first : '',
+        phonetic: phonetic,
+        audioUrl: audioUrl,
+        definitions: defs,
+        isOnline: true,
+      );
+      _onlineCache[word] = entry;
+      return entry;
+    } on DioException catch (e) {
+      if (kDebugMode) debugPrint('WordDict.lookupOnline DioError: $e');
+      _onlineCache[word] = null;
+      return null;
+    } catch (e) {
+      if (kDebugMode) debugPrint('WordDict.lookupOnline unexpected: $e');
+      _onlineCache[word] = null;
+      return null;
+    }
+  }
 
   /// Save a word to the user's vocabulary.
   Future<void> saveWord(WordEntry entry) async {
     await _ensureSavedLoaded();
-    if (_saved.any((s) => s.word == entry.word)) return;
+    final key = _clean(entry.word);
+    if (_saved.any((s) => _clean(s.word) == key)) return;
     _saved.add(SavedWord(
-      word: entry.word, urdu: entry.urdu, roman: entry.roman,
-      pos: entry.pos, savedAt: DateTime.now()));
+      word: entry.word,
+      urdu: entry.urdu.isNotEmpty ? entry.urdu : entry.example,
+      roman: entry.roman,
+      pos: entry.pos,
+      savedAt: DateTime.now()));
     await _persistSaved();
   }
 
   /// Remove a saved word.
   Future<void> unsaveWord(String word) async {
     await _ensureSavedLoaded();
-    _saved.removeWhere((s) => s.word == word);
+    final key = _clean(word);
+    _saved.removeWhere((s) => _clean(s.word) == key);
     await _persistSaved();
   }
 
   /// Whether this word is in the user's saved vocabulary.
-  bool isSaved(String word) => _saved.any((s) => s.word == _clean(word));
+  bool isSaved(String word) {
+    final key = _clean(word);
+    return _saved.any((s) => _clean(s.word) == key);
+  }
 
   /// All saved words, newest first.
   Future<List<SavedWord>> getSaved() async {

@@ -9,15 +9,26 @@ import '../player/word_definition_sheet.dart';
 /// The MPV subtitle track is set invisible via SubtitleViewConfiguration(visible:false)
 /// so we control every style property: font, size, bold, italic, colors, position, outline.
 ///
-/// Phase F2: each word is individually tappable — shows offline Urdu dictionary.
+/// Phase F2 / BB10: each word is individually tappable — shows dictionary lookup.
+/// Video pauses on tap, resumes 800ms after the sheet is dismissed.
 class SubtitleOverlay extends StatefulWidget {
   final String? currentLine;
   final PlayerPrefs prefs;
+
+  /// Called when a word is tapped and the definition sheet opens.
+  /// Implementations should pause the player.
+  final VoidCallback? onPausedForLookup;
+
+  /// Called 800ms after the definition sheet is dismissed.
+  /// Implementations should resume the player.
+  final VoidCallback? onResumedAfterLookup;
 
   const SubtitleOverlay({
     super.key,
     required this.currentLine,
     required this.prefs,
+    this.onPausedForLookup,
+    this.onResumedAfterLookup,
   });
 
   @override
@@ -52,11 +63,39 @@ class _SubtitleOverlayState extends State<SubtitleOverlay> {
     // Briefly highlight the tapped word
     setState(() => _tappedWord = word);
     HapticFeedback.selectionClick();
+
+    // Pause video so user can read without rushing.
+    widget.onPausedForLookup?.call();
+
+    // Resolve dict target language (added in BB10 to PlayerPrefs).
+    // Falls back to 'ur' if the field is not yet present on this install.
+    final targetLang = _dictTargetLanguage;
+
     await showWordDefinition(
       ctx, word,
       accentColor: widget.prefs.accentColor,
+      contextLine: widget.currentLine ?? '',
+      dictTargetLanguage: targetLang,
     );
+
     if (mounted) setState(() => _tappedWord = null);
+
+    // Resume 800ms after dismiss so user can re-read the subtitle.
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (mounted) widget.onResumedAfterLookup?.call();
+    });
+  }
+
+  /// Safe accessor: reads dictTargetLanguage via dynamic cast so it compiles
+  /// even on existing installs where the field may not yet exist on the prefs
+  /// object (before a hot-restart).
+  String get _dictTargetLanguage {
+    try {
+      // ignore: avoid_dynamic_calls
+      return (widget.prefs as dynamic).dictTargetLanguage as String? ?? 'ur';
+    } catch (_) {
+      return 'ur';
+    }
   }
 
   @override
@@ -133,8 +172,9 @@ class _SubtitleOverlayState extends State<SubtitleOverlay> {
   /// Splits the subtitle line into tokens (words + spaces/punctuation) and
   /// wraps each word in a [GestureDetector]. Punctuation is rendered inline
   /// without any tap target.
+  ///
+  /// BB10: solid underline for saved words; dotted underline for known-but-not-saved.
   Widget _buildTappableText(BuildContext ctx, String line, TextStyle style) {
-    // Split into tokens: words and non-word characters
     final tokens = <String>[];
     for (final m in _reTokenize.allMatches(line)) {
       tokens.add(m.group(0)!);
@@ -145,11 +185,31 @@ class _SubtitleOverlayState extends State<SubtitleOverlay> {
       children: tokens.map((token) {
         final isWord = _reWord.hasMatch(token);
         if (!isWord) {
-          // Punctuation / spaces — render as-is
           return Text(token, style: style);
         }
-        final inDict = WordDict.instance.contains(token);
+
+        final inDict  = WordDict.instance.contains(token) ||
+                        WordDict.instance.hasOnlineCacheHit(token);
+        final isSaved = WordDict.instance.isSaved(token);
         final isHighlighted = _tappedWord == token;
+
+        TextDecoration decoration = TextDecoration.none;
+        TextDecorationStyle decorationStyle = TextDecorationStyle.dotted;
+        double decorationThickness = 1.0;
+
+        if (!isHighlighted && inDict) {
+          decoration = TextDecoration.underline;
+          if (isSaved) {
+            // Solid, thicker underline for saved words — visible progress marker.
+            decorationStyle = TextDecorationStyle.solid;
+            decorationThickness = 2.5;
+          } else {
+            // Subtle dotted underline for known-but-not-saved words.
+            decorationStyle = TextDecorationStyle.dotted;
+            decorationThickness = 1.0;
+          }
+        }
+
         return GestureDetector(
           onTap: () => _onWordTap(ctx, token),
           child: Container(
@@ -161,16 +221,12 @@ class _SubtitleOverlayState extends State<SubtitleOverlay> {
             child: Text(
               token,
               style: style.copyWith(
-                // Underline words that exist in dictionary (subtle dotted)
-                decoration: inDict && !isHighlighted
-                    ? TextDecoration.underline
-                    : TextDecoration.none,
-                decorationColor: widget.prefs.accentColor.withOpacity(0.55),
-                decorationStyle: TextDecorationStyle.dotted,
-                // Highlight color on tap
-                color: isHighlighted
-                    ? Colors.white
-                    : style.color,
+                decoration: decoration,
+                decorationColor: widget.prefs.accentColor
+                    .withOpacity(isSaved ? 0.85 : 0.55),
+                decorationStyle: decorationStyle,
+                decorationThickness: decorationThickness,
+                color: isHighlighted ? Colors.white : style.color,
               ),
             ),
           ),

@@ -192,6 +192,8 @@ class PlayerPrefs {
   // ── Phase F2: Word Dictionary ──────────────────────────────────────────────
   /// Enable tap-a-word dictionary lookup in subtitle overlay.
   final bool dictEnabled;
+  /// ISO 639-1 code for the translation target. Default 'ur' (Urdu).
+  final String dictTargetLanguage;
 
   // ── Phase D2: Color Look Presets ───────────────────────────────────────────
   /// Active color look preset name. 'none' = no filter.
@@ -468,6 +470,7 @@ class PlayerPrefs {
     this.layoutJson               = '',
     this.layoutPreset             = 'centered',
     this.dictEnabled               = true,
+    this.dictTargetLanguage        = 'ur',
     this.colorLook                 = 'none',
     this.filmGrainLevel            = 'none',
     this.hapticLevel               = 'heavy',
@@ -591,6 +594,7 @@ class PlayerPrefs {
     String? layoutJson,
     String? layoutPreset,
     bool?   dictEnabled,
+    String? dictTargetLanguage,
     String? colorLook,
     String? filmGrainLevel,
     String? hapticLevel,
@@ -743,6 +747,7 @@ class PlayerPrefs {
       layoutJson:                  layoutJson                  ?? this.layoutJson,
       layoutPreset:                layoutPreset                ?? this.layoutPreset,
       dictEnabled:                 dictEnabled                  ?? this.dictEnabled,
+      dictTargetLanguage:          dictTargetLanguage           ?? this.dictTargetLanguage,
       colorLook:                   colorLook                    ?? this.colorLook,
       filmGrainLevel:              filmGrainLevel               ?? this.filmGrainLevel,
       hapticLevel:                 hapticLevel                  ?? this.hapticLevel,
@@ -928,6 +933,7 @@ class PlayerPrefs {
       layoutJson:                  s.getString('${_p}layout_json')           ?? '',
       layoutPreset:                s.getString('${_p}layout_preset')         ?? 'centered',
       dictEnabled:                 s.getBool('${_p}dict_enabled')            ?? true,
+      dictTargetLanguage:          s.getString('${_p}dict_target_lang')      ?? 'ur',
       colorLook:                   s.getString('${_p}color_look')             ?? 'none',
       filmGrainLevel:              s.getString('${_p}film_grain')              ?? 'none',
       hapticLevel:                 s.getString('${_p}haptic_level')           ?? 'heavy',
@@ -1109,6 +1115,7 @@ class PlayerPrefs {
       s.setString('${_p}layout_json',        layoutJson),
       s.setString('${_p}layout_preset',      layoutPreset),
       s.setBool('${_p}dict_enabled',          dictEnabled),
+      s.setString('${_p}dict_target_lang',    dictTargetLanguage),
       s.setString('${_p}color_look',           colorLook),
       s.setString('${_p}film_grain',            filmGrainLevel),
       s.setString('${_p}haptic_level',          hapticLevel),

@@ -1054,6 +1054,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       'Tracks', 'Style', 'Position', 'Sync',
       if (!widget.isLocal) 'Online',
       if (widget.onDubRequested != null) 'AI Dub',
+      'My Words',
     ];
     final tabName = _tab < tabs.length ? tabs[_tab] : '';
 
@@ -1097,10 +1098,199 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
           'Online'   => _buildOnlineTab(),
           'AI Dub'   => ListView(padding: const EdgeInsets.all(14),
                             children: _buildDubSection(context)),
+          'My Words' => _buildMyWordsTab(context),
           _          => const SizedBox.shrink(),
         }),
       ],
     );
+  }
+
+  // ── My Words tab (BB10) ───────────────────────────────────────────────────
+  Widget _buildMyWordsTab(BuildContext context) {
+    return FutureBuilder<List<SavedWord>>(
+      future: WordDict.instance.getSaved(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: SizedBox(width: 24, height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white38)));
+        }
+        final all = snap.data ?? [];
+        if (all.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.bookmark_outline_rounded,
+                    color: Colors.white24, size: 48),
+                const SizedBox(height: 16),
+                const Text('No saved words yet',
+                    style: TextStyle(color: Colors.white54, fontSize: 15,
+                        fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                const Text('Tap any underlined word in the subtitles\nto look it up, then save it here.',
+                    style: TextStyle(color: Colors.white30, fontSize: 12, height: 1.5),
+                    textAlign: TextAlign.center),
+              ]),
+            ),
+          );
+        }
+
+        // q declared outside StatefulBuilder so it persists across rebuilds.
+        String q = '';
+        return StatefulBuilder(
+          builder: (context, setSt) {
+            return Column(children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+                child: Row(children: [
+                  Expanded(
+                    child: TextField(
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      decoration: InputDecoration(
+                        hintText: 'Search saved words',
+                        hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
+                        prefixIcon: const Icon(Icons.search_rounded,
+                            color: Colors.white30, size: 18),
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.07),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                              color: ProviderScope.containerOf(context, listen: false)
+                                  .read(playerPrefsProvider)
+                                  .accentColor
+                                  .withOpacity(0.5),
+                              width: 1.2)),
+                      ),
+                      onChanged: (v) => setSt(() => q = v.toLowerCase()),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.06),
+                      borderRadius: BorderRadius.circular(8)),
+                    child: Text('${all.length}',
+                        style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                  ),
+                ]),
+              ),
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 20),
+                  itemCount: all.where((w) =>
+                      q.isEmpty || w.word.toLowerCase().contains(q)).length,
+                  separatorBuilder: (_, __) =>
+                      const Divider(color: Colors.white10, height: 1),
+                  itemBuilder: (ctx, i) {
+                    final filtered = all
+                        .where((w) => q.isEmpty || w.word.toLowerCase().contains(q))
+                        .toList();
+                    if (i >= filtered.length) return const SizedBox.shrink();
+                    final sw = filtered[i];
+                    final accent = ProviderScope.containerOf(context, listen: false)
+                        .read(playerPrefsProvider)
+                        .accentColor;
+                    return ListTile(
+                      dense: true,
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      title: Row(children: [
+                        Text(sw.word,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14)),
+                        const SizedBox(width: 8),
+                        if (sw.pos.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: accent.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                  color: accent.withOpacity(0.35), width: 1)),
+                            child: Text(sw.pos,
+                                style: TextStyle(
+                                    color: accent, fontSize: 9,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.3)),
+                          ),
+                      ]),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          sw.urdu.isNotEmpty ? sw.urdu : sw.roman,
+                          style: const TextStyle(
+                              color: Colors.white54, fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      trailing: Text(
+                        _fmtDate(sw.savedAt),
+                        style: const TextStyle(
+                            color: Colors.white24, fontSize: 10),
+                      ),
+                      onTap: () => showWordDefinition(
+                        ctx, sw.word,
+                        accentColor: accent,
+                      ),
+                      onLongPress: () async {
+                        HapticFeedback.mediumImpact();
+                        final confirm = await showDialog<bool>(
+                          context: ctx,
+                          builder: (_) => AlertDialog(
+                            backgroundColor: const Color(0xFF1A1A2E),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16)),
+                            title: const Text('Remove word?',
+                                style: TextStyle(color: Colors.white)),
+                            content: Text(
+                              'Remove "${sw.word}" from saved words?',
+                              style: const TextStyle(color: Colors.white70)),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(_, false),
+                                child: const Text('Cancel',
+                                    style: TextStyle(color: Colors.white38))),
+                              TextButton(
+                                onPressed: () => Navigator.pop(_, true),
+                                child: Text('Remove',
+                                    style: TextStyle(color: accent))),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) {
+                          await WordDict.instance.unsaveWord(sw.word);
+                          if (ctx.mounted) setSt(() {});
+                        }
+                      },
+                    );
+                  },
+                ),
+              ),
+            ]);
+          },
+        );
+      },
+    );
+  }
+
+  static String _fmtDate(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inDays == 0) return 'Today';
+    if (diff.inDays == 1) return 'Yesterday';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${dt.month}/${dt.day}';
   }
 }
 
