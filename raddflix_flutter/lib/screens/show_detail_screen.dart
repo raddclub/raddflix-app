@@ -325,6 +325,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
         'show_title': widget.item.title,
         'content_type': widget.item.mediaType,
         'is_free': _parseFree(ep['is_free']) || widget.item.isFree,
+        'poster_url': widget.item.posterUrl,
       },
     );
     if (mounted) setState(() => _nowPlayingIdx = null);
@@ -372,6 +373,7 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
         'episode_index': 0,
         'content_type': 'movie',
         'is_free': widget.item.isFree,
+        'poster_url': widget.item.posterUrl,
       },
     );
   }

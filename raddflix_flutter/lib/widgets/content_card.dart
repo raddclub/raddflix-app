@@ -573,6 +573,7 @@ class _DetailSheet extends StatelessWidget {
                               'stream_url':   item.shareUrl,
                               'is_free':      item.isFree,
                               'content_type': item.mediaType,
+                              'poster_url':   item.posterUrl,
                             });
                       }
                     },

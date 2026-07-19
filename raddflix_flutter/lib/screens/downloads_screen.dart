@@ -518,6 +518,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                     'file_id': id, 'title': _title(d), 'local_path': _path(d),
                     'content_type': d['content_type'] as String? ?? 'movie',
                     'is_free': true,
+                    'poster_url': _posterUrl(d),
                   });
                 }
               },
@@ -569,6 +570,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                   'file_id': id, 'title': _title(d), 'local_path': _path(d),
                   'content_type': d['content_type'] as String? ?? 'movie',
                   'is_free': true,
+                  'poster_url': _posterUrl(d),
                 });
               }
             },
