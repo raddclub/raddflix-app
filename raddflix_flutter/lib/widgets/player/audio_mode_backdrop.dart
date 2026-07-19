@@ -229,6 +229,10 @@ class _AudioModeBackdropState extends State<AudioModeBackdrop>
         _lastScannedPath = widget.localPath;
         _discAngle = 0.0;
         _discCtrl.value = 0.0;
+        // AB1-AUDIT: controller.value= calls stop() internally, killing the
+        // repeat loop. Restart spin if the track changes while playing so the
+        // disc doesn't freeze mid-rotation on track transitions.
+        if (widget.isPlaying) _discCtrl.repeat();
         setState(() {
           _coverArtFile = null;
           _embeddedArtBytes = null;
