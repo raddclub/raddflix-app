@@ -311,8 +311,12 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar>
     );
   }
 
+  // BB5: use RaddTheme token (warm dark surface) so fallback looks intentional
+  // rather than a broken blank. Keys are already aligned:
+  //   _ps_playback_mixin writes 'resume_poster_url' (via ResumeFab.kPosterUrl constant)
+  //   _loadStatic reads via ResumeFab.kPosterUrl — both reference the same const.
   Widget _posterFallback() => Container(
-        color: const Color(0xFF2C2219),
+        color: AppColors.card,
         child: Center(
           child: Icon(AppIcons.movieFill, color: Colors.white24, size: 24),
         ),
@@ -510,8 +514,9 @@ class _LiveMiniPlayerBar extends StatelessWidget {
     );
   }
 
+  // BB5: theme token — matches static bar above
   Widget _posterFallback() => Container(
-        color: const Color(0xFF2C2219),
+        color: AppColors.card,
         child: Center(
           child: Icon(AppIcons.movieFill, color: Colors.white24, size: 24),
         ),
