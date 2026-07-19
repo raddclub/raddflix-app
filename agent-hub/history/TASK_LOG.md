@@ -13,11 +13,13 @@
 | Month | File | Sessions |
 |---|---|---|
 | June 2026 | [`2026-06.md`](2026-06.md) | 34 |
-| July 2026 | [`2026-07.md`](2026-07.md) | 15 |
+| July 2026 | [`2026-07.md`](2026-07.md) | 16 |
 
 ---
 
 ## Session index (title only — full detail in the linked archive)
+
+### July 2026 — Session 19 (2026-07-19) — BB-REVIEW (Phase BB audit, CI fix, disc-spin bug)
 
 ### July 2026 — Session 18 (2026-07-16) — VAULT-SPEED (parallel bulk-add)
 

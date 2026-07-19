@@ -5,7 +5,37 @@
 
 ---
 
-## Current State (2026-07-19 — BB5: poster URL fix + AB1 CI fix, CI ✅ `255ffe61`)
+## Current State (2026-07-19 — Phase BB complete + CI fix, CI ⏳ `3b0321f7`)
+
+**CI fix — `c9179df3` (add 3 missing imports to `player_screen.dart`):**
+
+BB6/BB7 commits introduced uses of `SubtitlePreset`/`SubtitlePresetPicker` (from `subtitle_style.dart`), `AnimDurations` (from `anim_durations.dart`), and `animConfigProvider` (from `anim_config.dart`) in `part of` files (`_ps_panels_subtitle.dart`, `_ps_ui_mixin.dart`). These are resolved through the parent file `player_screen.dart`, which was missing all three imports. All commits from BB1 through BB3+BB4+BB7 had cascading CI failures because of this. Fixed by adding the three `import` lines to `player_screen.dart`.
+
+**AB1-AUDIT — `3b0321f7` (disc stays static on track change while playing):**
+
+`AudioModeBackdrop.didUpdateWidget` track-change block at line 231 called `_discCtrl.value = 0.0` to reset the visual angle. In Flutter, `AnimationController.value =` calls `stop()` internally — this killed the `repeat()` loop that was running when the track changed. The tonearm re-entered correctly (via `_entryCtrl` + 220ms delayed `_tonearmCtrl.forward()`), but the disc froze. Fix: added `if (widget.isPlaying) _discCtrl.repeat()` immediately after the value reset.
+
+**Phase BB — all tasks complete (BB1–BB8, BB10):**
+
+| Task | Commit | Feature |
+|---|---|---|
+| BB1 | `a2236304` | Resume strip: auto-seek + non-blocking 4s strip replaces blocking dialog |
+| BB2 | `69b2f5f6` | TTS lang fix: setEngine + getVoices check + locale variants + docs dir preflight |
+| BB3 | `1c4a8342`+`6bc88639` | SubtitlePresetPicker wired into Style tab; broadcast preset added |
+| BB4 | `6bc88639` | pipOnMinimize pref added to PlayerPrefs; back button enters PiP when active |
+| BB5 | `5fa870fa`+`255ffe61` | FAB thumbnail fix: poster_url threaded through all 4 push-to-player call sites |
+| BB6 | `41927adc` | RaddOverlay system: snack/confirm/toast via OverlayEntry |
+| BB7 | `42d04167`+`6bc88639` | Controls slide+fade: AnimDurations.controlsShow/Hide + AnimatedSlide |
+| BB8 | `657c7374` | Subtitle crossfade: AnimatedSwitcher 150ms FadeTransition on both overlays |
+| BB10 | `729bbccb` | Word lookup: online fallback, My Words tab, pause/resume, TTS pronunciation |
+
+**AB1 — `3bd6f011` — Neo-Phonograph audio player overhaul (1385 lines)**
+
+**No Oracle push needed** — zero `radd-hub/**` files touched.
+
+---
+
+## Previous State (2026-07-19 — BB5: poster URL fix + AB1 CI fix, CI ✅ `255ffe61`)
 
 **BB5 — FAB-THUMBNAIL-FIX (commit `5fa870fa`, CI fix `255ffe61`):**
 
