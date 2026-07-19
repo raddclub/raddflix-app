@@ -179,6 +179,9 @@ class PlayerPrefs {
   final String oneHandedModeSide;        // right|left
   final int    wakeTimeoutMins;    // 0=always-on, 10/20/30 mins
   final bool   dndOnCinematic;     // Phase H5: DND when cinematic
+  // ── PiP ──────────────────────────────────────────────────────────────────
+  /// BB4: when true, pressing back during playback enters PiP instead of popping.
+  final bool   pipOnMinimize;
   final double savedZoomLevel;     // Phase L3: last used zoom level
   final bool   contentMoodEnabled; // Phase G4: narrative-arc seek bar zones
   final bool   screenshotLockEnabled; // Phase K2: prevent screenshots
@@ -464,6 +467,7 @@ class PlayerPrefs {
     this.oneHandedModeSide          = 'right',
     this.wakeTimeoutMins         = 0,
     this.dndOnCinematic           = false,
+    this.pipOnMinimize            = true,
     this.savedZoomLevel           = 1.0,
     this.contentMoodEnabled       = false,
     this.screenshotLockEnabled    = false,
@@ -573,6 +577,7 @@ class PlayerPrefs {
     String? oneHandedModeSide,
     int?    wakeTimeoutMins,
     bool?   dndOnCinematic,
+    bool?   pipOnMinimize,
     String? subtitleFont,
     bool?   watchPartyEnabled,
     bool?   frameCounterEnabled,
@@ -741,6 +746,7 @@ class PlayerPrefs {
       oneHandedModeSide:          oneHandedModeSide          ?? this.oneHandedModeSide,
       wakeTimeoutMins:             wakeTimeoutMins             ?? this.wakeTimeoutMins,
       dndOnCinematic:              dndOnCinematic              ?? this.dndOnCinematic,
+      pipOnMinimize:               pipOnMinimize               ?? this.pipOnMinimize,
       savedZoomLevel:              savedZoomLevel              ?? this.savedZoomLevel,
       contentMoodEnabled:          contentMoodEnabled          ?? this.contentMoodEnabled,
       screenshotLockEnabled:       screenshotLockEnabled       ?? this.screenshotLockEnabled,
@@ -927,6 +933,7 @@ class PlayerPrefs {
       oneHandedModeSide:          s.getString('${_p}one_handed_side')      ?? 'right',
       wakeTimeoutMins:             s.getInt('${_p}wake_timeout_mins')    ?? 0,
       dndOnCinematic:              s.getBool('${_p}dnd_cinematic')        ?? false,
+      pipOnMinimize:               s.getBool('${_p}pip_on_minimize')      ?? true,
       savedZoomLevel:              s.getDouble('${_p}saved_zoom_level')   ?? 1.0,
       contentMoodEnabled:          s.getBool('${_p}content_mood')          ?? false,
       screenshotLockEnabled:       s.getBool('${_p}screenshot_lock')       ?? false,
@@ -1109,6 +1116,7 @@ class PlayerPrefs {
       s.setString('${_p}one_handed_side',    oneHandedModeSide),
       s.setInt('${_p}wake_timeout_mins',  wakeTimeoutMins),
       s.setBool('${_p}dnd_cinematic',      dndOnCinematic),
+      s.setBool('${_p}pip_on_minimize',    pipOnMinimize),
       s.setDouble('${_p}saved_zoom_level', savedZoomLevel),
       s.setBool('${_p}content_mood',        contentMoodEnabled),
       s.setBool('${_p}screenshot_lock',     screenshotLockEnabled),

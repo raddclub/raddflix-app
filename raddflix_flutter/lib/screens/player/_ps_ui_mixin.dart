@@ -2064,24 +2064,59 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                         child: _RaddIconBtn(
                           icon: Icons.arrow_back_ios_new_rounded,
                           size: 18,
-                          onTap: () => Navigator.of(context).pop(),
+                          onTap: () {
+                            // BB4: if pipOnMinimize is on and video is playing,
+                            // enter PiP instead of popping. Shows a one-time tip.
+                            final p = ref.read(playerPrefsProvider);
+                            if (p.pipOnMinimize && _player.state.playing) {
+                              _enterPiP();
+                              SharedPreferences.getInstance().then((sp) {
+                                if (!(sp.getBool('seen_pip_tip') ?? false)) {
+                                  sp.setBool('seen_pip_tip', true);
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Video continues in a floating window'),
+                                        duration: Duration(seconds: 2),
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  }
+                                }
+                              });
+                            } else {
+                              Navigator.of(context).pop();
+                            }
+                          },
                         ),
                       ),
                     ),
                   ),
 
                 // ── Fade-in title bar: title + episode + rotate + PiP ──────────
+                // BB7: slide+fade on basic+ tiers; potato gets opacity only
+                // (AnimDurations.controlsShow returns Duration.zero on potato,
+                // making AnimatedSlide an instant snap — effectively no slide).
                 if (!_isImmersive)
                   Positioned(
                     top: 0, left: 44, right: 0,
-                    child: AnimatedOpacity(
-                      opacity: _showControls && !_isLocked ? 1.0 : 0.0,
-                      duration: const Duration(milliseconds: 280),
-                      child: IgnorePointer(
-                        ignoring: !_showControls || _isLocked,
-                        child: SafeArea(
-                          bottom: false,
-                          child: _buildPortraitTopBar(),
+                    child: AnimatedSlide(
+                      offset: _showControls && !_isLocked
+                          ? Offset.zero
+                          : const Offset(0, -1),
+                      duration: _showControls
+                          ? AnimDurations.controlsShow(ref.read(animConfigProvider))
+                          : AnimDurations.controlsHide(ref.read(animConfigProvider)),
+                      curve: _showControls ? Curves.easeOutCubic : Curves.easeIn,
+                      child: AnimatedOpacity(
+                        opacity: _showControls && !_isLocked ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 280),
+                        child: IgnorePointer(
+                          ignoring: !_showControls || _isLocked,
+                          child: SafeArea(
+                            bottom: false,
+                            child: _buildPortraitTopBar(),
+                          ),
                         ),
                       ),
                     ),
@@ -2222,26 +2257,36 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                 // Not a fixed panel — sits on top of the full-bleed video, fades
                 // with the rest of the controls, and lets the video show through
                 // above the gradient instead of permanently occupying screen space.
+                // BB7: slide+fade on basic+ tiers (same tier-gate as top bar).
                 if (!_isImmersive)
                   Positioned(
                     left: 0, right: 0, bottom: 0,
-                    child: AnimatedOpacity(
-                      opacity: _showControls && !_isLocked ? 1.0 : 0.0,
-                      duration: const Duration(milliseconds: 280),
-                      child: IgnorePointer(
-                        ignoring: !_showControls || _isLocked,
-                        child: Container(
-                          decoration: const BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [Colors.transparent, Color(0xE6000000)],
-                              stops: [0.0, 0.35],
+                    child: AnimatedSlide(
+                      offset: _showControls && !_isLocked
+                          ? Offset.zero
+                          : const Offset(0, 1),
+                      duration: _showControls
+                          ? AnimDurations.controlsShow(ref.read(animConfigProvider))
+                          : AnimDurations.controlsHide(ref.read(animConfigProvider)),
+                      curve: _showControls ? Curves.easeOutCubic : Curves.easeIn,
+                      child: AnimatedOpacity(
+                        opacity: _showControls && !_isLocked ? 1.0 : 0.0,
+                        duration: const Duration(milliseconds: 280),
+                        child: IgnorePointer(
+                          ignoring: !_showControls || _isLocked,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [Colors.transparent, Color(0xE6000000)],
+                                stops: [0.0, 0.35],
+                              ),
                             ),
-                          ),
-                          child: SafeArea(
-                            top: false,
-                            child: _buildPortraitControlsPanel(constraints, currentPos),
+                            child: SafeArea(
+                              top: false,
+                              child: _buildPortraitControlsPanel(constraints, currentPos),
+                            ),
                           ),
                         ),
                       ),

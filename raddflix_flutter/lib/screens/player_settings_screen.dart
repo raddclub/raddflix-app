@@ -122,6 +122,9 @@ class _State extends State<PlayerSettingsScreen> {
               (v) => _u(_p.copyWith(showNetworkSpeed: v))),
           _tog(Icons.info_outline_rounded, 'Show playback info', _p.showPlaybackInfo, a,
               (v) => _u(_p.copyWith(showPlaybackInfo: v))),
+          // BB4: PiP on back button
+          _tog(Icons.picture_in_picture_alt_rounded, 'Enter PiP on back button',
+              _p.pipOnMinimize, a, (v) => _u(_p.copyWith(pipOnMinimize: v))),
         ]),
         _sec('Center Controls', [
           // ── Position ─────────────────────────────────────────────────────

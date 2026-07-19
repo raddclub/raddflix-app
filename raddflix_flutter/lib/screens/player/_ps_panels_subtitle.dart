@@ -74,6 +74,8 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   Color  _subBgColor   = Colors.transparent;
   double _subOpacity   = 1.0;
   int    _subShadowIdx = 2;       // 0=None  1=Outline  2=Drop Shadow  3=Box
+  // BB3: active preset — switches to custom when the user changes any slider.
+  SubtitlePreset _currentPreset = SubtitlePreset.custom;
 
   // ── Position ──────────────────────────────────────────────────────────────
   int    _subAlignX       = 1;    // 0=Left   1=Center   2=Right
@@ -133,8 +135,11 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     final fitToVideo = prefs.getBool('pref_sub_fit')        ?? true;
     // Load saved bottom margin so the slider reflects the actual active value
     // instead of always resetting to 100 when the panel reopens.
-    final margin     = prefs.getDouble('pref_sub_margin')   ?? 100.0;
+    final margin      = prefs.getDouble('pref_sub_margin')   ?? 100.0;
+    final presetName  = prefs.getString('pref_sub_preset')  ?? 'custom';
     setState(() {
+      _currentPreset   = SubtitlePreset.values.firstWhere(
+          (p) => p.name == presetName, orElse: () => SubtitlePreset.custom);
       _subFontIdx      = fontIdx;
       _subSize         = size;
       _subBold         = bold;
@@ -177,6 +182,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     await prefs.setInt('pref_sub_bg_color',     _subBgColor.value);
     await prefs.setDouble('pref_sub_opacity',   _subOpacity);
     await prefs.setInt('pref_sub_shadow',       _subShadowIdx);
+    await prefs.setString('pref_sub_preset',    _currentPreset.name);
     await prefs.setInt('pref_sub_align_x',      _subAlignX);
     await prefs.setInt('pref_sub_align_y',      _subAlignY);
     await prefs.setDouble('pref_sub_edge_pad',  _subEdgePadding);
@@ -199,6 +205,41 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
+
+  /// BB3: Apply a named subtitle preset, snapping all style fields to its values.
+  /// Selecting SubtitlePreset.custom is a no-op (user already in custom mode).
+  void _applyPreset(SubtitlePreset preset) {
+    if (preset == SubtitlePreset.custom) return;
+    final style = kSubtitlePresets[preset];
+    if (style == null) return;
+    setState(() {
+      _currentPreset = preset;
+      _subSize       = style.fontSize;
+      _subBold       = style.fontWeight == FontWeight.bold;
+      _subColor      = style.textColor;
+      // Derive bg color: use black at the preset's bgOpacity baked in.
+      _subBgColor    = style.bgOpacity > 0
+          ? style.bgColor.withOpacity(style.bgOpacity)
+          : Colors.transparent;
+      _subOpacity    = 1.0;
+      // Shadow index: drop-shadow when shadow=true, outline when outline>0, else none.
+      _subShadowIdx  = style.shadow
+          ? 2
+          : (style.outlineWidth > 0 ? 1 : 0);
+    });
+    _setProp('sub-font',       _mpvFonts[_subFontIdx]);
+    _setProp('sub-font-size',  style.fontSize.round().toString());
+    _setProp('sub-bold',       style.fontWeight == FontWeight.bold ? 'yes' : 'no');
+    _setProp('sub-color',      _mpvSubColor(style.textColor));
+    _setProp('sub-back-color', _mpvSubBackColor(
+        style.bgOpacity > 0
+            ? style.bgColor.withOpacity(style.bgOpacity)
+            : Colors.transparent));
+    _setProp('sub-opacity',    '1.00');
+    _applyShadow(_subShadowIdx);
+    _saveSubPrefs();
+  }
+
   void _setProp(String prop, String val) =>
       widget.onSubPropertyChanged(prop, val);
 
@@ -758,6 +799,13 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       Color(0xCC000000), Color(0x99FFFF00), Colors.black,
     ];
     return ListView(padding: const EdgeInsets.all(14), children: [
+      // BB3: preset picker — one tap applies the full style set.
+      SubtitlePresetPicker(
+        current: _currentPreset,
+        accentColor: Theme.of(context).colorScheme.primary,
+        onSelected: _applyPreset,
+      ),
+      const SizedBox(height: 8),
       _buildPreview(),
       _secLabel('Font'),
       SingleChildScrollView(
@@ -765,7 +813,8 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
         child: Row(children: List.generate(_subFonts.length, (i) => Padding(
           padding: const EdgeInsets.only(right: 8),
           child: GestureDetector(
-            onTap: () { setState(() => _subFontIdx = i); HapticFeedback.selectionClick(); _setProp('sub-font', _mpvFonts[i]); _saveSubPrefs(); },
+            // BB3: changing font resets to custom so sliders expand for fine-tuning.
+            onTap: () { setState(() { _subFontIdx = i; _currentPreset = SubtitlePreset.custom; }); HapticFeedback.selectionClick(); _setProp('sub-font', _mpvFonts[i]); _saveSubPrefs(); },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
@@ -785,6 +834,9 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
           ),
         ))),
       ),
+      // BB3: collapse detailed sliders when a named preset is active.
+      // User can tap any font chip above to switch to Custom and reveal them.
+      if (_currentPreset == SubtitlePreset.custom) ...[
       const SizedBox(height: 14),
       _buildSliderRow(
         label: 'Size', valueLabel: '${_subSize.round()} pt',
@@ -823,6 +875,7 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
         onChanged: _applyShadow,
       ),
       const SizedBox(height: RaddSpace.sm),
+      ], // BB3: end custom-only sliders
     ]);
   }
 
