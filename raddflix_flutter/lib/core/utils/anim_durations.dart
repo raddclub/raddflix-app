@@ -25,4 +25,20 @@ class AnimDurations {
 
   /// Fixed morph duration for OpenContainer (animations package, Tier 2+).
   static const Duration morph = Duration(milliseconds: 400);
+
+  // BB7 — controls show/hide animation durations.
+  // Potato tier: 0ms (instant opacity only, no slide).
+  // Basic+: slide+fade.
+
+  /// Controls appear: 180ms easeOutCubic on basic+, instant on potato.
+  static Duration controlsShow(AnimConfig cfg) =>
+      cfg.tierLevel >= AnimTier.basic.index
+          ? const Duration(milliseconds: 180)
+          : Duration.zero;
+
+  /// Controls hide: 140ms easeIn on basic+, instant on potato.
+  static Duration controlsHide(AnimConfig cfg) =>
+      cfg.tierLevel >= AnimTier.basic.index
+          ? const Duration(milliseconds: 140)
+          : Duration.zero;
 }
