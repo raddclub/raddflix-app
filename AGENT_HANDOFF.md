@@ -5,7 +5,7 @@
 
 ---
 
-## Current State (2026-07-19 — Phase BB complete + CI fix, CI ⏳ `3b0321f7`)
+## Current State (2026-07-19 — Phase BB complete + CI fix, CI ✅ `3b0321f7`)
 
 **CI fix — `c9179df3` (add 3 missing imports to `player_screen.dart`):**
 
