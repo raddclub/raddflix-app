@@ -146,13 +146,11 @@ class SubtitleDubber {
     final dubDir = Directory('${tmpDir.path}/radd_dub');
     if (!dubDir.existsSync()) dubDir.createSync(recursive: true);
 
-    // flutter_tts.synthesizeToFile() on Android only accepts a plain filename —
-    // it ignores any directory portion and always writes to getExternalFilesDir(null),
-    // which path_provider exposes as getExternalStorageDirectory(). If external
-    // storage is unavailable (some low-RAM devices), fall back to app-documents dir.
-    final extDir = (await getExternalStorageDirectory()) ??
-                   (await getApplicationDocumentsDirectory());
-    final ttsDir = extDir;
+    // BB2: use ApplicationDocumentsDirectory — always writable without
+    // WRITE_EXTERNAL_STORAGE permission, avoids null on low-RAM devices that
+    // have no external storage. flutter_tts synthesizeToFile accepts a full
+    // absolute path on the versions we target (flutter_tts ≥ 3.x).
+    final ttsDir = await getApplicationDocumentsDirectory();
 
     final outPath = '${dubDir.path}/dub_$cacheKey.wav';
     // Fix #12: verify the cached file is non-empty. A zero-byte file left by
@@ -161,28 +159,52 @@ class SubtitleDubber {
     if (cachedFile.existsSync() && cachedFile.lengthSync() > 100) return outPath; // cache hit
 
     final tts = FlutterTts();
-    // Fix #DUB-01: setLanguage() returns a negative int when the language pack
-    // is not installed on the device (LANG_MISSING_DATA = -1, LANG_NOT_SUPPORTED = -2).
-    // Returning null here triggers the 'Install TTS' prompt in player_screen.dart
-    // instead of silently looping through all lines and failing at the end.
-    final langResult = await tts.setLanguage(language);
-    if (langResult is int && langResult < 0) {
+    // BB2 fix 1: target Google TTS explicitly. Samsung/Xiaomi built-in engines
+    // may report voices as available but fail to synthesize to file.
+    try { await tts.setEngine('com.google.android.tts'); } catch (_) {}
+
+    // BB2 fix 2: getVoices() returns the voices that are actually installed.
+    // setLanguage() can return LANG_COUNTRY_AVAILABLE (0) even when the voice
+    // pack for that locale has not been downloaded — the negative-value check
+    // alone was insufficient. Filter installed voices by locale before committing.
+    final rawVoices = await tts.getVoices;
+    final voicesList = rawVoices is List ? rawVoices : <dynamic>[];
+    final localeVariants = <String>[
+      language,                         // e.g. 'ur-PK'
+      language.replaceAll('-', '_'),    // e.g. 'ur_PK' (Xiaomi format)
+      language.split('-').first,        // e.g. 'ur'  (base fallback)
+    ];
+    final langAvailable = voicesList.any((v) {
+      final locale = (v is Map ? (v['locale'] ?? v['name'] ?? '') : v).toString();
+      return localeVariants.any(
+          (l) => locale.toLowerCase().startsWith(l.toLowerCase()));
+    });
+    if (!langAvailable) {
       onProgress(0, entries.length, 'LANG_NOT_INSTALLED');
       return null;
     }
+
+    // Try locale variants in priority order; stop at the first accepted one.
+    String? chosenLang;
+    for (final loc in localeVariants) {
+      final r = await tts.setLanguage(loc);
+      if (r is! int || r >= 0) { chosenLang = loc; break; }
+    }
+    if (chosenLang == null) {
+      onProgress(0, entries.length, 'LANG_NOT_INSTALLED');
+      return null;
+    }
+
     await tts.setSpeechRate(0.45);
     await tts.setVolume(1.0);
     await tts.setPitch(1.0);
 
-    // C1+C2 fix: Android returns langResult=0 (LANG_COUNTRY_AVAILABLE) even
-    // when the voice pack is not actually installed, so the negative-value check
-    // above is insufficient. Run a preflight synthesis to confirm TTS can
-    // actually produce audio before spending time on the full subtitle loop.
-    final _preflightClip = 'preflight_$cacheKey.wav';
-    final _preflightPath = '${ttsDir.path}/$_preflightClip';
+    // C1+C2 fix: Run a preflight synthesis to confirm TTS can actually produce
+    // audio before spending time on the full subtitle loop.
+    final _preflightClip = '${ttsDir.path}/preflight_$cacheKey.wav';
     try {
       final _preflightResult = await tts.synthesizeToFile('test', _preflightClip);
-      final _preflightFile = File(_preflightPath);
+      final _preflightFile = File(_preflightClip);
       if (_preflightResult != 1 ||
           !_preflightFile.existsSync() ||
           _preflightFile.lengthSync() < 50) {
@@ -202,12 +224,11 @@ class SubtitleDubber {
     for (int i = 0; i < entries.length; i++) {
       onProgress(i + 1, entries.length, 'Synthesizing line ${i+1} of ${entries.length}');
       final entry    = entries[i];
-      // Pass only the filename to synthesizeToFile — flutter_tts writes to
-      // getExternalFilesDir(null) on Android, ignoring any directory prefix.
-      final clipName = 'clip_${cacheKey}_$i.wav';
-      final clipPath = '${ttsDir.path}/$clipName';
+      // BB2: pass full absolute path — flutter_tts ≥ 3.x writes to the
+      // given path; ApplicationDocumentsDirectory is always writable.
+      final clipPath = '${ttsDir.path}/clip_${cacheKey}_$i.wav';
       try {
-        final r = await tts.synthesizeToFile(entry.text, clipName);
+        final r = await tts.synthesizeToFile(entry.text, clipPath);
         if (r != 1) continue;
         final f = File(clipPath);
         if (!f.existsSync()) continue;
