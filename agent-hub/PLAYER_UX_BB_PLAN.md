@@ -508,3 +508,255 @@ Each task is done when:
 | BB7 | Controls Slide+Fade | 🔲 Pending approval | — |
 | BB8 | Subtitle Crossfade | 🔲 Pending approval | — |
 | BB9 | Portrait Player | 🔲 Separate task (own plan file) | — |
+| AB1 | Neo-Phonograph Audio Player | 🔲 Pending approval | — |
+
+---
+
+## AB1 — Neo-Phonograph Audio Player Overhaul
+
+**File:** `raddflix_flutter/lib/widgets/player/audio_mode_backdrop.dart` (993 lines, self-contained)
+**Priority:** 🟡 Polish / Identity
+**Phase:** AB (Audio Backdrop)
+**Aesthetic concept:** *Neo-Phonograph* — the warmth, romance, and physicality of a 1950s record player fused with modern glassmorphism, physics animation, and dark-cinema precision. Every element should feel like it was machined from warm brass and polished glass, not drawn in a design tool.
+
+---
+
+### Creative Direction: What "Modern + Classic" Means Here
+
+**Classic signals to keep:**
+- Warm amber/gold accent tones when no cover art (replaces the current hue-hash blue/purple defaults)
+- Tonearm — the single most iconic phonograph element, currently absent
+- Vinyl label zone (paper label in center of the disc, distinct from the groove area)
+- Realistic groove physics (variable pitch, not uniform rings)
+- Spindle cap with a machined-metal look
+- Warm sepia vignette on the backdrop (not cold black)
+
+**Modern signals to keep:**
+- Glassmorphism on the controls card (already exists, enhance it)
+- Smooth physics-based animation (spin-down deceleration)
+- Palette-extracted accent color from cover art
+- Clean sans-serif typography, precise layout
+- Micro-interaction feedback (seek bar pulse, tonearm haptic on swing)
+
+**The synthesis:** A darkened listening room with warm overhead light, a real disc spinning on a turntable below a polished brass arm — but the controls panel is frosted glass with a precision seek bar. The disc looks like a physical object sitting in space, not a flat icon.
+
+---
+
+### Changes Spec
+
+#### 1. Physics Spin-Down & Spin-Up (replaces hard-stop)
+
+**Current:** `_discCtrl.repeat()` / `_discCtrl.stop()` — the disc teleports to a stop the frame you hit pause.
+
+**New:**
+- Add `_discAngle` (double, persisted across controller cycles) tracking the current rotation angle in radians.
+- On **pause**: stop repeating, then run a one-shot `AnimationController` (`_spinDownCtrl`) using `CurvedAnimation(curve: Curves.decelerate)` over **900ms**. It tweens from `_discCtrl.value` → the natural "coasted" end position (no snapping to zero). On completion, record `_discAngle = result`.
+- On **play**: start from `_discAngle`, run a one-shot `_spinUpCtrl` using `Curves.easeIn` over **600ms** to reach full speed, then hand off to `_discCtrl.repeat(from: normalized)`.
+- Both controllers need `vsync: this` — add `_spinDownCtrl` and `_spinUpCtrl` as `late final` fields in `_AudioModeBackdropState`.
+- **Tier gate:**
+  - potato → instant stop/start (existing behavior, no new controllers allocated)
+  - basic+ → ease-out decelerate (Curves.decelerate, no physics sim)
+  - standard+ → same (decelerate is sufficient; physics sim would be overkill and CPU-heavy)
+
+#### 2. Tonearm / Needle (new widget `_Tonearm`)
+
+A phonograph arm is the single most recognizable classic element. Currently 100% absent.
+
+**Structure:**
+- New `StatelessWidget _Tonearm` positioned in the `Stack` above the `_Disc`.
+- Position: top-right quadrant, pivoting from a fixed point at `Offset(discCenter.dx + discRadius * 0.82, discCenter.dy - discRadius * 0.78)` — slightly above and right of the disc.
+- Arm length: `discRadius * 1.05` (just long enough to reach the groove area).
+- Arm width: 11px at base, tapers to 5px at needle tip.
+
+**Rendering (`CustomPainter _TonearmPainter`):**
+- Body: `LinearGradient` along the arm axis — warm brass tones: `[Color(0xFF8B6914), Color(0xFFD4A843), Color(0xFF8B6914)]` (dark → gold highlight → dark, giving a brushed-brass cylinder illusion).
+- Pivot cap: filled circle (18px diameter) at pivot point, `RadialGradient` from `Color(0xFFE8C060)` center to `Color(0xFF5A3E0A)` edge — looks like a polished brass bearing cap.
+- Needle stub: last 14px of arm, same brass gradient, ends with a `Color(0xFFB8860B)` dot (4px, accent-tinted when cover art provides palette color).
+- Headshell (cartridge): a small rectangle (16×8px) perpendicular to the arm near the tip — painted as a dark-gunmetal `Color(0xFF2A2A35)` with a thin bright edge line.
+
+**Animation:**
+- `_tonearmCtrl`: `AnimationController` duration 500ms.
+- **Playing** (value → 1.0): arm swings in to the "playing" angle — rotated ~22° from resting position, needle tip resting over the outer groove ring of the disc.
+- **Paused / stopped** (value → 0.0): arm lifts back to resting position, angled ~58° away from disc.
+- Curve: `Curves.easeInOut`.
+- Tier gate: potato → tonearm widget not rendered at all. basic+ → rendered and animated.
+- **Haptic**: `HapticService.instance.light()` when tonearm reaches the "playing" position (arm-settles-on-record moment).
+
+#### 3. Realistic Groove Rendering (full `_GroovePainter` rewrite)
+
+**Current:** 18 identical rings, fixed 4.8px spacing, all at opacity 0.22. Flat and unconvincing.
+
+**New `_GroovePainter`:**
+
+**a) Label zone:**
+- Inner 36% of disc radius = label area. No grooves drawn here.
+- Instead: draw a very subtle warm circle fill `Color(0x14D4A843)` (amber, 8% opacity) to suggest paper label warmth — no border, no text, just a barely-perceptible warm zone center.
+
+**b) Transition ring:**
+- At 36% radius: a single slightly-brighter ring `strokeWidth: 1.0`, `opacity: 0.35` — the "label edge" ring real vinyl has.
+
+**c) Variable-pitch grooves (36%–97% radius):**
+- Start spacing at label edge: `2.8px`.
+- End spacing at outer edge: `5.6px`.
+- Linear interpolation: `spacing(r) = 2.8 + (r - labelR) / (maxR - labelR) * 2.8`.
+- Groove color: alternates between `opacity: 0.16` and `opacity: 0.28` for depth illusion.
+- `strokeWidth: 0.45` (finer than current 0.5).
+
+**d) Rotating sheen arc (standard+ tier only):**
+- In the `_Disc` `AnimatedBuilder`, pass `discCtrl.value` to `_GroovePainter`.
+- Paint a `RadialGradient`-filled arc wedge (~38° wide) that rotates with the disc, starting at the label edge and ending at the outer groove ring.
+- Colors: `[Colors.white.withOpacity(0.0), Colors.white.withOpacity(0.13), Colors.white.withOpacity(0.0)]` — a soft light sweep suggesting the disc catching ambient light.
+- This uses `canvas.drawArc` clipped to the annular groove region.
+
+**e) Outer edge ring:**
+- At 97% radius: `strokeWidth: 1.5`, `opacity: 0.45` — the pressed vinyl outer bevel ring.
+
+**`shouldRepaint`:** repaint when `innerD`, `animValue` (new param), or tier changes.
+
+#### 4. Spindle Cap Detail (replace current dark circle)
+
+**Current:** `SizedBox(22×22)` dark `Color(0xFF0B0D14)` with white12 border. Looks like a dot.
+
+**New `_SpindleCap` widget (CustomPainter):**
+- Size: 28×28px.
+- Outer bevel ring (28px): `RadialGradient([Colors.white30, Colors.black54])` — simulates a machined bevel.
+- Inner body (22px): `RadialGradient` from `Color(0xFF3A3A45)` center → `Color(0xFF18181F)` edge — dark metallic.
+- Center dot (6px): accent color at 70% opacity — the spindle tip catch-light.
+- No border — the gradient sells the form.
+
+#### 5. Pause Overlay (replace opacity dim)
+
+**Current:** `AnimatedOpacity(opacity: isPlaying ? 1.0 : 0.70)` wrapping the entire disc — disc fades out, looks like a rendering glitch.
+
+**New:**
+- Remove the `AnimatedOpacity` wrapper from `_Disc`.
+- Add a `Stack` inside `_Disc`: disc widget at full opacity always, then on top:
+  ```
+  AnimatedOpacity(
+    opacity: isPlaying ? 0.0 : 1.0,
+    duration: Duration(milliseconds: 300),
+    child: Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.black.withOpacity(0.30),
+      ),
+    ),
+  )
+  ```
+- Plus a centered `AnimatedOpacity` pause icon (no `Icons.pause_rounded` — use a `CustomPaint` of two vertical rounded bars, warm white, 24×28px each, gap 10px) at `opacity: isPlaying ? 0.0 : 0.60`.
+- Both fade in/out 300ms. Disc stays solid — now it looks like a "paused lamp" not a broken fade.
+
+#### 6. Glow Pulse Sync to Playback State
+
+**Current:** `_pulseCtrl` always runs at 2200ms. No relation to what's happening with the music.
+
+**New:**
+- In `didUpdateWidget`, when `isPlaying` changes:
+  - Playing → `_pulseCtrl.duration = const Duration(milliseconds: 1600)` then `_pulseCtrl.repeat(reverse: true)` (restart from current value, not from 0).
+  - Paused → `_pulseCtrl.duration = const Duration(milliseconds: 3400)` then same.
+- Playing pulse is quicker and more alive; paused pulse breathes slowly like a sleeping lamp.
+- Backdrop glow opacity range also changes: playing = `0.12 + v * 0.18`, paused = `0.06 + v * 0.09` (dimmer at rest).
+
+#### 7. Track Change Entrance Animation
+
+When `localPath` or `title` changes, the new disc should feel like a record being placed on the platter — not a hard swap.
+
+- Add `_entryCtrl`: `AnimationController(duration: 400ms)`, curve: `Curves.easeOutBack`.
+- On track change (`didUpdateWidget` path that calls `_scanCoverArt()`): `_entryCtrl.forward(from: 0)`.
+- Disc widget wrapped in `ScaleTransition(scale: Tween(0.88, 1.0).animate(_entryCtrl))`.
+- Cover art: wrapped in `FadeTransition(opacity: _entryCtrl)` — fades in as disc "settles".
+- Tonearm: wait `_entryCtrl.duration * 0.55` (220ms) then swing in.
+- Tier gate: basic+ only. Potato → instant swap.
+
+#### 8. Warm Backdrop Vignette (aesthetic upgrade)
+
+**Current:** vignette uses pure `Colors.black` — cold and flat.
+
+**New:**
+- Replace vignette gradient colors with `Color(0xFF0D0905)` (very dark warm brown, not pure black).
+- Stops and opacities stay the same.
+- Effect: the darkened areas of the backdrop now feel like a warm listening room rather than a cold void.
+- No performance impact — it's just a color change in the `DecoratedBox` `LinearGradient`.
+
+#### 9. Default Fallback Palette (no cover art = warm amber, not blue/purple)
+
+**Current:** `_accent = const Color(0xFF7C5CFF)` default (purple). When no cover art, glow and controls are cold purple — fights the classic warm aesthetic.
+
+**New:**
+- `_accent = const Color(0xFFD4943A)` — warm amber gold. This is the "Neo-Phonograph" brand tone.
+- Gradient fallback colors (`_gradientColors()`): keep the hash-based hue variation but shift the HSV saturation to 0.55→0.72 and brightness to 0.38→0.52, and clamp the hue into the warm quadrant (0°–80° = warm, 180°–300° = cool) — give it a bias toward amber/terracotta/mahogany.
+
+#### 10. Controls Card Polish
+
+The `_GlassCard` layout stays. These are targeted upgrades only:
+
+**a) Seek bar gradient fill:**
+- `_SeekPainter` progress fill: change from solid `accentColor` to `LinearGradient` from `accentColor` → `accentColor.withOpacity(0.65)` (slightly fades toward the right — looks like light).
+- Same `createShader(Rect)` pattern already used in `_BarsPainter`.
+
+**b) Seek thumb pulse while dragging:**
+- Add a `_seeking`-gated `AnimationController _thumbPulseCtrl` (600ms, repeat reverse).
+- When `_seeking` becomes true: `_thumbPulseCtrl.repeat(reverse: true)`.
+- When false: `_thumbPulseCtrl.stop()`, reset to 0.
+- In `_SeekPainter`: pass `thumbScale` param. Outer thumb radius = `8 + thumbScale * 3`. Creates a gentle beat while the user is dragging.
+
+**c) Timestamp micro-animation:**
+- Wrap timestamp `Text` widgets in `AnimatedSlide` + `AnimatedOpacity`: slide up 4px (`Offset(0, -0.15)`) and full opacity while seeking; slide back and 80% opacity at rest. Duration 200ms.
+
+**d) Play button press feedback:**
+- Existing `AnimatedContainer` already animates the button circle. Add: `HapticService.instance.medium()` on every `onPlayPause` call (if not already called from the player screen level — check first).
+
+---
+
+### What's NOT Changing
+- `_BlobPainter` procedural gradient blobs — already good, leave it.
+- Ken Burns `_kenBurnsCtrl` scale tween — already well done.
+- `_GlassCard` layout, button positions, shuffle/repeat icons — no layout change.
+- `BackdropFilter` on GlassCard — already API 28+ gated via `AnimConfig`, leave it.
+- Audio routing, EQ, Lab, all panels in `_ps_panels_audio.dart` — zero touch.
+- Cover art scanning logic — correct, leave it.
+- `_parseTitle` artist/track parser — correct, leave it.
+
+---
+
+### Tier Compliance Table
+
+| Feature | potato (API 21-22) | basic (API 23-27) | standard (API 28-32) | premium (API 33+) |
+|---|---|---|---|---|
+| Physics spin-down | ❌ instant stop | ✅ ease-out 900ms | ✅ ease-out 900ms | ✅ ease-out 900ms |
+| Tonearm | ❌ not rendered | ✅ pivot animation | ✅ + needle dot | ✅ + needle dot |
+| Groove sheen arc | ❌ | ❌ | ✅ | ✅ |
+| Variable groove pitch | ✅ | ✅ | ✅ | ✅ |
+| Pause overlay | ✅ | ✅ | ✅ | ✅ |
+| Glow pulse sync | ✅ | ✅ | ✅ | ✅ |
+| Track entrance anim | ❌ | ✅ | ✅ | ✅ |
+| Warm vignette | ✅ | ✅ | ✅ | ✅ |
+| Seek thumb pulse | ✅ | ✅ | ✅ | ✅ |
+| Timestamp slide | ✅ | ✅ | ✅ | ✅ |
+
+---
+
+### New Controllers in `_AudioModeBackdropState`
+
+```dart
+late final AnimationController _spinDownCtrl;   // one-shot, 900ms
+late final AnimationController _spinUpCtrl;     // one-shot, 600ms
+late final AnimationController _tonearmCtrl;    // 500ms, drives tonearm angle
+late final AnimationController _entryCtrl;      // 400ms, track-change entrance
+AnimationController? _thumbPulseCtrl;           // nullable — only if standard+
+```
+
+All disposed in `dispose()`. `_thumbPulseCtrl` allocated lazily on first seek (avoids wasting a ticker on potato devices).
+
+---
+
+### Success Criteria
+1. APK builds clean.
+2. On physical device: disc decelerates visibly when pausing (no hard-stop).
+3. Tonearm swings in/out smoothly on basic+ device; absent on potato.
+4. Groove rings look like real vinyl (variable spacing, label zone, outer bevel ring visible).
+5. Backdrop warm tones visible (not pure cold black).
+6. No jank — gfxinfo shows ≥ 58fps during disc rotation.
+7. Groove sheen arc only visible on standard+ device.
+8. TASKS.md + PLAYER_UX_BB_PLAN.md tracker rows updated with commit SHA.
+
