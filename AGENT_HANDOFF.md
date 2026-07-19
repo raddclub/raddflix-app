@@ -5,7 +5,19 @@
 
 ---
 
-## Current State (2026-07-18 — Subtitle system cleanup batch, CI ✅ `db73f4df`)
+## Current State (2026-07-19 — BB5: poster URL fix + AB1 CI fix, CI ✅ `255ffe61`)
+
+**BB5 — FAB-THUMBNAIL-FIX (commit `5fa870fa`, CI fix `255ffe61`):**
+
+Root cause of blank ResumeFab/MiniPlayerBar poster: `show_detail_screen._playEpisode()`, `show_detail_screen._playMovie()`, `content_card.dart`, and `downloads_screen.dart` all pushed to the player route without passing `poster_url` in the arguments map. `app.dart` maps `args['poster_url']` → `PlayerScreen.posterUrl`, so it arrived as null every time → `_saveWatchPos()` skipped the `prefs.setString('resume_poster_url', ...)` write → nothing in SharedPrefs → blank card. The `errorWidget` fallbacks and key alignment were already done (BB5 comments visible in both widgets). Fix: added `'poster_url': widget.item.posterUrl` (or `item.posterUrl` / `_posterUrl(d)`) to all four call sites.
+
+CI failure on `5fa870fa` was pre-existing: `AB1` commit had introduced `AnimationController.repeat(from: _discAngle)` — `repeat()` has no `from:` parameter (only `forward()` does). Fixed in `255ffe61` by splitting into `_discCtrl.value = _discAngle; _discCtrl.repeat();` at both affected sites (lines 184 and 206 of `audio_mode_backdrop.dart`).
+
+**No Oracle push needed** — zero `radd-hub/**` files touched.
+
+---
+
+## Previous State (2026-07-18 — Subtitle system cleanup batch, CI ✅ `db73f4df`)
 
 Three follow-up fixes to the subtitle system, three separate commits:
 

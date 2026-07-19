@@ -1131,3 +1131,23 @@ New `_ToggleIcon` widget: `Icon` on a translucent accent-coloured circle when ac
 ### Backwards Compatibility
 
 All new `AudioModeBackdrop` params have safe defaults (`hasPrev: false`, `hasNext: false`, `loopEnabled: false`, `shuffleEnabled: false`, `onLoopToggle`/`onShuffleToggle` defaulting to a static `_noop`). Any existing call-site that doesn't pass these params compiles unchanged.
+
+---
+
+## 2026-07-19 — BB5 FAB-THUMBNAIL-FIX + AB1 CI fix
+
+**Commits:** `5fa870fa` (BB5 fix), `255ffe61` (CI fix) | **CI:** ✅ green
+
+### BB5 — Blank poster in ResumeFab / MiniPlayerBar
+
+**Root cause (audited, not assumed):** `_ps_playback_mixin._saveWatchPos()` only writes `resume_poster_url` when `widget.posterUrl != null`. `widget.posterUrl` comes from `args['poster_url']` in `app.dart`. Four call sites never passed this key:
+- `show_detail_screen._playEpisode()` — pushes series episodes
+- `show_detail_screen._playMovie()` — pushes movies
+- `content_card.dart` — pushes from the content detail sheet
+- `downloads_screen.dart` (both episode and movie lists)
+
+Key names were already aligned (`resume_poster_url` on both sides). `CachedNetworkImage errorWidget` fallbacks were already coded with BB5 comments in both `ResumeFab` and `MiniPlayerBar`. Fix: added `'poster_url': widget.item.posterUrl` / `item.posterUrl` / `_posterUrl(d)` to all four call sites. Poster URL now flows all the way to SharedPrefs on every play.
+
+### AB1 CI fix — `AnimationController.repeat()` has no `from:` parameter
+
+`audio_mode_backdrop.dart` lines 184 and 206 called `_discCtrl.repeat(from: _discAngle)`. `repeat()` takes no `from:` parameter — that's `forward(from:)` only. Fixed by splitting into `_discCtrl.value = _discAngle; _discCtrl.repeat();` at both sites. This was a pre-existing bug from the AB1 Neo-Phonograph commit that had gone undetected (CI not confirmed after that push).
