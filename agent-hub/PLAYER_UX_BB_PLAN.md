@@ -315,6 +315,24 @@ The portrait player layout (YouTube/Netflix style — video in top 38%, controls
 
 ---
 
+---
+
+### BB-AUDIT — AMBIENT QUALITY CHECK (Runs with every BB task)
+
+**Not a separate task — a standing rule baked into every BB commit.**
+
+While implementing any BB task, the agent MUST audit the 3–5 surrounding feature areas most affected by that change. Specifically:
+
+1. **Token compliance** — do the widgets you touched use `RaddTheme.of(context)` / `RaddRadius.*` / `RaddSpace.*` tokens, or are they still on legacy `AppColors.*` / `AppRadius.*`? Migrate any legacy usage in the touched files (small, no-risk change).
+2. **Does it actually work?** — do not assume surrounding features are correct. Briefly test the user-facing flow mentally: is there a dead end? A null check missing? A state that never resets? Fix small issues inline.
+3. **Animation tier compliance** — any animation in touched code should check `AnimConfig.tier` before running effects beyond opacity. Add the check if missing.
+4. **Haptic hygiene** — any tap that should have haptic feedback (confirmation, destructive action, selection) should route through `HapticService.instance`. Add where absent in touched files.
+5. **Larger issues found** → add a new `BB-AUDIT-[N]` entry to `TASKS.md` for tracking. Do not silently ignore.
+
+This audit does NOT mean rewriting untouched code. It means "I was here, I checked, I left it better."
+
+---
+
 ## EXECUTION ORDER
 
 ```
