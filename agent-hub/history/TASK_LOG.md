@@ -1136,6 +1136,38 @@ All new `AudioModeBackdrop` params have safe defaults (`hasPrev: false`, `hasNex
 
 ---
 
+## 2026-07-20 — DA-2: Watch Integrity & Session Minimum Charge
+
+**Commit:** `f64615c1` | **CI:** ✅ green
+
+### Changes
+
+**`lib/core/constants.dart`**
+- `catalogDbVersion` 23 → 24 (new `smc_log` migration).
+
+**`lib/core/db/local_db.dart`**
+- `_createAll`: added `smc_log` table (`id, title_id, charged_on TEXT, created_at`) + unique index `idx_smc_log_title_day(title_id, charged_on)`.
+- `_migrate`: added `if (oldV < 24)` block creating the same table+index for upgraded devices.
+- New methods: `smcLogHasCharge(int titleId)` (per-title/per-day cooldown check) and `smcLogRecord(int titleId)` (idempotent insert via `ConflictAlgorithm.ignore`).
+
+**`lib/core/services/usage_service.dart`**
+- Added constants: `completionThreshold = 0.70`, `abuseVelocityRatio = 4.0`, `abuseSeekThreshold = 0.40`, `smcMinSessionSecs = 20`, `smcFloorBytes` map (360p=80MB, 480p=120MB, 720p=150MB, 1080p=200MB).
+- Added `applySmcIfNeeded({titleId, quality, actualBytes})`: checks cooldown, top-ups bytes to floor if `actualBytes < floor`, records the charge, fires `flushPending()`.
+
+**`lib/screens/player/_ps_playback_mixin.dart`**
+- Added 5 per-session state fields: `_smcSessionStart`, `_realPlaySecs`, `_smcEstimatedBytes`, `_maxSeekJumpFraction`, `_abuseHighSpeedUsed`.
+- `_startUsageTimer()`: sets `_smcSessionStart` on first play tick (`??=`); increments `_realPlaySecs += 30` and `_smcEstimatedBytes` each heartbeat tick.
+- Position stream listener: detects forward jumps > 5 s and tracks max fraction via `_maxSeekJumpFraction`.
+- `_setSpeed()`: sets `_abuseHighSpeedUsed = true` when speed ≥ 4×.
+- Added helpers `_smcTitleId` (reads episode `title_id` or parses `fileId`), `_resetSmcTracking()`, `_isCompletionEarned()`, `_applySmcOnSessionEnd()`.
+- `_openMedia()` and `_openMediaForEpisode()`: call `_applySmcOnSessionEnd().ignore()` + `_resetSmcTracking()` before `_stopUsageTimer()` at each episode boundary.
+- `_onVideoCompleted()`: gates `_clearSavedPosition()` on `_isCompletionEarned()`.
+
+**`lib/screens/player_screen.dart`**
+- `dispose()`: calls `_applySmcOnSessionEnd().ignore()` inside `!_handedOffToService` block before `_stopUsageTimer()`.
+
+---
+
 ## 2026-07-19 — BB5 FAB-THUMBNAIL-FIX + AB1 CI fix
 
 **Commits:** `5fa870fa` (BB5 fix), `255ffe61` (CI fix) | **CI:** ✅ green
