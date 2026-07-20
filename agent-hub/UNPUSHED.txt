@@ -1,8 +1,2 @@
 # Pending push log — auto-managed by auto_commit.sh
 # EMPTY — all changes are pushed.
-
-## PENDING — 2026-07-12 16:07:39
-message: Update TASKS.md: L10 done, add PHASE-I4 row; clear UNPUSHED.txt pending entry
-files:
-  - agent-hub/TASKS.md
-  - agent-hub/UNPUSHED.txt

@@ -1185,3 +1185,16 @@ Key names were already aligned (`resume_poster_url` on both sides). `CachedNetwo
 ### AB1 CI fix — `AnimationController.repeat()` has no `from:` parameter
 
 `audio_mode_backdrop.dart` lines 184 and 206 called `_discCtrl.repeat(from: _discAngle)`. `repeat()` takes no `from:` parameter — that's `forward(from:)` only. Fixed by splitting into `_discCtrl.value = _discAngle; _discCtrl.repeat();` at both sites. This was a pre-existing bug from the AB1 Neo-Phonograph commit that had gone undetected (CI not confirmed after that push).
+
+---
+
+## 2026-07-20 — Session doc cleanup: close P1-D
+
+Previous session (2026-07-20) completed P1-C (Subtitle Personality), P1-D (Phonetic Overlay), and DA-2 (Watch Integrity & SMC) but ended without updating the handoff docs. This session bootstrapped fresh, verified all commits landed and CI is green, then closed out the paperwork:
+
+- `agent-hub/TASKS.md`: marked P1-D ✅ DONE (`bbda2466`→`da9a77e9`)
+- `AGENT_HANDOFF.md`: added Current State section for P1-C/P1-D/DA-2; renamed old Current State → Previous State
+- `agent-hub/UNPUSHED.txt`: cleared stale 2026-07-12 PENDING entry (those changes had long since landed)
+- `agent-hub/history/TASK_LOG.md`: this entry
+
+Board is now clean. TEN_POINT_PLAN complete (2 blocked items only: folder reorg not approved; K5 needs Flutter SDK). Awaiting next task from user.

@@ -5,7 +5,24 @@
 
 ---
 
-## Current State (2026-07-19 — Phase BB complete + CI fix, CI ✅ `3b0321f7`)
+## Current State (2026-07-20 — P1-C/P1-D/DA-2 complete, CI ✅ `da9a77e9`)
+
+**P1-C — Subtitle Personality (IDEA-06), commits `0fa72914`→`2640559b`:**
+Content-aware subtitle visual adaptation: ALL CAPS → bold + 110% size; `...` → italic + 70% opacity; `[whispering]`/`[quietly]` → 80% size italic + 60% opacity; `?!`/`!!` → scale-bounce (tier-gated); `♪`/`🎵` → gradient pill. Toggle + intensity slider added to Subtitle Panel → Style tab. New `subtitle_personality.dart` (pure Dart helper); wired into `subtitle_overlay.dart`, `dual_subtitle_overlay.dart`, `player_prefs.dart`.
+
+**P1-D — Phonetic Subtitle Overlay (IDEA-08), commits `bbda2466`→`da9a77e9`:**
+Roman Urdu transliteration rendered as a smaller line below Arabic-script/Urdu/Hindi subtitles. Script auto-detected via Unicode block ranges. Offline character-map table — no ML, no network. Toggle in Subtitle Panel → Text tab. New `phonetic_subtitle.dart`; wired into both subtitle overlays and `player_prefs.dart`. CI ✅ green on `da9a77e9`.
+
+**DA-2 — Watch Integrity & Session Minimum Charge, commits `f64615c1`+`12f8baae`:**
+Silent background enforcement: completion threshold (70% real-play-secs), abuse velocity guard (4× speed + 40% seek jump), `UsageService.applySmcIfNeeded` with per-title/per-day cooldown, `smc_log` table + DB migration v23→v24. Session tracking fields in `_PlayerPlaybackMixin`; wired into `dispose()`, `_openMediaForEpisode()`, `_onVideoCompleted()`.
+
+**No Oracle push needed** — zero `radd-hub/**` files touched across all three tasks.
+
+**Board status:** All tasks ✅ DONE. TEN_POINT_PLAN essentially complete (2 blocked items: folder reorg not approved; K5 needs Flutter SDK).
+
+---
+
+## Previous State (2026-07-19 — Phase BB complete + CI fix, CI ✅ `3b0321f7`)
 
 **CI fix — `c9179df3` (add 3 missing imports to `player_screen.dart`):**
 
