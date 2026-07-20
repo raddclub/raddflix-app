@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../../core/player/player_prefs.dart';
 import '../../core/player/word_dict.dart';
 import '../../core/player/subtitle_personality.dart'; // IDEA-06
+import '../../core/player/phonetic_subtitle.dart';    // IDEA-08
 import 'word_definition_sheet.dart';
 
 /// Phase F1 — Dual Subtitle Overlay
@@ -96,6 +97,28 @@ class _DualSubtitleOverlayState extends State<DualSubtitleOverlay> {
       }
     }
 
+    // IDEA-08: offline phonetic overlay for Arabic/Devanagari lines.
+    String? priPhonetic;
+    String? secPhonetic;
+    if (widget.prefs.phoneticOverlayEnabled) {
+      if (widget.primaryLine.isNotEmpty) {
+        final r = PhoneticSubtitle.romanize(widget.primaryLine);
+        if (r.isNotEmpty) priPhonetic = r;
+      }
+      if (widget.secondaryLine.isNotEmpty) {
+        final r = PhoneticSubtitle.romanize(widget.secondaryLine);
+        if (r.isNotEmpty) secPhonetic = r;
+      }
+    }
+    TextStyle _phoneticStyle(double baseFontSize, Color baseColor) =>
+        TextStyle(
+          fontSize: baseFontSize * widget.prefs.phoneticOverlayFontScale,
+          fontStyle: FontStyle.italic,
+          color: baseColor.withOpacity(
+              ((baseColor.alpha / 255.0) * 0.80).clamp(0.0, 1.0)),
+          height: 1.2,
+        );
+
     // Helper: compute per-line values from a personality result.
     Color _resolveColor(Color base, SubtitlePersonalityResult p) =>
         p.opacityMultiplier < 1.0
@@ -122,20 +145,33 @@ class _DualSubtitleOverlayState extends State<DualSubtitleOverlay> {
               duration: const Duration(milliseconds: 150),
               transitionBuilder: (child, anim) =>
                   FadeTransition(opacity: anim, child: child),
-              child: _SubLine(
+              child: Column(
                 key: ValueKey('sec_${widget.secondaryLine}'),
-                text: widget.secondaryLine,
-                fontSize: ((fontSize * 0.82) * secP.fontScale).clamp(10, 22),
-                textColor: _resolveColor(textColor.withOpacity(0.75), secP),
-                outlineColor: outlineColor,
-                bgColor: _resolveBg(bgColor, secP),
-                bold: secP.forceBold || widget.prefs.subtitleBold,
-                italic: secP.forceItalic || widget.prefs.subtitleItalic,
-                outline: outline,
-                dictEnabled: widget.prefs.dictEnabled,
-                accentColor: widget.prefs.accentColor,
-                tappedWord: _tappedWord,
-                onWordTap: (word) => _onWordTap(context, word, widget.secondaryLine),
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _SubLine(
+                    text: widget.secondaryLine,
+                    fontSize: ((fontSize * 0.82) * secP.fontScale).clamp(10, 22),
+                    textColor: _resolveColor(textColor.withOpacity(0.75), secP),
+                    outlineColor: outlineColor,
+                    bgColor: _resolveBg(bgColor, secP),
+                    bold: secP.forceBold || widget.prefs.subtitleBold,
+                    italic: secP.forceItalic || widget.prefs.subtitleItalic,
+                    outline: outline,
+                    dictEnabled: widget.prefs.dictEnabled,
+                    accentColor: widget.prefs.accentColor,
+                    tappedWord: _tappedWord,
+                    onWordTap: (word) => _onWordTap(context, word, widget.secondaryLine),
+                  ),
+                  // IDEA-08: phonetic row below secondary line (if applicable).
+                  if (secPhonetic != null) ...[
+                    const SizedBox(height: 1),
+                    Text(secPhonetic, textAlign: TextAlign.center,
+                        style: _phoneticStyle(
+                            (fontSize * 0.82).clamp(10, 22),
+                            textColor.withOpacity(0.75))),
+                  ],
+                ],
               ),
             ),
           if (widget.secondaryLine.isNotEmpty && widget.primaryLine.isNotEmpty)
@@ -146,20 +182,31 @@ class _DualSubtitleOverlayState extends State<DualSubtitleOverlay> {
               duration: const Duration(milliseconds: 150),
               transitionBuilder: (child, anim) =>
                   FadeTransition(opacity: anim, child: child),
-              child: _SubLine(
+              child: Column(
                 key: ValueKey('pri_${widget.primaryLine}'),
-                text: widget.primaryLine,
-                fontSize: fontSize * priP.fontScale,
-                textColor: _resolveColor(textColor, priP),
-                outlineColor: outlineColor,
-                bgColor: _resolveBg(bgColor, priP),
-                bold: priP.forceBold || widget.prefs.subtitleBold,
-                italic: priP.forceItalic || widget.prefs.subtitleItalic,
-                outline: outline,
-                dictEnabled: widget.prefs.dictEnabled,
-                accentColor: widget.prefs.accentColor,
-                tappedWord: _tappedWord,
-                onWordTap: (word) => _onWordTap(context, word, widget.primaryLine),
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _SubLine(
+                    text: widget.primaryLine,
+                    fontSize: fontSize * priP.fontScale,
+                    textColor: _resolveColor(textColor, priP),
+                    outlineColor: outlineColor,
+                    bgColor: _resolveBg(bgColor, priP),
+                    bold: priP.forceBold || widget.prefs.subtitleBold,
+                    italic: priP.forceItalic || widget.prefs.subtitleItalic,
+                    outline: outline,
+                    dictEnabled: widget.prefs.dictEnabled,
+                    accentColor: widget.prefs.accentColor,
+                    tappedWord: _tappedWord,
+                    onWordTap: (word) => _onWordTap(context, word, widget.primaryLine),
+                  ),
+                  // IDEA-08: phonetic row below primary line (if applicable).
+                  if (priPhonetic != null) ...[
+                    const SizedBox(height: 2),
+                    Text(priPhonetic, textAlign: TextAlign.center,
+                        style: _phoneticStyle(fontSize, textColor)),
+                  ],
+                ],
               ),
             ),
         ],

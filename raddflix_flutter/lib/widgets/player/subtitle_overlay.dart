@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../core/player/player_prefs.dart';
 import '../../core/player/word_dict.dart';
 import '../../core/player/subtitle_personality.dart'; // IDEA-06
+import '../../core/player/phonetic_subtitle.dart';    // IDEA-08
 import '../player/word_definition_sheet.dart';
 
 /// Custom subtitle overlay rendered entirely from PlayerPrefs styles.
@@ -211,6 +212,23 @@ class _SubtitleOverlayState extends State<SubtitleOverlay>
             borderRadius: BorderRadius.circular(4),
           );
 
+    // IDEA-08: offline phonetic overlay for Arabic/Devanagari lines.
+    String? phoneticLine;
+    TextStyle? phoneticStyle;
+    if (widget.prefs.phoneticOverlayEnabled) {
+      final roman = PhoneticSubtitle.romanize(widget.currentLine!);
+      if (roman.isNotEmpty) {
+        phoneticLine = roman;
+        phoneticStyle = baseStyle.copyWith(
+          fontSize: effectiveFontSize * widget.prefs.phoneticOverlayFontScale,
+          fontStyle: FontStyle.italic,
+          fontWeight: FontWeight.normal,
+          color: effectiveTextColor.withOpacity(
+              ((effectiveTextColor.alpha / 255.0) * 0.80).clamp(0.0, 1.0)),
+        );
+      }
+    }
+
     // AnimatedBuilder wraps the container so the scale-bounce animation
     // (if playing) is applied. When not animating, _scaleAnim.value == 1.0
     // and the transform is a no-op — no extra cost.
@@ -251,13 +269,8 @@ class _SubtitleOverlayState extends State<SubtitleOverlay>
                       FadeTransition(opacity: animation, child: child),
                   child: KeyedSubtree(
                     key: ValueKey(widget.currentLine),
-                    child: widget.prefs.dictEnabled
-                        ? _buildTappableText(context, widget.currentLine!, baseStyle)
-                        : Text(
-                            widget.currentLine!,
-                            textAlign: TextAlign.center,
-                            style: baseStyle,
-                          ),
+                    child: _buildContent(context, widget.currentLine!,
+                        baseStyle, phoneticLine, phoneticStyle),
                   ),
                 ),
               ),
@@ -265,6 +278,24 @@ class _SubtitleOverlayState extends State<SubtitleOverlay>
           ),
         ),
       ),
+    );
+  }
+
+  /// IDEA-08: builds main subtitle content plus optional phonetic row below.
+  Widget _buildContent(BuildContext ctx, String line, TextStyle style,
+      String? phoneticLine, TextStyle? phoneticStyle) {
+    final Widget main = widget.prefs.dictEnabled
+        ? _buildTappableText(ctx, line, style)
+        : Text(line, textAlign: TextAlign.center, style: style);
+
+    if (phoneticLine == null || phoneticLine.isEmpty) return main;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        main,
+        const SizedBox(height: 2),
+        Text(phoneticLine, textAlign: TextAlign.center, style: phoneticStyle),
+      ],
     );
   }
 
