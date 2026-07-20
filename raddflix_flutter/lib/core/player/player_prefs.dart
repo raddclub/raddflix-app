@@ -350,6 +350,13 @@ class PlayerPrefs {
   /// Effect intensity for the personality engine (0.0–1.0). Default 0.7.
   final double subtitlePersonalityIntensity;
 
+  // ── IDEA-08: Phonetic Subtitle Overlay ────────────────────────────────────
+  /// When true, show a Roman Urdu/Hindi transliteration below Arabic-script or
+  /// Devanagari subtitle lines. Transliteration is offline (char-map, no net).
+  final bool   phoneticOverlayEnabled;
+  /// Size of the phonetic line relative to the primary subtitle fontSize.
+  final double phoneticOverlayFontScale; // 0.55–0.85, default 0.72
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -527,6 +534,8 @@ class PlayerPrefs {
     this.sidebarMode                 = 0,
     this.subtitlePersonalityEnabled   = false,
     this.subtitlePersonalityIntensity = 0.7,
+    this.phoneticOverlayEnabled       = false,
+    this.phoneticOverlayFontScale     = 0.72,
   });
 
   PlayerPrefs copyWith({
@@ -639,6 +648,8 @@ class PlayerPrefs {
     int?    sidebarMode,
     bool?   subtitlePersonalityEnabled,
     double? subtitlePersonalityIntensity,
+    bool?   phoneticOverlayEnabled,
+    double? phoneticOverlayFontScale,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -810,6 +821,8 @@ class PlayerPrefs {
       sidebarMode:                 sidebarMode                 ?? this.sidebarMode,
       subtitlePersonalityEnabled:   subtitlePersonalityEnabled   ?? this.subtitlePersonalityEnabled,
       subtitlePersonalityIntensity: subtitlePersonalityIntensity ?? this.subtitlePersonalityIntensity,
+      phoneticOverlayEnabled:       phoneticOverlayEnabled       ?? this.phoneticOverlayEnabled,
+      phoneticOverlayFontScale:     phoneticOverlayFontScale     ?? this.phoneticOverlayFontScale,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -999,6 +1012,8 @@ class PlayerPrefs {
       sidebarMode:                 s.getInt('${_p}sidebar_mode')                ?? 0,
       subtitlePersonalityEnabled:   s.getBool('${_p}sub_personality_enabled')    ?? false,
       subtitlePersonalityIntensity: s.getDouble('${_p}sub_personality_intensity') ?? 0.7,
+      phoneticOverlayEnabled:       s.getBool('${_p}phonetic_overlay_enabled')    ?? false,
+      phoneticOverlayFontScale:     s.getDouble('${_p}phonetic_overlay_scale')    ?? 0.72,
     );
   }
 
@@ -1184,6 +1199,8 @@ class PlayerPrefs {
       s.setInt('${_p}sidebar_mode',               sidebarMode),
       s.setBool('${_p}sub_personality_enabled',     subtitlePersonalityEnabled),
       s.setDouble('${_p}sub_personality_intensity',  subtitlePersonalityIntensity),
+      s.setBool('${_p}phonetic_overlay_enabled',     phoneticOverlayEnabled),
+      s.setDouble('${_p}phonetic_overlay_scale',     phoneticOverlayFontScale),
     ]);
   }
 }
