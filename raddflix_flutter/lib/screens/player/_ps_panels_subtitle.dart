@@ -97,6 +97,10 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   // survives across panel opens for the life of the app process.
   static String? _osToken;
 
+  // ── IDEA-06: Subtitle Personality ─────────────────────────────────────────
+  bool   _personalityEnabled   = false;
+  double _personalityIntensity = 0.7;
+
   static const _subFonts     = ['Sans Serif', 'Serif', 'Monospace', 'Casual'];
   static const _mpvFonts     = ['sans-serif', 'serif', 'monospace', 'sans-serif'];
   static const _shadowLabels = ['None', 'Outline', 'Shadow', 'Box'];
@@ -137,6 +141,10 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     // instead of always resetting to 100 when the panel reopens.
     final margin      = prefs.getDouble('pref_sub_margin')   ?? 100.0;
     final presetName  = prefs.getString('pref_sub_preset')  ?? 'custom';
+    // IDEA-06: personality prefs share the PlayerPrefs key namespace so the
+    // overlay reads the same values when it calls PlayerPrefs.load().
+    final personalityEnabled   = prefs.getBool('player_sub_personality_enabled')    ?? false;
+    final personalityIntensity = prefs.getDouble('player_sub_personality_intensity') ?? 0.7;
     setState(() {
       _currentPreset   = SubtitlePreset.values.firstWhere(
           (p) => p.name == presetName, orElse: () => SubtitlePreset.custom);
@@ -150,8 +158,10 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       _subAlignX       = alignX;
       _subAlignY       = alignY;
       _subEdgePadding  = edgePad;
-      _subFitToVideo   = fitToVideo;
-      _subBottomMargin = margin;
+      _subFitToVideo        = fitToVideo;
+      _subBottomMargin      = margin;
+      _personalityEnabled   = personalityEnabled;
+      _personalityIntensity = personalityIntensity;
     });
     if (!mounted) return;
     // Re-apply all saved settings to MPV so the live video matches prefs.
@@ -187,6 +197,10 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     await prefs.setInt('pref_sub_align_y',      _subAlignY);
     await prefs.setDouble('pref_sub_edge_pad',  _subEdgePadding);
     await prefs.setBool('pref_sub_fit',         _subFitToVideo);
+    // IDEA-06: write to PlayerPrefs namespace so SubtitleOverlay (which reads
+    // PlayerPrefs.load()) picks up the change without a restart.
+    await prefs.setBool('player_sub_personality_enabled',     _personalityEnabled);
+    await prefs.setDouble('player_sub_personality_intensity',  _personalityIntensity);
     widget.onStyleSynced?.call(
       fontIdx:   _subFontIdx,
       size:      _subSize,
@@ -876,6 +890,42 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       ),
       const SizedBox(height: RaddSpace.sm),
       ], // BB3: end custom-only sliders
+
+      // ── IDEA-06: Subtitle Personality ──────────────────────────────────────
+      const SizedBox(height: 4),
+      const Divider(color: Colors.white12, height: 1),
+      const SizedBox(height: 10),
+      _secLabel('Subtitle Personality'),
+      const Padding(
+        padding: EdgeInsets.only(bottom: 6),
+        child: Text(
+          'Adapts weight, size & opacity based on dialogue — e.g. fade whispers, bounce exclamations, italicise music.',
+          style: TextStyle(color: Colors.white38, fontSize: 11),
+        ),
+      ),
+      _buildSwitchRow(
+        icon: Icons.auto_awesome_rounded,
+        label: 'Enable Personality',
+        value: _personalityEnabled,
+        onChanged: (v) {
+          setState(() => _personalityEnabled = v);
+          HapticFeedback.selectionClick();
+          _saveSubPrefs();
+        },
+      ),
+      if (_personalityEnabled) _buildSliderRow(
+        label: 'Intensity',
+        valueLabel: '${(_personalityIntensity * 100).round()}%',
+        value: _personalityIntensity,
+        min: 0.1,
+        max: 1.0,
+        divisions: 9,
+        onChanged: (v) {
+          setState(() => _personalityIntensity = v);
+          _saveSubPrefs();
+        },
+      ),
+      const SizedBox(height: RaddSpace.sm),
     ]);
   }
 
