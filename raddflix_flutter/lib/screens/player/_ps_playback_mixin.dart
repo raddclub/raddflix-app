@@ -279,6 +279,10 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
       _wirePlayerStreams();
       _wireSilenceSkipObserver();
       if (_trackUsage) _startUsageTimer();
+      // DA-2-FIX-3: seed real-play counter from the current position so the
+      // completion guard doesn't wrongly deny credit for playtime that occurred
+      // while the session was minimized in PlaybackService.
+      _realPlaySecs = _position.inSeconds;
       _posTimer = Timer.periodic(const Duration(seconds: 10), (_) => _saveWatchPos());
       return;
     }

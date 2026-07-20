@@ -135,8 +135,11 @@ class UsageService {
     final topUp = floor - actualBytes;
     if (topUp > 0) {
       await LocalDb.addPendingUsage(bytes: topUp, kind: 'smc');
+      // DA-2-FIX-1: only record the cooldown when a charge was actually made.
+      // Recording on topUp=0 would burn the daily slot when no bytes were owed,
+      // causing a subsequent short session of the same title to be silently skipped.
+      await LocalDb.smcLogRecord(titleId);
     }
-    await LocalDb.smcLogRecord(titleId);
     flushPending().ignore();
   }
 

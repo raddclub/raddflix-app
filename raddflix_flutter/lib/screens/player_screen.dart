@@ -287,6 +287,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (state == AppLifecycleState.paused) {
       _saveWatchPos();
       if (!_backgroundAudio) {
+        // DA-2-FIX-2: trigger SMC when the app backgrounds without background audio.
+        // The session is effectively suspended — if the OS kills the process, dispose()
+        // will never fire, so this is the last safe point to capture the charge.
+        // _resetSmcTracking() ensures the resumed session is treated as fresh;
+        // the per-day cooldown in smc_log prevents any double-charge.
+        _applySmcOnSessionEnd().ignore();
+        _resetSmcTracking();
         _player.pause();
       } else {
         _isInBackground = true;
