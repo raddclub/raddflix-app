@@ -81,21 +81,21 @@ class AppConstants {
 
 // ── Brand Colors ─────────────────────────────────────────────────────────────
 class AppColors {
-  // Primary brand — Warm Hearth palette
-  // Amber-terracotta: calm, home, no pressure. Unclaimed in streaming category.
-  static const Color primary       = Color(0xFFD4784A);
-  static const Color primaryDark   = Color(0xFFA85A32);
-  static const Color primaryGlow   = Color(0x40D4784A);
-  static const Color primaryLight  = Color(0xFFE8A070);
+  // Primary brand — Obsidian Crimson palette
+  // Cardinal red: bold, premium, distinctive. Clean red with depth, not Netflix flat.
+  static const Color primary       = Color(0xFFC41E3A);
+  static const Color primaryDark   = Color(0xFF92152B);
+  static const Color primaryGlow   = Color(0x40C41E3A);
+  static const Color primaryLight  = Color(0xFFE8384F);
 
   // Backgrounds (Dark theme) — kept in sync with RaddTheme.dark
-  // Warm brown-black: like a dimly lit living room, not a cold cinema.
-  static const Color background    = Color(0xFF130F0C);
-  static const Color backgroundAlt = Color(0xFF1A1410);
-  static const Color surface       = Color(0xFF211A15);
-  static const Color surfaceHigh   = Color(0xFF2C2219);
-  static const Color card          = Color(0xFF352A1F);
-  static const Color cardBorder    = Color(0xFF4A3828);
+  // Near-black, neutral — no hue contamination, maximum perceived depth.
+  static const Color background    = Color(0xFF0D0D0F);
+  static const Color backgroundAlt = Color(0xFF121214);
+  static const Color surface       = Color(0xFF161618);
+  static const Color surfaceHigh   = Color(0xFF1E1E21);
+  static const Color card          = Color(0xFF242428);
+  static const Color cardBorder    = Color(0xFF2E2E33);
 
   // Glassmorphism
   static const Color glass         = Color(0x0DFFFFFF);
@@ -113,11 +113,11 @@ class AppColors {
   static const Color lightCard     = Color(0xFFF0E8DC);
   static const Color lightBorder   = Color(0xFFE0CEB8);
 
-  // Text — warm cream, not cold blue-white
-  static const Color textPrimary   = Color(0xFFF5EFE6);
-  static const Color textSecondary = Color(0xFFC8B5A0);
-  static const Color textMuted     = Color(0xFF8A7060);
-  static const Color textDisabled  = Color(0xFF5A4838);
+  // Text — crisp near-white, maximum contrast against deep dark backgrounds
+  static const Color textPrimary   = Color(0xFFF8F8FA);
+  static const Color textSecondary = Color(0xFF9898A6);
+  static const Color textMuted     = Color(0xFF58585F);
+  static const Color textDisabled  = Color(0xFF363639);
 
   // Text (light mode) — warm dark brown, not cold near-black
   static const Color lightTextPrimary   = Color(0xFF1A110A);
@@ -139,31 +139,31 @@ class AppColors {
   static const Color accent        = Color(0xFF5B9BD4);   // alias for info, used in year filter chips
 
   // Divider
-  static const Color divider       = Color(0xFF2A2018);
+  static const Color divider       = Color(0xFF1E1E22);
   static const Color dividerLight  = Color(0xFFE8D8C8);
 
   // Gradients
   static const LinearGradient primaryGradient = LinearGradient(
-    colors: [Color(0xFFD4784A), Color(0xFFE8A070)],
+    colors: [Color(0xFFC41E3A), Color(0xFFE8384F)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient darkGradient = LinearGradient(
-    colors: [Color(0xFF130F0C), Color(0xFF1A1410)],
+    colors: [Color(0xFF0D0D0F), Color(0xFF121214)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
 
   static const LinearGradient heroGradient = LinearGradient(
-    colors: [Colors.transparent, Color(0xFF130F0C)],
+    colors: [Colors.transparent, Color(0xFF0D0D0F)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
     stops: [0.3, 1.0],
   );
 
   static const LinearGradient cardGradient = LinearGradient(
-    colors: [Color(0xFF2C2219), Color(0xFF211A15)],
+    colors: [Color(0xFF1E1E21), Color(0xFF161618)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
@@ -180,9 +180,9 @@ class AppColors {
   static const Color simosaBgLight2 = Color(0xFFD8C8FF); // Simosa light bg gradient end
 
   // ── Layout designer ────────────────────────────────────────────────────────
-  static const Color layoutDeep     = Color(0xFF1A1410); // Layout designer scaffold bg
-  static const Color layoutPanel    = Color(0xFF211A15); // Layout designer header/footer panel
-  static const Color layoutSheet    = Color(0xFF352A1F); // Layout designer bottom sheet
+  static const Color layoutDeep     = Color(0xFF0D0D0F); // Layout designer scaffold bg
+  static const Color layoutPanel    = Color(0xFF161618); // Layout designer header/footer panel
+  static const Color layoutSheet    = Color(0xFF242428); // Layout designer bottom sheet
 
   // ── Semantic — Volume II (accent.dataFree, protected color) ────────────────
   /// Reserved EXCLUSIVELY for zero-rated/data-free indicators. Never use for
@@ -315,21 +315,21 @@ class AppCurves {
 class AppGradients {
   // Brand — primary action buttons, active indicators
   static const LinearGradient brand = LinearGradient(
-    colors: [Color(0xFFD4784A), Color(0xFFE8A070)],
+    colors: [Color(0xFFC41E3A), Color(0xFFE8384F)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   // Nav capsule — transparent tinted background behind active nav item
   static const LinearGradient navCapsule = LinearGradient(
-    colors: [Color(0x2AD4784A), Color(0x15E8A070)],
+    colors: [Color(0x2AC41E3A), Color(0x15E8384F)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
-  // Hero overlay — fades content to warm background at bottom of cards
+  // Hero overlay — fades content to dark background at bottom of cards
   static const LinearGradient hero = LinearGradient(
-    colors: [Colors.transparent, Color(0xFF130F0C)],
+    colors: [Colors.transparent, Color(0xFF0D0D0F)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
     stops: [0.3, 1.0],
@@ -337,14 +337,14 @@ class AppGradients {
 
   // Dark background — scaffold/screen backgrounds
   static const LinearGradient dark = LinearGradient(
-    colors: [Color(0xFF130F0C), Color(0xFF1A1410)],
+    colors: [Color(0xFF0D0D0F), Color(0xFF121214)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
 
   // Card surface — elevated card backgrounds
   static const LinearGradient card = LinearGradient(
-    colors: [Color(0xFF2C2219), Color(0xFF211A15)],
+    colors: [Color(0xFF1E1E21), Color(0xFF161618)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );

@@ -30,13 +30,13 @@ class BrandThemeState {
   });
 
   static const BrandThemeState defaults = BrandThemeState(
-    primary:         Color(0xFFD4784A),
-    accent:          Color(0xFFE8A070),
-    darkBackground:  Color(0xFF130F0C),
-    darkSurface:     Color(0xFF211A15),
-    darkCard:        Color(0xFF352A1F),
-    darkTextPrimary: Color(0xFFF5EFE6),
-    splashColor:     Color(0xFF130F0C),
+    primary:         Color(0xFFC41E3A),
+    accent:          Color(0xFFE8384F),
+    darkBackground:  Color(0xFF0D0D0F),
+    darkSurface:     Color(0xFF161618),
+    darkCard:        Color(0xFF242428),
+    darkTextPrimary: Color(0xFFF8F8FA),
+    splashColor:     Color(0xFF0D0D0F),
     appName:         'RaddFlix',
     fontFamily:      'inter',
     buttonRadius:    14,
@@ -70,13 +70,13 @@ class BrandThemeNotifier extends StateNotifier<BrandThemeState> {
   Future<void> reload() async {
     final p = await SharedPreferences.getInstance();
     state = BrandThemeState(
-      primary:         _hex(p.getString(RemoteConfig.kBrandPrimaryColor),    const Color(0xFFD4784A)),
-      accent:          _hex(p.getString(RemoteConfig.kBrandAccentColor),     const Color(0xFFE8A070)),
-      darkBackground:  _hex(p.getString(RemoteConfig.kBrandBackgroundColor), const Color(0xFF130F0C)),
-      darkSurface:     _hex(p.getString(RemoteConfig.kBrandSurfaceColor),    const Color(0xFF211A15)),
-      darkCard:        _hex(p.getString(RemoteConfig.kBrandCardColor),       const Color(0xFF352A1F)),
-      darkTextPrimary: _hex(p.getString(RemoteConfig.kBrandTextPrimaryColor),const Color(0xFFF5EFE6)),
-      splashColor:     _hex(p.getString(RemoteConfig.kBrandSplashColor),     const Color(0xFF130F0C)),
+      primary:         _hex(p.getString(RemoteConfig.kBrandPrimaryColor),    const Color(0xFFC41E3A)),
+      accent:          _hex(p.getString(RemoteConfig.kBrandAccentColor),     const Color(0xFFE8384F)),
+      darkBackground:  _hex(p.getString(RemoteConfig.kBrandBackgroundColor), const Color(0xFF0D0D0F)),
+      darkSurface:     _hex(p.getString(RemoteConfig.kBrandSurfaceColor),    const Color(0xFF161618)),
+      darkCard:        _hex(p.getString(RemoteConfig.kBrandCardColor),       const Color(0xFF242428)),
+      darkTextPrimary: _hex(p.getString(RemoteConfig.kBrandTextPrimaryColor),const Color(0xFFF8F8FA)),
+      splashColor:     _hex(p.getString(RemoteConfig.kBrandSplashColor),     const Color(0xFF0D0D0F)),
       appName:      p.getString(RemoteConfig.kBrandAppName)     ?? 'RaddFlix',
       fontFamily:   p.getString(RemoteConfig.kBrandFont)        ?? 'inter',
       buttonRadius: double.tryParse(p.getString(RemoteConfig.kBrandButtonRadius) ?? '14') ?? 14,
