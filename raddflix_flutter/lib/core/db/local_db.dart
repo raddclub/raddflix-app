@@ -256,6 +256,18 @@ class LocalDb {
         PRIMARY KEY (person_id, title_id)
       )
     ''');
+    // DA-2 — Session Minimum Charge cooldown: one charge per title per day
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS smc_log (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        title_id    INTEGER NOT NULL,
+        charged_on  TEXT    NOT NULL,
+        created_at  INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_smc_log_title_day ON smc_log(title_id, charged_on)',
+    );
     // Seed the default "Me" profile — id 1, matching the profile_id default
     // already baked into watchlist/watch_positions above.
     await db.insert('profiles', {
@@ -562,6 +574,22 @@ class LocalDb {
       try {
         await db.execute(
             "ALTER TABLE usage_log ADD COLUMN kind TEXT NOT NULL DEFAULT 'stream'");
+      } catch (_) {}
+    }
+    if (oldV < 24) {
+      // DA-2: Session Minimum Charge cooldown — one charge per title per day.
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS smc_log (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            title_id    INTEGER NOT NULL,
+            charged_on  TEXT    NOT NULL,
+            created_at  INTEGER NOT NULL DEFAULT 0
+          )
+        ''');
+        await db.execute(
+          'CREATE UNIQUE INDEX IF NOT EXISTS idx_smc_log_title_day ON smc_log(title_id, charged_on)',
+        );
       } catch (_) {}
     }
   }
@@ -1632,6 +1660,33 @@ class LocalDb {
       result[k] = (r['total'] as int?) ?? 0;
     }
     return result;
+  }
+
+  // ── DA-2: SMC cooldown log ────────────────────────────────────────────────
+
+  /// Returns true if [titleId] has already been SMC-charged today.
+  static Future<bool> smcLogHasCharge(int titleId) async {
+    final db    = await instance;
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    final rows  = await db.query(
+      'smc_log',
+      where: 'title_id = ? AND charged_on = ?',
+      whereArgs: [titleId, today],
+      limit: 1,
+    );
+    return rows.isNotEmpty;
+  }
+
+  /// Records an SMC charge for [titleId] on today's date. Idempotent.
+  static Future<void> smcLogRecord(int titleId) async {
+    final db    = await instance;
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    final now   = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    await db.insert(
+      'smc_log',
+      {'title_id': titleId, 'charged_on': today, 'created_at': now},
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
   }
 
   static Future<Map<String, dynamic>> getCachedQuota() async {

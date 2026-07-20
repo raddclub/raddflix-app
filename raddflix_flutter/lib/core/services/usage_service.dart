@@ -27,6 +27,23 @@ class UsageService {
 
   static bool _flushing = false; // M-18: prevent concurrent flush calls
 
+  // ── DA-2: Watch Integrity & Session Minimum Charge constants ─────────────
+  /// Minimum watch-time fraction required to award completion credit.
+  static const double completionThreshold = 0.70;
+  /// Speed ratio that triggers the abuse velocity flag (fast-forward abuse).
+  static const double abuseVelocityRatio  = 4.0;
+  /// Seek jump fraction (relative to total duration) that signals seek abuse.
+  static const double abuseSeekThreshold  = 0.40;
+  /// Minimum wall-clock session seconds before SMC is charged.
+  static const int smcMinSessionSecs = 20;
+  /// Per-quality SMC floor bytes deducted even on short sessions.
+  static const Map<String, int> smcFloorBytes = {
+    '360p':  80  * 1024 * 1024,
+    '480p':  120 * 1024 * 1024,
+    '720p':  150 * 1024 * 1024,
+    '1080p': 200 * 1024 * 1024,
+  };
+
   // Quality → estimated bits per second
   static const Map<String, int> _bpsEstimate = {
     '1080p': 2200000,
@@ -99,6 +116,28 @@ class UsageService {
     } catch (e) {
       DebugLogger.logWarn('USAGE', 'Flush error: $e');
     }
+  }
+
+  /// DA-2: Applies the Session Minimum Charge for a completed play session.
+  ///
+  /// If [actualBytes] < the quality floor, tops up the difference as `kind='smc'`.
+  /// Skips silently if the per-title/per-day cooldown has already fired today.
+  /// Always fire-and-forget — never awaited on the UI thread.
+  static Future<void> applySmcIfNeeded({
+    required int titleId,
+    required String quality,
+    required int actualBytes,
+  }) async {
+    if (titleId <= 0) return;
+    final alreadyCharged = await LocalDb.smcLogHasCharge(titleId);
+    if (alreadyCharged) return;
+    final floor = smcFloorBytes[quality] ?? smcFloorBytes['720p']!;
+    final topUp = floor - actualBytes;
+    if (topUp > 0) {
+      await LocalDb.addPendingUsage(bytes: topUp, kind: 'smc');
+    }
+    await LocalDb.smcLogRecord(titleId);
+    flushPending().ignore();
   }
 
   /// Get locally cached quota (used offline / before first server sync).

@@ -84,6 +84,12 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
   bool _isFree     = false;  // true when playing free (is_free=1) content — no quota deduction
   bool _trackUsage = false;  // true only for non-local, non-free streaming
   Timer? _usageTimer;        // 30-second heartbeat to log streamed bytes
+  // ── DA-2: per-session watch integrity + SMC tracking ─────────────────────
+  DateTime? _smcSessionStart;        // wall clock when first play tick occurred
+  int _realPlaySecs = 0;             // accumulated real playtime this session
+  int _smcEstimatedBytes = 0;        // estimated bytes accumulated this session
+  double _maxSeekJumpFraction = 0.0; // largest single forward seek / duration
+  bool _abuseHighSpeedUsed = false;  // true if speed ≥ 4× was used this session
   static const _kResumePrefix = 'resume_pos_';
   // ── UX3-10: true background miniplayer ───────────────────────────────────
   // Set by _minimizePlayer() right before popping the screen. Tells
@@ -172,12 +178,17 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
   // ── Methods ─────────────────────────────────────────────────────────────
   void _startUsageTimer() {
     _usageTimer?.cancel();
+    _smcSessionStart ??= DateTime.now(); // DA-2: wall clock starts on first play tick per session
     _usageTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (_trackUsage && _playing && mounted) {
         // Estimate quality from video width (1920→1080p, 1280→720p, 854→480p, else→360p)
         final w = _player.state.width ?? 0;
         final quality = w >= 1920 ? '1080p' : w >= 1280 ? '720p' : w >= 854 ? '480p' : '360p';
         UsageService.addWatchSession(seconds: 30, quality: quality).ignore();
+        // DA-2: accumulate real playtime + byte estimate for SMC and completion guard
+        _realPlaySecs += 30;
+        const bps = {'1080p': 2200000, '720p': 1100000, '480p': 600000, '360p': 300000};
+        _smcEstimatedBytes += (30 * (bps[quality] ?? bps['720p']!)) ~/ 8;
       }
     });
   }
@@ -185,6 +196,61 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
   void _stopUsageTimer() {
     _usageTimer?.cancel();
     _usageTimer = null;
+  }
+
+  // ── DA-2: Watch Integrity & SMC helpers ──────────────────────────────────
+
+  /// Title ID used for SMC cooldown keying.
+  /// Series: reads title_id from episode map. Movies: parses fileId as int or hashes it.
+  int get _smcTitleId {
+    if (_eps.isNotEmpty) {
+      return _eps[_currentEpIdx]['title_id'] as int? ?? 0;
+    }
+    return int.tryParse(_currentFileId) ?? _currentFileId.hashCode.abs();
+  }
+
+  /// Resets per-session DA-2 tracking state. Call at the start of each new media open.
+  void _resetSmcTracking() {
+    _smcSessionStart = null;
+    _realPlaySecs = 0;
+    _smcEstimatedBytes = 0;
+    _maxSeekJumpFraction = 0.0;
+    _abuseHighSpeedUsed = false;
+  }
+
+  /// True when completion credit should be awarded.
+  /// Fails if real playtime < 70 % of total, or if both abuse signals fire.
+  bool _isCompletionEarned() {
+    final totalSecs = _duration.inSeconds;
+    if (totalSecs <= 0) return true; // unknown duration — give benefit of doubt
+    if (_abuseHighSpeedUsed &&
+        _maxSeekJumpFraction >= UsageService.abuseSeekThreshold) {
+      return false; // seek + fast-forward abuse → deny
+    }
+    return _realPlaySecs >= (totalSecs * UsageService.completionThreshold).round();
+  }
+
+  /// Applies SMC charge if wall-clock session ≥ 20 s and content is paid.
+  /// Always fire-and-forget: call with `.ignore()` from synchronous code.
+  Future<void> _applySmcOnSessionEnd() async {
+    if (!_trackUsage) return;
+    final start = _smcSessionStart;
+    if (start == null) return;
+    final wallSecs = DateTime.now().difference(start).inSeconds;
+    if (wallSecs < UsageService.smcMinSessionSecs) return;
+    final w = _player.state.width;
+    final quality = (w != null && w >= 1920)
+        ? '1080p'
+        : (w != null && w >= 1280)
+            ? '720p'
+            : (w != null && w >= 854)
+                ? '480p'
+                : '360p';
+    await UsageService.applySmcIfNeeded(
+      titleId: _smcTitleId,
+      quality: quality,
+      actualBytes: _smcEstimatedBytes,
+    );
   }
 
   void _initPlayer() {
@@ -304,6 +370,15 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
       }),
       _player.stream.position.listen((v) {
         if (!mounted) return;
+        // DA-2: detect large forward seek jumps for abuse detection.
+        // At this point _position is still the previous value; v is the new one.
+        if (_duration.inMilliseconds > 0) {
+          final jumpMs = v.inMilliseconds - _position.inMilliseconds;
+          if (jumpMs > 5000) { // > 5 s forward delta = likely a seek, not playback
+            final frac = jumpMs / _duration.inMilliseconds;
+            if (frac > _maxSeekJumpFraction) _maxSeekJumpFraction = frac;
+          }
+        }
         _position = v;
         _checkSkipEditor();
         // A-B loop is now enforced natively by MPV (ab-loop-a/ab-loop-b) —
@@ -497,7 +572,9 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
       _isFree     = false;
       _trackUsage = false;
     }
+    _applySmcOnSessionEnd().ignore(); // DA-2: charge SMC for any prior session
     _stopUsageTimer(); // cancel any leftover timer from previous file
+    _resetSmcTracking(); // DA-2: fresh session state for this media
 
     // ── Subscription gate (Layer 2 — defense in depth) ──────────────────────
     // Blocks non-free streams for users who have no active subscription.
@@ -786,7 +863,9 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
       _isFree     = false;
       _trackUsage = false;
     }
+    _applySmcOnSessionEnd().ignore(); // DA-2: charge SMC for the episode just ended
     _stopUsageTimer(); // cancel previous episode's heartbeat before any gate check
+    _resetSmcTracking(); // DA-2: fresh session state for the incoming episode
 
     // ── BUG-C01 fix: subscription + quota gates for in-player episode nav ────
     // _openMedia() has these gates for the initial load. _openMediaForEpisode()
@@ -927,7 +1006,11 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
   }
 
   void _onVideoCompleted() {
-    _clearSavedPosition(_currentFileId);
+    // DA-2: completion guard — only clear the resume position (awarding credit)
+    // if real playtime meets the threshold and no abuse signals fired.
+    if (_isCompletionEarned()) {
+      _clearSavedPosition(_currentFileId);
+    }
     _saveWatchPos();
     if (_loopEnabled) {
       _player.seek(Duration.zero);
@@ -1092,6 +1175,8 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
       if (mounted) _player.seek(pos);
     }
     _currentFramedrop = newFramedrop;
+    // DA-2: flag high-speed use for abuse detection (velocity ratio ≥ 4×)
+    if (speed >= UsageService.abuseVelocityRatio) _abuseHighSpeedUsed = true;
     if (mounted) setState(() => _speed = speed);
   }
 

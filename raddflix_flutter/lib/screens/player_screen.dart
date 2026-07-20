@@ -367,6 +367,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     if (!_handedOffToService) {
       WatchPartyService.instance.leaveRoom();
       VoiceCommandsService.instance.stop();
+      _applySmcOnSessionEnd().ignore(); // DA-2: charge SMC on real session end
       _stopUsageTimer();
     }
     _disposeBatteryMonitor();
