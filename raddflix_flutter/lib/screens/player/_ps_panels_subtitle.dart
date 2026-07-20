@@ -101,6 +101,10 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   bool   _personalityEnabled   = false;
   double _personalityIntensity = 0.7;
 
+  // ── IDEA-08: Phonetic Overlay ──────────────────────────────────────────────
+  bool   _phoneticEnabled   = false;
+  double _phoneticFontScale = 0.72;
+
   static const _subFonts     = ['Sans Serif', 'Serif', 'Monospace', 'Casual'];
   static const _mpvFonts     = ['sans-serif', 'serif', 'monospace', 'sans-serif'];
   static const _shadowLabels = ['None', 'Outline', 'Shadow', 'Box'];
@@ -145,6 +149,9 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     // overlay reads the same values when it calls PlayerPrefs.load().
     final personalityEnabled   = prefs.getBool('player_sub_personality_enabled')    ?? false;
     final personalityIntensity = prefs.getDouble('player_sub_personality_intensity') ?? 0.7;
+    // IDEA-08: phonetic overlay prefs (same namespace as PlayerPrefs).
+    final phoneticEnabled   = prefs.getBool('player_phonetic_overlay_enabled')   ?? false;
+    final phoneticFontScale = prefs.getDouble('player_phonetic_overlay_scale')   ?? 0.72;
     setState(() {
       _currentPreset   = SubtitlePreset.values.firstWhere(
           (p) => p.name == presetName, orElse: () => SubtitlePreset.custom);
@@ -162,6 +169,8 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       _subBottomMargin      = margin;
       _personalityEnabled   = personalityEnabled;
       _personalityIntensity = personalityIntensity;
+      _phoneticEnabled   = phoneticEnabled;
+      _phoneticFontScale = phoneticFontScale;
     });
     if (!mounted) return;
     // Re-apply all saved settings to MPV so the live video matches prefs.
@@ -201,6 +210,9 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     // PlayerPrefs.load()) picks up the change without a restart.
     await prefs.setBool('player_sub_personality_enabled',     _personalityEnabled);
     await prefs.setDouble('player_sub_personality_intensity',  _personalityIntensity);
+    // IDEA-08: phonetic overlay — same PlayerPrefs namespace.
+    await prefs.setBool('player_phonetic_overlay_enabled',    _phoneticEnabled);
+    await prefs.setDouble('player_phonetic_overlay_scale',     _phoneticFontScale);
     widget.onStyleSynced?.call(
       fontIdx:   _subFontIdx,
       size:      _subSize,
@@ -890,6 +902,41 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       ),
       const SizedBox(height: RaddSpace.sm),
       ], // BB3: end custom-only sliders
+
+      // ── IDEA-08: Phonetic Overlay ──────────────────────────────────────────
+      const SizedBox(height: 4),
+      const Divider(color: Colors.white12, height: 1),
+      const SizedBox(height: 10),
+      _secLabel('Phonetic Overlay (Roman Urdu / Hindi)'),
+      const Padding(
+        padding: EdgeInsets.only(bottom: 6),
+        child: Text(
+          'Shows Roman Urdu / Hindi transliteration below Arabic-script or Devanagari subtitles. Works offline — no internet needed.',
+          style: TextStyle(color: Colors.white38, fontSize: 11),
+        ),
+      ),
+      _buildSwitchRow(
+        icon: Icons.translate_rounded,
+        label: 'Enable Phonetic Overlay',
+        value: _phoneticEnabled,
+        onChanged: (v) {
+          setState(() => _phoneticEnabled = v);
+          HapticFeedback.selectionClick();
+          _saveSubPrefs();
+        },
+      ),
+      if (_phoneticEnabled) _buildSliderRow(
+        label: 'Phonetic Size',
+        valueLabel: '${(_phoneticFontScale * 100).round()}%',
+        value: _phoneticFontScale,
+        min: 0.50,
+        max: 0.90,
+        divisions: 8,
+        onChanged: (v) {
+          setState(() => _phoneticFontScale = v);
+          _saveSubPrefs();
+        },
+      ),
 
       // ── IDEA-06: Subtitle Personality ──────────────────────────────────────
       const SizedBox(height: 4),
