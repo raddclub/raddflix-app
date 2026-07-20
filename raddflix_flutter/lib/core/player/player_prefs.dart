@@ -344,6 +344,12 @@ class PlayerPrefs {
   final String smartEnhanceMode;
   final int    sidebarMode;          // 0=full 1=icons-only 2=hidden
 
+  // ── IDEA-06: Subtitle Personality Engine ─────────────────────────────────
+  /// Whether the subtitle personality engine is active. Default false.
+  final bool   subtitlePersonalityEnabled;
+  /// Effect intensity for the personality engine (0.0–1.0). Default 0.7.
+  final double subtitlePersonalityIntensity;
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -519,6 +525,8 @@ class PlayerPrefs {
     this.smartEnhanceEnabled         = false,
     this.smartEnhanceMode            = 'standard',
     this.sidebarMode                 = 0,
+    this.subtitlePersonalityEnabled   = false,
+    this.subtitlePersonalityIntensity = 0.7,
   });
 
   PlayerPrefs copyWith({
@@ -629,6 +637,8 @@ class PlayerPrefs {
     bool?   smartEnhanceEnabled,
     String? smartEnhanceMode,
     int?    sidebarMode,
+    bool?   subtitlePersonalityEnabled,
+    double? subtitlePersonalityIntensity,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -798,6 +808,8 @@ class PlayerPrefs {
       smartEnhanceEnabled:         smartEnhanceEnabled         ?? this.smartEnhanceEnabled,
       smartEnhanceMode:            smartEnhanceMode            ?? this.smartEnhanceMode,
       sidebarMode:                 sidebarMode                 ?? this.sidebarMode,
+      subtitlePersonalityEnabled:   subtitlePersonalityEnabled   ?? this.subtitlePersonalityEnabled,
+      subtitlePersonalityIntensity: subtitlePersonalityIntensity ?? this.subtitlePersonalityIntensity,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -985,6 +997,8 @@ class PlayerPrefs {
       smartEnhanceEnabled:         s.getBool('${_p}smart_enhance_enabled')        ?? false,
       smartEnhanceMode:            s.getString('${_p}smart_enhance_mode')         ?? 'standard',
       sidebarMode:                 s.getInt('${_p}sidebar_mode')                ?? 0,
+      subtitlePersonalityEnabled:   s.getBool('${_p}sub_personality_enabled')    ?? false,
+      subtitlePersonalityIntensity: s.getDouble('${_p}sub_personality_intensity') ?? 0.7,
     );
   }
 
@@ -1168,6 +1182,8 @@ class PlayerPrefs {
       s.setBool('${_p}smart_enhance_enabled',         smartEnhanceEnabled),
       s.setString('${_p}smart_enhance_mode',          smartEnhanceMode),
       s.setInt('${_p}sidebar_mode',               sidebarMode),
+      s.setBool('${_p}sub_personality_enabled',     subtitlePersonalityEnabled),
+      s.setDouble('${_p}sub_personality_intensity',  subtitlePersonalityIntensity),
     ]);
   }
 }
