@@ -171,7 +171,8 @@ class LocalDb {
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         bytes       INTEGER NOT NULL DEFAULT 0,
         flushed     INTEGER NOT NULL DEFAULT 0,
-        created_at  INTEGER NOT NULL DEFAULT 0
+        created_at  INTEGER NOT NULL DEFAULT 0,
+        kind        TEXT    NOT NULL DEFAULT 'stream'
       )
     ''');
     // Phase 6 — quota cache (last known server quota)
@@ -318,7 +319,8 @@ class LocalDb {
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
             bytes      INTEGER NOT NULL DEFAULT 0,
             flushed    INTEGER NOT NULL DEFAULT 0,
-            created_at INTEGER NOT NULL DEFAULT 0
+            created_at INTEGER NOT NULL DEFAULT 0,
+            kind       TEXT    NOT NULL DEFAULT 'stream'
           )
         ''');
       } catch (_) {}
@@ -553,6 +555,14 @@ class LocalDb {
       try { await db.execute('CREATE INDEX IF NOT EXISTS idx_titles_type ON titles(media_type)'); } catch (_) {}
       try { await db.execute('CREATE INDEX IF NOT EXISTS idx_episodes_file_id ON episodes(file_id)'); } catch (_) {}
       try { await db.execute('CREATE INDEX IF NOT EXISTS idx_watch_positions_file_id ON watch_positions(file_id)'); } catch (_) {}
+    }
+    if (oldV < 23) {
+      // DA-1: add 'kind' column to usage_log so streaming and download bytes
+      // can be queried separately for the Data & Bandwidth dashboard sparkline.
+      try {
+        await db.execute(
+            "ALTER TABLE usage_log ADD COLUMN kind TEXT NOT NULL DEFAULT 'stream'");
+      } catch (_) {}
     }
   }
 
@@ -1548,10 +1558,19 @@ class LocalDb {
 
   // ── Phase 6: Usage Tracking ────────────────────────────────────────────
 
-  static Future<void> addPendingUsage({required int bytes}) async {
-    final db = await instance;
+  /// [kind] is either 'stream' (default) or 'download'.
+  static Future<void> addPendingUsage({
+    required int bytes,
+    String kind = 'stream',
+  }) async {
+    final db  = await instance;
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    await db.insert('usage_log', {'bytes': bytes, 'flushed': 0, 'created_at': now});
+    await db.insert('usage_log', {
+      'bytes':      bytes,
+      'flushed':    0,
+      'created_at': now,
+      'kind':       kind,
+    });
   }
 
   static Future<int> getPendingUsageBytes() async {
@@ -1575,6 +1594,44 @@ class LocalDb {
     final v = const JsonEncoder().convert(quota);
     await db.insert('quota_cache', {'k': 'last_quota', 'v': v},
         conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  // ── DA-1: Daily usage query for sparkline ────────────────────────────────
+
+  /// Returns [{day: '2026-07-20', bytes: 123456789}, …] for the billing cycle
+  /// starting at [cycleStartEpoch] (Unix seconds).
+  static Future<List<Map<String, dynamic>>> getDailyUsage({
+    required int cycleStartEpoch,
+  }) async {
+    final db = await instance;
+    return db.rawQuery('''
+      SELECT
+        strftime('%Y-%m-%d', datetime(created_at, 'unixepoch')) AS day,
+        COALESCE(SUM(bytes), 0)                                AS bytes
+      FROM   usage_log
+      WHERE  created_at >= ?
+      GROUP  BY day
+      ORDER  BY day ASC
+    ''', [cycleStartEpoch]);
+  }
+
+  /// Returns {'stream': <bytes>, 'download': <bytes>} for the billing cycle.
+  static Future<Map<String, int>> getKindBreakdown({
+    required int cycleStartEpoch,
+  }) async {
+    final db   = await instance;
+    final rows = await db.rawQuery('''
+      SELECT kind, COALESCE(SUM(bytes), 0) AS total
+      FROM   usage_log
+      WHERE  created_at >= ?
+      GROUP  BY kind
+    ''', [cycleStartEpoch]);
+    final result = <String, int>{'stream': 0, 'download': 0};
+    for (final r in rows) {
+      final k = r['kind'] as String? ?? 'stream';
+      result[k] = (r['total'] as int?) ?? 0;
+    }
+    return result;
   }
 
   static Future<Map<String, dynamic>> getCachedQuota() async {

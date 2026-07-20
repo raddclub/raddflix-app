@@ -16,6 +16,7 @@ import '../widgets/loading_overlay.dart';
 import '../design_system/components/radd_text_field.dart';
 import 'tid_status_screen.dart';
 import '../widgets/tier_badge.dart';
+import 'data_usage_screen.dart'; // DA-1: Details link
 
 // ── Payment method model ──────────────────────────────────────────────────────
 class _PayMethod {
@@ -406,8 +407,28 @@ class _ActivePlanCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          Text('${status.monthlyUsedGb.toStringAsFixed(1)} of ${status.monthlyLimitGb.toInt()} GB',
-              style: TextStyle(color: t.textMuted, fontSize: 11)),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text('${status.monthlyUsedGb.toStringAsFixed(1)} of ${status.monthlyLimitGb.toInt()} GB',
+                style: TextStyle(color: t.textMuted, fontSize: 11)),
+            // DA-1: link to full data usage dashboard
+            GestureDetector(
+              onTap: () => Navigator.of(context).pushNamed(
+                AppRoutes.dataUsage,
+                arguments: {
+                  'used_gb':  status.monthlyUsedGb,
+                  'limit_gb': status.monthlyLimitGb,
+                },
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text('Details', style: TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700)),
+                const SizedBox(width: 3),
+                Icon(AppIcons.caretRight, color: AppColors.primary, size: 11),
+              ]),
+            ),
+          ]),
           if (pct >= 0.8) ...[
             const SizedBox(height: 10),
             Container(

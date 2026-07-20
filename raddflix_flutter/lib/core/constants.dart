@@ -27,7 +27,7 @@ class AppConstants {
 
   static const Duration catalogSyncInterval = Duration(hours: 6);
   static const String catalogDbName = 'raddflix_catalog.db';
-  static const int catalogDbVersion = 22; // Phase B: adds performance indexes
+  static const int catalogDbVersion = 23; // DA-1: usage_log.kind column
   static const int streamCacheTtlSeconds = 6600; // 110 min
 
   // ── JazzDrive (zero-rated CDN) ─────────────────────────────────────────────
@@ -413,6 +413,7 @@ class AppRoutes {
   static const String profileSwitcher = '/profile-switcher';
   static const String addProfile      = '/add-profile';
   static const String editProfile     = '/edit-profile';
+  static const String dataUsage       = '/data-usage';   // DA-1
 }
 
 // ── Storage Keys ──────────────────────────────────────────────────────────────

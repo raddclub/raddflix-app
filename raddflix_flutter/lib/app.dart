@@ -34,6 +34,7 @@ import 'screens/history_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/profile_switcher_screen.dart';
 import 'screens/add_edit_profile_screen.dart';
+import 'screens/data_usage_screen.dart';
 import 'models/profile.dart';
 import 'core/services/app_update_service.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -118,6 +119,7 @@ class RaddFlixApp extends ConsumerWidget {
         AppRoutes.localMedia:    (_) => const LocalMediaScreen(),
         AppRoutes.profileSwitcher: (_) => const ProfileSwitcherScreen(),
         AppRoutes.addProfile:      (_) => const AddEditProfileScreen(),
+        AppRoutes.dataUsage:       (_) => const DataUsageScreen(), // DA-1
         '/player-settings':      (_) => const _PlayerSettingsLoader(),
         '/layout-designer':      (_) => const _LayoutDesignerLoader(),
         '/pin-lock':             (_) => PinLockScreen(),

@@ -32,6 +32,7 @@ import 'edit_profile_screen.dart';
 import '../core/debug/debug_logger.dart';
 import '../providers/profile_provider.dart';
 import 'profile_switcher_screen.dart';
+import '../widgets/data_usage_ring.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   // UX4-01: showBottomNav=false when embedded inside the HomeScreen IndexedStack shell
@@ -399,35 +400,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           onPressed: () { DebugLogger.logTap('Profile', 'subscription'); Navigator.of(context).pushNamed(AppRoutes.subscription); },
                           child: Text('Manage', style: TextStyle(fontSize: 12))),
                       ]),
-                      // GB usage progress bar
+                      // DA-1: animated arc ring (replaces flat LinearProgressIndicator)
                       if (_remoteLimitGb > 0) ...[
                         const SizedBox(height: 14),
-                        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                          Text('${_remoteUsedGb.toStringAsFixed(1)} GB used',
-                              style: TextStyle(color: t.textMuted, fontSize: 11,
-                                  fontWeight: FontWeight.w600)),
-                          Text('of ${_remoteLimitGb.toInt()} GB',
-                              style: TextStyle(color: t.textMuted, fontSize: 11)),
-                        ]),
-                        const SizedBox(height: 6),
-                        Builder(builder: (_) {
-                          final pct = _remoteLimitGb > 0
-                              ? (_remoteUsedGb / _remoteLimitGb).clamp(0.0, 1.0)
-                              : 0.0;
-                          final barColor = pct >= 0.9
-                              ? AppColors.error
-                              : pct >= 0.7
-                                  ? AppColors.warning
-                                  : AppColors.primary;
-                          return ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: pct, minHeight: 7,
-                              backgroundColor: AppColors.primary.withOpacity(0.12),
-                              valueColor: AlwaysStoppedAnimation(barColor),
-                            ),
-                          );
-                        }),
+                        DataUsageRing(
+                          usedGb:  _remoteUsedGb,
+                          limitGb: _remoteLimitGb,
+                          onTap: () {
+                            DebugLogger.logTap('Profile', 'dataUsage');
+                            Navigator.of(context).pushNamed(
+                              AppRoutes.dataUsage,
+                              arguments: {
+                                'used_gb':  _remoteUsedGb,
+                                'limit_gb': _remoteLimitGb,
+                              },
+                            );
+                          },
+                        ),
                       ],
                     ]),
                   ),

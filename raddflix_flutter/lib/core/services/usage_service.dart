@@ -52,7 +52,7 @@ class UsageService {
   }) async {
     if (seconds <= 0) return;
     final bytes = _estimateBytes(seconds: seconds, quality: quality);
-    await LocalDb.addPendingUsage(bytes: bytes);
+    await LocalDb.addPendingUsage(bytes: bytes, kind: 'stream');
     flushPending().ignore();
   }
 
@@ -62,7 +62,7 @@ class UsageService {
   /// ONLY call after a completed RaddFlix download — not for user's own local files.
   static Future<void> addDownloadBytes({required int bytes}) async {
     if (bytes <= 0) return;
-    await LocalDb.addPendingUsage(bytes: bytes);
+    await LocalDb.addPendingUsage(bytes: bytes, kind: 'download');
     flushPending().ignore();
   }
 
