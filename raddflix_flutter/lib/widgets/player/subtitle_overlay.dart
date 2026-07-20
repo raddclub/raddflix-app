@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart'; // J3: Lexend dyslexia-friendly
 import 'package:flutter/services.dart';
 import '../../core/player/player_prefs.dart';
 import '../../core/player/word_dict.dart';
+import '../../core/player/subtitle_personality.dart'; // IDEA-06
 import '../player/word_definition_sheet.dart';
 
 /// Custom subtitle overlay rendered entirely from PlayerPrefs styles.
@@ -35,11 +36,56 @@ class SubtitleOverlay extends StatefulWidget {
   State<SubtitleOverlay> createState() => _SubtitleOverlayState();
 }
 
-class _SubtitleOverlayState extends State<SubtitleOverlay> {
+class _SubtitleOverlayState extends State<SubtitleOverlay>
+    with SingleTickerProviderStateMixin {
   String? _tappedWord;
+
+  // IDEA-06: scale-bounce controller for exclamation personality.
+  // Always present so the AnimatedBuilder in build() is tree-stable.
+  late final AnimationController _bounceCtrl;
+  late final Animation<double>   _scaleAnim;
 
   static final _reTokenize = RegExp(r"[\w']+|[^\w']+");
   static final _reWord     = RegExp(r"^[\w']+$");
+
+  @override
+  void initState() {
+    super.initState();
+    _bounceCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 360),
+    );
+    // 0→1: scale up to 1.14 (25% of duration), then elastic-back to 1.0 (75%).
+    _scaleAnim = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.14), weight: 25),
+      TweenSequenceItem(
+        tween: Tween(begin: 1.14, end: 1.0)
+            .chain(CurveTween(curve: Curves.easeOutBack)),
+        weight: 75,
+      ),
+    ]).animate(_bounceCtrl);
+  }
+
+  @override
+  void didUpdateWidget(SubtitleOverlay old) {
+    super.didUpdateWidget(old);
+    // Trigger bounce when a new exclamation line arrives.
+    if (widget.prefs.subtitlePersonalityEnabled &&
+        widget.currentLine != old.currentLine &&
+        widget.currentLine != null) {
+      final p = SubtitlePersonality.analyze(
+        widget.currentLine!, widget.prefs.subtitlePersonalityIntensity);
+      if (p.useScaleBounce && !_bounceCtrl.isAnimating) {
+        _bounceCtrl.forward(from: 0);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _bounceCtrl.dispose();
+    super.dispose();
+  }
 
   Alignment get _alignment {
     switch (widget.prefs.subtitlePosition) {
@@ -110,8 +156,22 @@ class _SubtitleOverlayState extends State<SubtitleOverlay> {
         .withOpacity(widget.prefs.subtitleBackgroundOpacity);
     final outline = widget.prefs.subtitleOutlineThickness;
 
+    // IDEA-06: compute personality adjustments for the current line.
+    final personality = widget.prefs.subtitlePersonalityEnabled
+        ? SubtitlePersonality.analyze(
+            widget.currentLine!, widget.prefs.subtitlePersonalityIntensity)
+        : SubtitlePersonalityResult.normal;
+
+    // Apply personality overrides: opacity, font size, bold, italic.
+    final effectiveTextColor = personality.opacityMultiplier < 1.0
+        ? textColor.withOpacity(
+            ((textColor.alpha / 255.0) * personality.opacityMultiplier)
+                .clamp(0.0, 1.0))
+        : textColor;
+    final effectiveFontSize = widget.prefs.subtitleFontSize * personality.fontScale;
+
     final baseStyle = TextStyle(
-      fontSize:   widget.prefs.subtitleFontSize,
+      fontSize:   effectiveFontSize,
       fontFamily: (widget.prefs.subtitleFontFamily == 'Sans-Serif' ||
               widget.prefs.subtitleFontFamily == 'Sans Serif' ||
               widget.prefs.subtitleFontFamily == 'Default')
@@ -119,9 +179,11 @@ class _SubtitleOverlayState extends State<SubtitleOverlay> {
           : widget.prefs.subtitleFontFamily == 'Lexend'
               ? GoogleFonts.lexend().fontFamily
               : widget.prefs.subtitleFontFamily,
-      color:      textColor,
-      fontWeight: widget.prefs.subtitleBold ? FontWeight.bold : FontWeight.normal,
-      fontStyle:  widget.prefs.subtitleItalic ? FontStyle.italic : FontStyle.normal,
+      color:      effectiveTextColor,
+      fontWeight: (personality.forceBold || widget.prefs.subtitleBold)
+          ? FontWeight.bold : FontWeight.normal,
+      fontStyle:  (personality.forceItalic || widget.prefs.subtitleItalic)
+          ? FontStyle.italic : FontStyle.normal,
       shadows: outline > 0 ? [
         Shadow(offset: Offset( outline / 2,  outline / 2), blurRadius: outline, color: outlineColor),
         Shadow(offset: Offset(-outline / 2, -outline / 2), blurRadius: outline, color: outlineColor),
@@ -130,6 +192,28 @@ class _SubtitleOverlayState extends State<SubtitleOverlay> {
       ] : null,
     );
 
+    // IDEA-06: music lines get a gradient background pill instead of solid.
+    final bool hasExplicitBg = bgColor.opacity > 0.02;
+    final Decoration containerDecoration = personality.useGradientBg
+        ? BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                widget.prefs.accentColor.withOpacity(0.38),
+                widget.prefs.accentColor.withOpacity(0.16),
+              ],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+          )
+        : BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(4),
+          );
+
+    // AnimatedBuilder wraps the container so the scale-bounce animation
+    // (if playing) is applied. When not animating, _scaleAnim.value == 1.0
+    // and the transform is a no-op — no extra cost.
     return Positioned.fill(
       child: Align(
         alignment: _alignment,
@@ -146,31 +230,35 @@ class _SubtitleOverlayState extends State<SubtitleOverlay> {
                 ),
               );
             },
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 24),
-              padding: bgColor.opacity > 0.02
-                  ? const EdgeInsets.symmetric(horizontal: 10, vertical: 5)
-                  : EdgeInsets.zero,
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(4),
+            child: AnimatedBuilder(
+              animation: _scaleAnim,
+              builder: (_, child) => Transform.scale(
+                scale: _scaleAnim.value,
+                child: child,
               ),
-              // BB8: crossfade when subtitle line changes — 150ms FadeTransition.
-              // KeyedSubtree provides the key without changing _buildTappableText.
-              // Tier-gate: AnimatedSwitcher is lightweight — safe on all tiers.
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 150),
-                transitionBuilder: (child, animation) =>
-                    FadeTransition(opacity: animation, child: child),
-                child: KeyedSubtree(
-                  key: ValueKey(widget.currentLine),
-                  child: widget.prefs.dictEnabled
-                      ? _buildTappableText(context, widget.currentLine!, baseStyle)
-                      : Text(
-                          widget.currentLine!,
-                          textAlign: TextAlign.center,
-                          style: baseStyle,
-                        ),
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 24),
+                padding: (hasExplicitBg || personality.useGradientBg)
+                    ? const EdgeInsets.symmetric(horizontal: 10, vertical: 5)
+                    : EdgeInsets.zero,
+                decoration: containerDecoration,
+                // BB8: crossfade when subtitle line changes — 150ms FadeTransition.
+                // KeyedSubtree provides the key without changing _buildTappableText.
+                // Tier-gate: AnimatedSwitcher is lightweight — safe on all tiers.
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 150),
+                  transitionBuilder: (child, animation) =>
+                      FadeTransition(opacity: animation, child: child),
+                  child: KeyedSubtree(
+                    key: ValueKey(widget.currentLine),
+                    child: widget.prefs.dictEnabled
+                        ? _buildTappableText(context, widget.currentLine!, baseStyle)
+                        : Text(
+                            widget.currentLine!,
+                            textAlign: TextAlign.center,
+                            style: baseStyle,
+                          ),
+                  ),
                 ),
               ),
             ),

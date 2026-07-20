@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/player/player_prefs.dart';
 import '../../core/player/word_dict.dart';
+import '../../core/player/subtitle_personality.dart'; // IDEA-06
 import 'word_definition_sheet.dart';
 
 /// Phase F1 — Dual Subtitle Overlay
@@ -80,6 +81,33 @@ class _DualSubtitleOverlayState extends State<DualSubtitleOverlay> {
     final fontSize     = widget.prefs.subtitleFontSize;
     final outline      = widget.prefs.subtitleOutlineThickness;
 
+    // IDEA-06: apply personality style adjustments to each line independently.
+    // Scale-bounce is skipped in dual mode (both lines animating simultaneously
+    // would look chaotic). Gradient bg is approximated with accent tint.
+    SubtitlePersonalityResult priP = SubtitlePersonalityResult.normal;
+    SubtitlePersonalityResult secP = SubtitlePersonalityResult.normal;
+    if (widget.prefs.subtitlePersonalityEnabled) {
+      final intensity = widget.prefs.subtitlePersonalityIntensity;
+      if (widget.primaryLine.isNotEmpty) {
+        priP = SubtitlePersonality.analyze(widget.primaryLine, intensity);
+      }
+      if (widget.secondaryLine.isNotEmpty) {
+        secP = SubtitlePersonality.analyze(widget.secondaryLine, intensity);
+      }
+    }
+
+    // Helper: compute per-line values from a personality result.
+    Color _resolveColor(Color base, SubtitlePersonalityResult p) =>
+        p.opacityMultiplier < 1.0
+            ? base.withOpacity(((base.alpha / 255.0) * p.opacityMultiplier).clamp(0.0, 1.0))
+            : base;
+
+    // Music lines: use accent-tinted bg as gradient approximation in dual mode.
+    Color _resolveBg(Color base, SubtitlePersonalityResult p) =>
+        p.useGradientBg
+            ? widget.prefs.accentColor.withOpacity(0.28)
+            : base;
+
     return Positioned(
       left: 8, right: 8,
       bottom: (MediaQuery.of(context).size.height * widget.prefs.subtitleVerticalOffset)
@@ -97,12 +125,12 @@ class _DualSubtitleOverlayState extends State<DualSubtitleOverlay> {
               child: _SubLine(
                 key: ValueKey('sec_${widget.secondaryLine}'),
                 text: widget.secondaryLine,
-                fontSize: (fontSize * 0.82).clamp(10, 22),
-                textColor: textColor.withOpacity(0.75),
+                fontSize: ((fontSize * 0.82) * secP.fontScale).clamp(10, 22),
+                textColor: _resolveColor(textColor.withOpacity(0.75), secP),
                 outlineColor: outlineColor,
-                bgColor: bgColor,
-                bold: widget.prefs.subtitleBold,
-                italic: widget.prefs.subtitleItalic,
+                bgColor: _resolveBg(bgColor, secP),
+                bold: secP.forceBold || widget.prefs.subtitleBold,
+                italic: secP.forceItalic || widget.prefs.subtitleItalic,
                 outline: outline,
                 dictEnabled: widget.prefs.dictEnabled,
                 accentColor: widget.prefs.accentColor,
@@ -121,12 +149,12 @@ class _DualSubtitleOverlayState extends State<DualSubtitleOverlay> {
               child: _SubLine(
                 key: ValueKey('pri_${widget.primaryLine}'),
                 text: widget.primaryLine,
-                fontSize: fontSize,
-                textColor: textColor,
+                fontSize: fontSize * priP.fontScale,
+                textColor: _resolveColor(textColor, priP),
                 outlineColor: outlineColor,
-                bgColor: bgColor,
-                bold: widget.prefs.subtitleBold,
-                italic: widget.prefs.subtitleItalic,
+                bgColor: _resolveBg(bgColor, priP),
+                bold: priP.forceBold || widget.prefs.subtitleBold,
+                italic: priP.forceItalic || widget.prefs.subtitleItalic,
                 outline: outline,
                 dictEnabled: widget.prefs.dictEnabled,
                 accentColor: widget.prefs.accentColor,
