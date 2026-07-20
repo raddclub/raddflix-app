@@ -5,7 +5,16 @@
 
 ---
 
-## Current State (2026-07-20 — P1-C/P1-D/DA-2 complete, CI ✅ `da9a77e9`)
+## Current State (2026-07-20 — THEME-REDESIGN: Obsidian Crimson, CI ✅ `cd8fc253`)
+
+**THEME-REDESIGN — Obsidian Crimson, commit `cd8fc253`:**
+Replaced the "Warm Hearth" default theme across three files. Old palette: brownish-black bg `#130F0C`, muted terracotta primary `#D4784A`, warm cream text `#F5EFE6`. New palette: neutral near-black bg `#0D0D0F`, cardinal red primary `#C41E3A`, crisp near-white text `#F8F8FA`. Changes: `AppColors` (primary/bg/surface/card/text/divider/gradients), `AppGradients.brand/navCapsule/hero/dark/card`, `RaddTheme.dark` (all 17 tokens), `BrandThemeState.defaults` + `reload()` fallbacks. Light, AMOLED, and all 7 variant themes (midnight/navy/forest/cobalt/rose/charcoal) are intentionally unchanged. CI ✅ green on `cd8fc253`.
+
+**No Oracle push needed** — zero `radd-hub/**` files touched.
+
+---
+
+## Previous State (2026-07-20 — P1-C/P1-D/DA-2 complete, CI ✅ `da9a77e9`)
 
 **P1-C — Subtitle Personality (IDEA-06), commits `0fa72914`→`2640559b`:**
 Content-aware subtitle visual adaptation: ALL CAPS → bold + 110% size; `...` → italic + 70% opacity; `[whispering]`/`[quietly]` → 80% size italic + 60% opacity; `?!`/`!!` → scale-bounce (tier-gated); `♪`/`🎵` → gradient pill. Toggle + intensity slider added to Subtitle Panel → Style tab. New `subtitle_personality.dart` (pure Dart helper); wired into `subtitle_overlay.dart`, `dual_subtitle_overlay.dart`, `player_prefs.dart`.

@@ -1198,3 +1198,48 @@ Previous session (2026-07-20) completed P1-C (Subtitle Personality), P1-D (Phone
 - `agent-hub/history/TASK_LOG.md`: this entry
 
 Board is now clean. TEN_POINT_PLAN complete (2 blocked items only: folder reorg not approved; K5 needs Flutter SDK). Awaiting next task from user.
+
+---
+
+## 2026-07-20 — THEME-REDESIGN: Obsidian Crimson (commit `cd8fc253`)
+
+### Root cause / motivation
+Default "Warm Hearth" theme (`#130F0C` brownish-black bg, `#D4784A` terracotta primary, `#F5EFE6` warm cream text) felt muddy and dated — wrong visual language for a streaming app. The warm brown undertone on backgrounds looked like a sepia filter; the terracotta primary had no premium authority; cream text created soft low-contrast readability against the brownish surfaces.
+
+### Changes
+Three files, all theme definition / token tables — no business logic touched.
+
+**`constants.dart` — `AppColors` class:**
+- primary: `#D4784A` → `#C41E3A` (cardinal red, deep and premium)
+- primaryDark: `#A85A32` → `#92152B`
+- primaryGlow: 40% terracotta → 40% cardinal
+- primaryLight/accent: `#E8A070` → `#E8384F`
+- background: `#130F0C` → `#0D0D0F` (neutral near-black, no warm hue)
+- backgroundAlt: `#1A1410` → `#121214`
+- surface: `#211A15` → `#161618`
+- surfaceHigh: `#2C2219` → `#1E1E21`
+- card: `#352A1F` → `#242428`
+- cardBorder: `#4A3828` → `#2E2E33`
+- textPrimary: `#F5EFE6` → `#F8F8FA` (crisp near-white vs warm cream)
+- textSecondary: `#C8B5A0` → `#9898A6`
+- textMuted: `#8A7060` → `#58585F`
+- textDisabled: `#5A4838` → `#363639`
+- divider: `#2A2018` → `#1E1E22`
+- layoutDeep/Panel/Sheet: updated to match new bg/surface/card
+- All 4 inline gradients (primaryGradient, darkGradient, heroGradient, cardGradient): updated
+
+**`constants.dart` — `AppGradients` class:**
+- brand, navCapsule, hero, dark, card: all updated to new palette
+
+**`radd_theme.dart` — `RaddTheme.dark`:**
+- All 17 tokens updated to Obsidian Crimson values
+- AMOLED/light/midnight/navy/forest/cobalt/rose/charcoal: intentionally unchanged
+
+**`brand_theme_provider.dart` — `BrandThemeState.defaults` + `reload()` fallbacks:**
+- Both the const defaults object and the SharedPrefs reload() fallback colors updated
+- Ensures fresh installs AND users without remote config both get new palette
+
+### What did NOT change
+- JazzCash green, Simosa purple, status colors (success/error/warning/info), dataFree teal — all semantic/partner colors untouched
+- Light theme (linen/paper warm tone is correct for that mode)
+- All 7 variant themes (midnight, navy, forest, cobalt, rose, charcoal, amoled)
