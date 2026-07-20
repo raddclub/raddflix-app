@@ -1138,7 +1138,7 @@ All new `AudioModeBackdrop` params have safe defaults (`hasPrev: false`, `hasNex
 
 ## 2026-07-20 — DA-2: Watch Integrity & Session Minimum Charge
 
-**Commit:** `f64615c1` | **CI:** ✅ green
+**Commits:** `f64615c1` (implementation) · `12f8baae` (audit fixes) | **CI:** ✅ green on both
 
 ### Changes
 
