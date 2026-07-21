@@ -83,6 +83,8 @@ class AppConstants {
 class AppColors {
   // Primary brand — Obsidian Crimson palette
   // Cardinal red: bold, premium, distinctive. Clean red with depth, not Netflix flat.
+  // ⚠️  WCAG AA-large only (3.32:1 on dark bg). See AI_RULES.md rule 11.
+  //     Never use as text colour on body copy (<14sp bold / <18sp regular).
   static const Color primary       = Color(0xFFC41E3A);
   static const Color primaryDark   = Color(0xFF92152B);
   static const Color primaryGlow   = Color(0x40C41E3A);
@@ -91,7 +93,7 @@ class AppColors {
   // Backgrounds (Dark theme) — kept in sync with RaddTheme.dark
   // Near-black, neutral — no hue contamination, maximum perceived depth.
   static const Color background    = Color(0xFF0D0D0F);
-  static const Color backgroundAlt = Color(0xFF121214);
+  static const Color backgroundAlt = Color(0xFF1D1D20); // 1.15:1 step — matches Netflix surface-step size
   static const Color surface       = Color(0xFF161618);
   static const Color surfaceHigh   = Color(0xFF1E1E21);
   static const Color card          = Color(0xFF242428);
@@ -116,13 +118,13 @@ class AppColors {
   // Text — crisp near-white, maximum contrast against deep dark backgrounds
   static const Color textPrimary   = Color(0xFFF8F8FA);
   static const Color textSecondary = Color(0xFF9898A6);
-  static const Color textMuted     = Color(0xFF58585F);
+  static const Color textMuted     = Color(0xFF7A7A82); // WCAG AA 4.56:1 on dark bg
   static const Color textDisabled  = Color(0xFF363639);
 
   // Text (light mode) — warm dark brown, not cold near-black
   static const Color lightTextPrimary   = Color(0xFF1A110A);
   static const Color lightTextSecondary = Color(0xFF5A4435);
-  static const Color lightTextMuted     = Color(0xFF8A7060);
+  static const Color lightTextMuted     = Color(0xFF7A6050); // WCAG AA 5.39:1 on light bg
 
   // Shorthand aliases
   static const Color text      = textPrimary;
@@ -150,7 +152,7 @@ class AppColors {
   );
 
   static const LinearGradient darkGradient = LinearGradient(
-    colors: [Color(0xFF0D0D0F), Color(0xFF121214)],
+    colors: [Color(0xFF0D0D0F), Color(0xFF1D1D20)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
@@ -166,6 +168,18 @@ class AppColors {
     colors: [Color(0xFF1E1E21), Color(0xFF161618)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
+  );
+
+  // Hero identity — Pakistani night-sky signature.
+  // Midnight-indigo terminus gives hero overlays a distinctively deep,
+  // atmospheric quality that separates RaddFlix from neutral-black streaming clones.
+  // Use heroIdentityGradient in place of heroGradient for featured/hero content.
+  static const Color heroIdentity = Color(0xFF0A0A1E);
+  static const LinearGradient heroIdentityGradient = LinearGradient(
+    colors: [Colors.transparent, Color(0xFF0A0A1E)],
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    stops: [0.3, 1.0],
   );
 
   // ── Brand / Partner colors ─────────────────────────────────────────────────
@@ -337,7 +351,7 @@ class AppGradients {
 
   // Dark background — scaffold/screen backgrounds
   static const LinearGradient dark = LinearGradient(
-    colors: [Color(0xFF0D0D0F), Color(0xFF121214)],
+    colors: [Color(0xFF0D0D0F), Color(0xFF1D1D20)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );

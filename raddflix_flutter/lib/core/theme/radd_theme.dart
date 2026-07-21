@@ -77,7 +77,7 @@ class RaddTheme {
   // ══════════════════════════════════════════════════════════════════════════
   static const RaddTheme dark = RaddTheme(
     bg:               Color(0xFF0D0D0F),
-    bgAlt:            Color(0xFF121214),
+    bgAlt:            Color(0xFF1D1D20), // 1.15:1 step
     surface:          Color(0xFF161618),
     surfaceHigh:      Color(0xFF1E1E21),
     card:             Color(0xFF242428),
@@ -87,7 +87,7 @@ class RaddTheme {
     border:           Color(0x14FFFFFF),
     textPrimary:      Color(0xFFF8F8FA),
     textSecondary:    Color(0xFF9898A6),
-    textMuted:        Color(0xFF58585F),
+    textMuted:        Color(0xFF7A7A82), // WCAG AA 4.56:1
     textDisabled:     Color(0xFF363639),
     divider:          Color(0xFF1E1E22),
     shimmerBase:      Color(0xFF161618),
@@ -134,7 +134,7 @@ class RaddTheme {
     border:           Color(0xFFE0CEB8),
     textPrimary:      Color(0xFF1A110A),
     textSecondary:    Color(0xFF5A4435),
-    textMuted:        Color(0xFF8A7060),
+    textMuted:        Color(0xFF7A6050), // WCAG AA 5.39:1
     textDisabled:     Color(0xFFC0A888),
     divider:          Color(0xFFE8D8C8),
     shimmerBase:      Color(0xFFF0E8DC),
@@ -157,7 +157,7 @@ class RaddTheme {
     border:           Color(0x16FFFFFF),
     textPrimary:      Color(0xFFF0F0FF),
     textSecondary:    Color(0xFFB8B8E8),
-    textMuted:        Color(0xFF6060A0),
+    textMuted:        Color(0xFF8888C8), // WCAG AA 6.11:1
     textDisabled:     Color(0xFF383865),
     divider:          Color(0xFF1E1E40),
     shimmerBase:      Color(0xFF0C0C22),
@@ -180,7 +180,7 @@ class RaddTheme {
     border:           Color(0x14FFFFFF),
     textPrimary:      Color(0xFFEEF4FF),
     textSecondary:    Color(0xFFAAC4E8),
-    textMuted:        Color(0xFF557AA0),
+    textMuted:        Color(0xFF7AA8CC), // WCAG AA 7.68:1
     textDisabled:     Color(0xFF334A65),
     divider:          Color(0xFF1A2D44),
     shimmerBase:      Color(0xFF0D1A2E),
@@ -203,7 +203,7 @@ class RaddTheme {
     border:           Color(0x14FFFFFF),
     textPrimary:      Color(0xFFEEFFF2),
     textSecondary:    Color(0xFFAAD4B8),
-    textMuted:        Color(0xFF507860),
+    textMuted:        Color(0xFF72A882), // WCAG AA 7.11:1
     textDisabled:     Color(0xFF2E4835),
     divider:          Color(0xFF172C1E),
     shimmerBase:      Color(0xFF0C1A10),
@@ -226,7 +226,7 @@ class RaddTheme {
     border:           Color(0x16FFFFFF),
     textPrimary:      Color(0xFFEEF2FF),
     textSecondary:    Color(0xFFAABBEE),
-    textMuted:        Color(0xFF5060A8),
+    textMuted:        Color(0xFF7888CC), // WCAG AA 5.81:1
     textDisabled:     Color(0xFF303870),
     divider:          Color(0xFF181E48),
     shimmerBase:      Color(0xFF0D1535),
@@ -249,7 +249,7 @@ class RaddTheme {
     border:           Color(0x15FFFFFF),
     textPrimary:      Color(0xFFFFF0F2),
     textSecondary:    Color(0xFFE8AABC),
-    textMuted:        Color(0xFF905060),
+    textMuted:        Color(0xFFB87890), // WCAG AA 5.83:1
     textDisabled:     Color(0xFF5A3040),
     divider:          Color(0xFF2A1520),
     shimmerBase:      Color(0xFF1C0C10),
@@ -272,7 +272,7 @@ class RaddTheme {
     border:           Color(0x14FFFFFF),
     textPrimary:      Color(0xFFF5F5F6),
     textSecondary:    Color(0xFFBBBBBE),
-    textMuted:        Color(0xFF707075),
+    textMuted:        Color(0xFF909096), // WCAG AA 6.08:1
     textDisabled:     Color(0xFF444448),
     divider:          Color(0xFF222224),
     shimmerBase:      Color(0xFF1A1A1C),

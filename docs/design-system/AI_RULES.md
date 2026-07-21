@@ -15,6 +15,8 @@ Read this before modifying any UI code in `raddflix_flutter`. It's the fast-cont
 9. **Run the Volume XII Quality Checklist** against any screen before considering a redesign/migration task done.
 10. **Do not create new one-off audit/handoff/status/design files.** Update the relevant volume in this folder and record the change in `CHANGELOG.md` instead — this repo's `AGENT_PROMPT.md` has a hard rule against doc sprawl.
 
+11. **Brand primary `#C41E3A` is WCAG AA-large-only (3.32:1 on dark bg).** Never set it as a text colour on body copy — only use it on large text (≥18sp regular / ≥14sp bold), icons, progress bars, active indicators, and interactive CTAs. If you need a readable accent on small text, use `textPrimary` or `textSecondary` instead.
+
 ## When in doubt
 
 Fall back to the ten RaddFlix Principles in `01-brand-identity.md` — they resolve ambiguous product/design decisions that aren't explicitly covered by a rule above.
