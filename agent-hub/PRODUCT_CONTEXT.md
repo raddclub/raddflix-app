@@ -7,7 +7,14 @@
 
 ## What is RaddFlix?
 
-RaddFlix is a streaming platform for Pakistani users. The library covers Hollywood, Bollywood, Korean dramas (K-dramas), Chinese dramas (C-dramas), anime, donghua, and Pakistani content — **all available in Hindi/Urdu dub**. Jazz SIM users stream everything for **free** — no data bundle needed — because video is served through JazzDrive, which Jazz zero-rates (doesn't charge data for it).
+RaddFlix is a Pakistani entertainment super-app — not just a streaming service. It combines:
+- **Movies & dramas** from every country: Hollywood, Bollywood, Turkish, Korean (K-drama), Chinese (C-drama/donghua), anime, Pakistani, Indian web series, Punjabi — all in Hindi/Urdu dub or dual audio
+- **Live TV channels**: Pakistani, Indian, sports, news, religious
+- **Music**: full Urdu/Hindi/Punjabi song library (Pakistani pop, Bollywood OSTs, ghazals, etc.)
+
+The editorial filter is **language** — every piece of non-South-Asian content is available dubbed or dual-audio in Hindi, Urdu, or Punjabi. The goal: replace Netflix + Tamasha + cable TV + Spotify for a Pakistani household, in one app.
+
+Jazz SIM users get everything **free** (no data bundle needed) because video is served through JazzDrive, which Jazz zero-rates at the network level.
 
 **Previous names (dead, never use): JazzMAX, Zeno**
 

@@ -54,36 +54,76 @@ with the app's infrastructure choice — not a separate product or service being
 ## 2. Content Library — What RaddFlix Actually Has
 
 This is critical context for every piece of marketing and UI copy.
+**RaddFlix is not a streaming app. It is a complete entertainment super-app —
+a mix of Netflix + live TV + music streaming, all in one place, all in your language.**
 
-### The Library
-RaddFlix is **not** a Pakistani-content-only platform. The library covers:
-- **Hollywood** — English movies and series, Hindi/Urdu dubbed
-- **Bollywood** — Hindi movies and series (native language)
+### Full Content Scope
+
+#### 🎬 Movies
+- **Hollywood** — All genres, Hindi/Urdu dubbed and dual audio
+- **Bollywood** — Hindi movies, native language
+- **Lollywood** — Pakistani Punjabi/Urdu films
+- **Turkish films** — Hindi/Urdu dubbed
+- **Korean films** — Hindi/Urdu dubbed
+- **Chinese films** — Hindi/Urdu dubbed
+- **Any other country** — if it has a Hindi/Urdu dub or dual audio, it belongs here
+
+#### 📺 TV Series, Dramas & Web Series
+- **Pakistani dramas** — Urdu, native
+- **Indian dramas & web series** — Hindi, native
+- **Turkish dramas** — Hindi/Urdu dubbed (Ertugrul, Kurulus Osman, Dirilis, etc. — massive in Pakistan)
 - **Korean dramas (K-dramas)** — Hindi/Urdu dubbed
-- **Chinese dramas (C-dramas / Wuxia / Romance)** — Hindi/Urdu dubbed
-- **Anime** — Hindi/Urdu dubbed (Japanese animation)
+- **Chinese dramas (C-dramas / Wuxia / Xianxia / Romance)** — Hindi/Urdu dubbed
+- **Punjabi dramas/series** — native
+- **Any other country** — if dubbed/dual audio in Hindi/Urdu/Punjabi
+
+#### 🎌 Animation
+- **Anime** — Hindi/Urdu dubbed (Naruto, Dragon Ball, Attack on Titan, One Piece, etc.)
 - **Donghua** — Hindi/Urdu dubbed (Chinese animation)
-- **Pakistani dramas and films** — native Urdu
 
-**The common thread across every category: Hindi/Urdu dub.**
-Every piece of non-Pakistani content in the library is available in Hindi or Urdu.
-This is the editorial filter that defines RaddFlix — not geography of origin,
-but language of access for the South Asian (specifically Pakistani) audience.
+#### 📡 Live TV
+- **Pakistani TV channels** — all major channels (Geo, ARY, Hum, Samaa, Express, etc.)
+- **Indian TV channels** — popular Hindi channels
+- **Sports channels** — cricket, football, etc.
+- **News channels** — Pakistani + international
+- **Entertainment/music channels**
+- *(This makes RaddFlix replace a cable TV subscription, not just Netflix)*
 
-### Why This Is a Stronger Pitch Than "Pakistani Content"
-- Netflix has Hollywood but inconsistent Hindi dubbing; most is English-only
-- Prime Video has Bollywood but limited K-drama/C-drama/anime dubbing
-- Tamasha is Pakistani content only; no anime, no K-dramas
-- No single app gives Pakistani users **everything dubbed** — Hollywood,
-  Bollywood, K-drama, C-drama, anime, donghua — all in one place
-- This is genuinely unique in the Pakistani market
+#### 🎵 Music
+- **Urdu songs** — Pakistani pop, ghazals, nasheeds, classic filmi
+- **Hindi songs** — Bollywood OSTs, Indie, all eras
+- **Punjabi songs** — Pakistani Punjabi, bhangra, modern Punjabi pop
+- **Turkish music** — popular Turkish songs known in Pakistan
+- **Any popular song** — if the Pakistani/Indian audience listens to it, it's here
+- *(Full audio player experience — not just videos. Lyrics, playlists, offline download.)*
+
+### What This Makes RaddFlix
+
+| Replaces | How |
+|---|---|
+| Netflix | Movies + series from every country, dubbed in Hindi/Urdu |
+| Hotstar / SonyLIV | Indian dramas + web series |
+| Tamasha | Pakistani dramas + live TV |
+| YouTube (entertainment) | Songs, music videos, dubbed content |
+| Cable TV / IPTV | Live channels |
+| Spotify (Urdu/Hindi) | Music library with Urdu/Hindi/Punjabi songs |
+
+**No single app in Pakistan does all of this. Not one.**
+This is the real pitch: not "better Netflix" — it's "why do you need 5 apps?"
+
+### The Common Thread
+The editorial filter is **language access for the Pakistani/South Asian audience**:
+- Hindi or Urdu dub / dual audio on all non-South-Asian content
+- Punjabi where applicable
+- Everything a Pakistani household watches — in one app
 
 ### How to Describe the Library in Copy
-✅ "Hollywood, Bollywood, K-dramas, anime, donghua — sab kuch Hindi/Urdu mein"
-✅ "The world's best content, in your language"
-✅ "Hollywood to anime, sab dubbed"
-✅ "Netflix wala content, Urdu mein" (use carefully — competitive but honest)
-❌ Never say "Pakistani content only" — this undersells massively
+✅ "Sab kuch — movies, dramas, live TV, songs — ek app mein"
+✅ "Netflix, Tamasha, YouTube, aur cable TV — sab ek jagah"
+✅ "Hollywood se Turkish dramas tak, Urdu mein"
+✅ "Turkey, Korea, China, Hollywood — sab dubbed, sab free on Jazz SIM"
+✅ "Apna gana bhi, apna drama bhi, apni TV bhi"
+❌ Never say "Pakistani content only" — this is the most underselling claim possible
 ❌ Never say "we have rights to X" — do not reference content licensing
 
 ---
@@ -93,7 +133,7 @@ but language of access for the South Asian (specifically Pakistani) audience.
 Everything below is **100% true, honest, and safe to say publicly.**
 
 ### The Core Message
-> **"Hollywood, Bollywood, K-dramas, anime — sab Hindi/Urdu mein.
+> **"Movies, dramas, live TV, songs — sab kuch ek app mein.
 > Jazz SIM pe bilkul free. No bundle needed."**
 
 This is the entire value proposition in two lines. Every piece of marketing,
@@ -171,13 +211,13 @@ culturally rooted, short, punchy, modern. "Flix" signals streaming universally.
 Together: a Pakistani streaming identity with an international form factor.
 
 ### Tagline Options (choose one per campaign; these are all honest and accurate)
-- **"Hollywood se anime tak — sab Urdu mein, Jazz pe free."** (primary — Urdu, full pitch)
-- **"Duniya bhar ka content, apni zubaan mein."** (identity — "The world's content, in your language")
-- **"No bundle. No balance. Just watch."** (punchy, Jazz SIM angle)
-- **"Stream free. Watch more. Pay less."** (English version)
-- **"Netflix wala content, Urdu mein, Jazz pe free."** (competitive — use in WhatsApp/casual marketing; honest)
-- **"Tamasha se sasta, Netflix se behtar."** (competitive — use carefully; Tamasha
-  comparison is fair since Tamasha is Jazz's own paid streaming app but limited to Pakistani content)
+- **"Sab kuch ek app mein — movies, dramas, TV, songs. Jazz pe bilkul free."** (primary — full pitch)
+- **"Netflix, YouTube, aur cable TV — sab ek jagah."** (super-app identity, Urdu)
+- **"Hollywood se Turkish dramas tak — sab Urdu mein, Jazz pe free."** (content breadth)
+- **"No bundle. No balance. Just watch."** (punchy, zero-data angle)
+- **"Stream free. Watch everything. Pay less."** (English version)
+- **"Duniya bhar ka entertainment, apni zubaan mein."** (aspirational — "The world's entertainment in your language")
+- **"Tamasha se sasta, Netflix se behtar, cable se better."** (competitive triple — use in WhatsApp/casual marketing)
 
 ### Visual Identity Rules
 - **Do not** use Jazz red (#E50914-adjacent reds) as the primary color in marketing.
@@ -246,11 +286,11 @@ This is non-negotiable. Apps that gate immediately create distrust and bounce.
 1. **Splash** → app logo + tagline (1.5s, then auto-advance)
 2. **Jazz SIM Detect Screen** (if Jazz SIM detected):
    > "⚡ Jazz SIM detected!
-   > Streaming is completely free for you — no data bundle needed.
-   > Hollywood, anime, K-dramas, Bollywood — sab Urdu mein. Browse below."
+   > Movies, dramas, live TV, songs — sab kuch bilkul free.
+   > No bundle, no balance needed. Browse below."
    → CTA: "Explore Free" (no login required)
 3. **Non-Jazz SIM Screen** (if no Jazz SIM):
-   > "Hollywood, Bollywood, anime, K-dramas — sab Hindi/Urdu mein.
+   > "Movies, dramas, live TV, aur songs — sab ek jagah.
    > Jazz SIM users stream free. Other networks need an active data bundle."
    → CTA: "Explore" + "I have Jazz SIM" (for cases where detection fails)
 4. **Browse Screen** — show full catalogue (free + paid tiles visible; paid tiles
@@ -306,9 +346,10 @@ A: "RaddFlix is an independent Pakistani streaming app. We're not part of Jazz, 
    *(Honest. Clears the record without damaging the perception.)*
 
 **Q: What content do you have? Only Pakistani dramas?**
-A: "Not at all! We have Hollywood movies, Bollywood films, Korean dramas, Chinese dramas,
-   anime, donghua, and Pakistani dramas — all available in Hindi or Urdu dub. One app,
-   everything in your language."
+A: "Not at all — we have everything. Hollywood movies, Bollywood films, Turkish dramas,
+   Korean dramas, Chinese dramas, anime, donghua, Pakistani dramas, Indian web series,
+   live TV channels, and a full music library (Urdu, Hindi, Punjabi songs). All in Hindi
+   or Urdu — dual audio or dubbed. One app, your entire entertainment life."
 
 **Q: Will it work on other networks (Zong, Telenor, Ufone)?**
 A: "RaddFlix works on all networks, but data-free streaming is currently only available
@@ -359,35 +400,85 @@ These are the appropriate channels for controlled growth:
 
 ## 11. The One-Sentence Pitch (Internal Reference)
 
-> **RaddFlix is a streaming app for Pakistani users that gives Jazz SIM users
-> Hollywood, Bollywood, K-dramas, anime, and donghua — all in Hindi/Urdu dub —
-> with zero data cost, priced below what Jazz charges for data alone.**
+> **RaddFlix is a Pakistani entertainment super-app — movies, dramas (Turkish, Korean,
+> Chinese, Bollywood, Hollywood, Pakistani), live TV channels, and a full music library
+> (Urdu/Hindi/Punjabi), all in Hindi/Urdu — completely free on Jazz SIM and priced
+> below what Jazz charges for data alone.**
 
 Every agent, developer, designer, and marketer working on this product should be
 able to say this in one breath. If a feature or decision doesn't serve this,
 question whether it belongs in the roadmap.
+
+### The Simplest Version (for everyday reference)
+> **"Sab kuch — movies, dramas, live TV, songs — ek app, Jazz pe free."**
 
 ---
 
 ## 12. Content Category UI Labels (In-App)
 
 These are the category chips and rail labels to use in the Browse/Home screen.
-Match the user's language — most Pakistani users know these names as-is:
+Match the user's language — most Pakistani users know these terms as-is.
 
-| Category | Display Label (Urdu/English mix) | Icon |
+### Top-Level Tabs / Navigation
+| Tab | Label | What It Contains |
 |---|---|---|
-| Hollywood | Hollywood 🎬 | Film clapperboard |
-| Bollywood | Bollywood 💃 | — |
-| Korean Drama | K-Drama ❤️ | — |
-| Chinese Drama | C-Drama 🐉 | — |
-| Anime | Anime ⚡ | — |
-| Chinese Animation | Donghua 🌸 | — |
-| Pakistani Drama | Pakistani Drama 🇵🇰 | — |
-| All | Sab Kuch | — |
-| Free | Free Hai ⚡ | Signal bolt |
+| Home | گھر / Home | Personalised hero + rails |
+| Movies | Movies 🎬 | All films across all countries |
+| Dramas | Dramas 📺 | All series, seasons, web series |
+| Live TV | Live TV 📡 | All live channels |
+| Music | Songs 🎵 | Full music library |
+| Downloads | Downloads ⬇️ | Offline saved content |
 
-Rail label for dubbed content: **"Hindi/Urdu Mein"** — used as a filter chip,
-not as a separate category. Every title in the library has this as a tag.
+### Genre / Country Filter Chips (on Movies and Dramas screens)
+| Chip Label | Covers |
+|---|---|
+| Sab Kuch | All content |
+| Pakistani 🇵🇰 | Pakistani dramas, Lollywood films |
+| Hindi / Bollywood | Indian films + Indian web series |
+| Turkish 🌙 | Turkish dramas + films (dubbed) |
+| K-Drama ❤️ | Korean dramas + films (dubbed) |
+| C-Drama 🐉 | Chinese dramas + films (dubbed) |
+| Hollywood 🎬 | English-language films + series (dubbed) |
+| Anime ⚡ | Japanese animation (dubbed) |
+| Donghua 🌸 | Chinese animation (dubbed) |
+| Punjabi | Punjabi content across regions |
+
+### Rail Labels (Home Screen)
+| Rail | Label |
+|---|---|
+| Hero carousel | (no label — full bleed) |
+| Free content | Free Hai ⚡ |
+| Continue watching | Jahaan Chhodha Tha ▶ |
+| Trending | Trend Kar Raha Hai 🔥 |
+| Turkish dramas | Turkish Dramas — Urdu Mein 🌙 |
+| New episodes | Naye Episodes |
+| Live now | Abhi Live Hai 📡 |
+| Popular songs | Mash'hoor Songs 🎵 |
+| Top movies this week | Is Hafte Ki Best Movies |
+
+### Music Section Labels
+| Section | Label |
+|---|---|
+| Trending songs | Trend Kar Rahe Hain 🔥 |
+| Urdu/Hindi songs | Urdu/Hindi Songs |
+| Punjabi songs | Punjabi Songs |
+| Bollywood OSTs | Bollywood OSTs |
+| Pakistani pop | Pakistani Pop |
+| Turkish (popular in Pakistan) | Turkish Hits |
+| Playlists | Playlists |
+
+### Live TV Labels
+| Section | Label |
+|---|---|
+| Pakistani channels | Pakistani Channels 🇵🇰 |
+| Indian channels | Indian Channels 🇮🇳 |
+| News | News 📰 |
+| Sports | Sports 🏏 |
+| Entertainment | Entertainment |
+| Religious | Islamic / Religious ☪️ |
+
+Rail label for dubbed content filter: **"Dubbed / Dual Audio"** — used as a toggle chip
+on the Movies and Dramas screens. Not a separate category — it's a filter layer.
 
 ---
 
