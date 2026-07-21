@@ -5,6 +5,26 @@
 
 ---
 
+## Current State (2026-07-21 — NAV-RESTRUCTURE: 3-tab shell + topbar icons, CI pending)
+
+**NAV-RESTRUCTURE — Bottom nav reduced to 3 tabs; Search + Downloads moved to topbar:**
+- Bottom nav: **Home | Local | Profile** (was Home | Search | Local | Download | Profile)
+- Search moved to AppBar icon (topbar, YouTube pattern) → pushNamed `/search`
+- Downloads moved to AppBar icon with live active-download badge dot (Vidmate pattern) → pushNamed `/downloads`
+- `RaddFlixBottomNav._items` reduced from 5 → 3
+- `HomeScreen` IndexedStack reduced from 5 → 3 children (removed SearchScreen + DownloadsScreen)
+- `downloadsProvider` imported in home_screen.dart for badge reactivity
+- All 4 standalone screens' bottom-nav indices + onTap updated:
+  - SearchScreen: currentIndex 99 (not a tab), routes to Local/Profile
+  - DownloadsScreen: currentIndex 99 (not a tab), routes to Local/Profile
+  - LocalMediaScreen: currentIndex 1 (was 2)
+  - ProfileScreen: currentIndex 2 (was 4)
+- No radd-hub/** files touched — no Oracle push needed.
+
+**CI:** pending — check before next Flutter-touching work (Rule 46).
+
+---
+
 ## Current State (2026-07-21 — THEME-V2 polish complete, CI ✅ `13de8bc`)
 
 **THEME-V2 — Four polish fixes, commit `13de8bc`:**

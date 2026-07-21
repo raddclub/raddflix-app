@@ -384,15 +384,15 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     return Scaffold(
       backgroundColor: t.bg,
       // UX4-01: nav bar hidden when embedded in HomeScreen's IndexedStack shell
+      // NAV-RESTRUCTURE: Search is now a pushed route (topbar icon), not a tab.
+      // No tab is highlighted (currentIndex: 99 matches nothing in 3-tab nav).
       bottomNavigationBar: widget.showBottomNav ? MiniPlayerDock(
         child: RaddFlixBottomNav(
-        currentIndex: 1,
+        currentIndex: 99,
         onTap: (i) {
-          if (i == 1) return;
           Navigator.of(context).popUntil((r) => r.isFirst);
-          if (i == 2) Navigator.of(context).pushNamed(AppRoutes.localMedia);
-          else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.downloads);
-          else if (i == 4) Navigator.of(context).pushNamed(AppRoutes.profile);
+          if (i == 1) Navigator.of(context).pushNamed(AppRoutes.localMedia);
+          else if (i == 2) Navigator.of(context).pushNamed(AppRoutes.profile);
         },
         ),
       ) : null,

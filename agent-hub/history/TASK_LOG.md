@@ -1283,3 +1283,23 @@ dark bg (WCAG AA-large-only). Prohibited for use as text colour on body copy
 
 No Oracle push needed — zero `radd-hub/**` files touched in any THEME-V2 commit.
 Board is clean. No open tasks. Awaiting next task from user.
+
+---
+
+## 2026-07-21 — NAV-RESTRUCTURE: 3-tab shell + topbar icons
+
+**Before:** Home | Search | Local | Download | Profile (5 tabs)
+**After:** Home | Local | Profile (3 tabs) + Search icon + Download-badge icon in AppBar
+
+### Rationale
+Content scope expanded (live TV, music, international dramas) — 5-tab bar had no room for new primary destinations. Downloads needs a live badge (Vidmate model), not a static tab. Search is more ergonomic as a topbar icon (YouTube model). Frees 2 slots for future primary content tabs (Live TV, Music).
+
+### Files changed
+- `bottom_nav.dart`: _items 5 → 3 (removed Search + Download)
+- `home_screen.dart`: imports cleaned; AppBar.actions: Search icon + Download-badge icon added; IndexedStack 5 → 3 children; onTap labels updated; downloadsProvider imported for badge
+- `search_screen.dart`: currentIndex 1 → 99; onTap updated to 3-tab mapping
+- `downloads_screen.dart`: currentIndex 3 → 99; onTap updated
+- `local_media_screen.dart`: currentIndex 2 → 1; onTap updated
+- `profile_screen.dart`: currentIndex 4 → 2; onTap updated
+
+No Oracle changes. No radd-hub/** touched.

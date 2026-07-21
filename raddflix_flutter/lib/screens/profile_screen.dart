@@ -175,14 +175,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         backgroundColor: null,
         // UX4-01: nav bar hidden when embedded in HomeScreen's IndexedStack shell
         bottomNavigationBar: widget.showBottomNav ? MiniPlayerDock(
+          // NAV-RESTRUCTURE: Profile is now tab 2 (was tab 4).
           child: RaddFlixBottomNav(
-          currentIndex: 4,
+          currentIndex: 2,
           onTap: (i) {
-            if (i == 4) return;
+            if (i == 2) return;
             Navigator.of(context).popUntil((r) => r.isFirst);
-            if (i == 1) Navigator.of(context).pushNamed(AppRoutes.search);
-            else if (i == 2) Navigator.of(context).pushNamed(AppRoutes.localMedia);
-            else if (i == 3) Navigator.of(context).pushNamed(AppRoutes.downloads);
+            if (i == 1) Navigator.of(context).pushNamed(AppRoutes.localMedia);
           },
           ),
         ) : null,

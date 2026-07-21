@@ -31,11 +31,11 @@ import 'show_detail_screen.dart';
 import '../core/api/api_client.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-// UX4-01: IndexedStack tab-shell — persistent children
-import 'search_screen.dart';
-import 'downloads_screen.dart';
+// UX4-01: IndexedStack tab-shell — persistent children (3-tab shell)
+// NAV-RESTRUCTURE: Search + Downloads moved to top-bar icons; not in IndexedStack.
 import 'local_media_screen.dart';
 import 'profile_screen.dart';
+import '../providers/downloads_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -175,6 +175,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       appBar: _navIndex == 0 ? _buildAppBar(user) : null,
       body: IndexedStack(
         index: _navIndex,
+        // NAV-RESTRUCTURE: 3-tab shell — 0=Home, 1=Local, 2=Profile.
+        // Search (was 1) + Downloads (was 3) removed — now top-bar icons.
         children: [
           // ── Tab 0: Home feed ─────────────────────────────────────────────
           Stack(
@@ -215,13 +217,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               ]),
             ],
           ),
-          // ── Tab 1: Search ─────────────────────────────────────────────────
-          const SearchScreen(showBottomNav: false),
-          // ── Tab 2: Local media ────────────────────────────────────────────
+          // ── Tab 1: Local media ────────────────────────────────────────────
           const LocalMediaScreen(showBottomNav: false),
-          // ── Tab 3: Downloads ──────────────────────────────────────────────
-          const DownloadsScreen(showBottomNav: false),
-          // ── Tab 4: Profile ────────────────────────────────────────────────
+          // ── Tab 2: Profile ────────────────────────────────────────────────
           const ProfileScreen(showBottomNav: false),
         ],
       ),
@@ -232,7 +230,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             if (i == _navIndex) return; // already on this tab — no-op
             setState(() => _navIndex = i);
             DebugLogger.logTap('Shell', 'bottomNav tab=$i',
-                i == 0 ? 'Home' : i == 1 ? 'Search' : i == 2 ? 'Local' : i == 3 ? 'Download' : 'Profile');
+                i == 0 ? 'Home' : i == 1 ? 'Local' : 'Profile');
           },
         ),
       ),
@@ -277,6 +275,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         ),
       ),
       actions: [
+        // NAV-RESTRUCTURE: Search icon in topbar (YouTube pattern)
+        IconButton(
+          icon: Icon(AppIcons.search, size: 24, color: t.textPrimary),
+          tooltip: 'Search',
+          onPressed: () => Navigator.of(context).pushNamed(AppRoutes.search),
+        ),
+        // NAV-RESTRUCTURE: Downloads icon with active-count badge (Vidmate pattern)
+        Consumer(
+          builder: (_, ref, __) {
+            final activeCount = ref.watch(
+              downloadsProvider.select((s) => s.activeProgress.length),
+            );
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                IconButton(
+                  icon: Icon(AppIcons.downloadAction, size: 24, color: t.textPrimary),
+                  tooltip: 'Downloads',
+                  onPressed: () => Navigator.of(context).pushNamed(AppRoutes.downloads),
+                ),
+                if (activeCount > 0)
+                  Positioned(
+                    right: 8, top: 8,
+                    child: Container(
+                      width: 8, height: 8,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
         const NotificationBell(),
         if (user != null)
           Padding(

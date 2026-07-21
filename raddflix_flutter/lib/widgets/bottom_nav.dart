@@ -36,6 +36,8 @@ class RaddFlixBottomNav extends ConsumerStatefulWidget {
 }
 
 class _RaddFlixBottomNavState extends ConsumerState<RaddFlixBottomNav> {
+  // NAV-RESTRUCTURE: 3-tab shell — Search moved to top-bar icon; Downloads
+  // moved to top-bar icon with active-count badge (Vidmate/YouTube pattern).
   static final _items = [
     // D6: use the shared AppIcons source instead of raw PhosphorIcons calls,
     // so icon families can be swapped app-wide from one place.
@@ -45,22 +47,9 @@ class _RaddFlixBottomNavState extends ConsumerState<RaddFlixBottomNav> {
       iconFill: () => AppIcons.homeFill,
     ),
     _NavItem(
-      label: 'Search',
-      icon:     () => AppIcons.search,
-      iconFill: () => AppIcons.searchFill,
-    ),
-    _NavItem(
       label: 'Local',
       icon:     () => AppIcons.localDevice,
       iconFill: () => AppIcons.localDeviceFill,
-    ),
-    // Nav uses the "simple download" glyph (downloadAction), not the
-    // arrow-in-circle glyph (downloads) used elsewhere for downloads-list
-    // headers — kept distinct to preserve the existing nav bar look.
-    _NavItem(
-      label: 'Download',
-      icon:     () => AppIcons.downloadAction,
-      iconFill: () => AppIcons.downloadActionFill,
     ),
     _NavItem(
       label: 'Profile',

@@ -192,15 +192,15 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
       backgroundColor: null,
       appBar: _buildAppBar(state),
       // UX4-01: nav bar hidden when embedded in HomeScreen's IndexedStack shell
+      // NAV-RESTRUCTURE: Downloads is now a pushed route (topbar icon), not a tab.
+      // No tab is highlighted (currentIndex: 99 matches nothing in 3-tab nav).
       bottomNavigationBar: widget.showBottomNav ? MiniPlayerDock(
         child: RaddFlixBottomNav(
-        currentIndex: 3,
+        currentIndex: 99,
         onTap: (i) {
-          if (i == 3) return;
           Navigator.of(context).popUntil((r) => r.isFirst);
-          if (i == 1) Navigator.of(context).pushNamed(AppRoutes.search);
-          else if (i == 2) Navigator.of(context).pushNamed(AppRoutes.localMedia);
-          else if (i == 4) Navigator.of(context).pushNamed(AppRoutes.profile);
+          if (i == 1) Navigator.of(context).pushNamed(AppRoutes.localMedia);
+          else if (i == 2) Navigator.of(context).pushNamed(AppRoutes.profile);
         },
         ),
       ) : null,
