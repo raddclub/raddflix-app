@@ -51,13 +51,50 @@ with the app's infrastructure choice — not a separate product or service being
 
 ---
 
-## 2. What We Tell Users (User-Facing Truth)
+## 2. Content Library — What RaddFlix Actually Has
+
+This is critical context for every piece of marketing and UI copy.
+
+### The Library
+RaddFlix is **not** a Pakistani-content-only platform. The library covers:
+- **Hollywood** — English movies and series, Hindi/Urdu dubbed
+- **Bollywood** — Hindi movies and series (native language)
+- **Korean dramas (K-dramas)** — Hindi/Urdu dubbed
+- **Chinese dramas (C-dramas / Wuxia / Romance)** — Hindi/Urdu dubbed
+- **Anime** — Hindi/Urdu dubbed (Japanese animation)
+- **Donghua** — Hindi/Urdu dubbed (Chinese animation)
+- **Pakistani dramas and films** — native Urdu
+
+**The common thread across every category: Hindi/Urdu dub.**
+Every piece of non-Pakistani content in the library is available in Hindi or Urdu.
+This is the editorial filter that defines RaddFlix — not geography of origin,
+but language of access for the South Asian (specifically Pakistani) audience.
+
+### Why This Is a Stronger Pitch Than "Pakistani Content"
+- Netflix has Hollywood but inconsistent Hindi dubbing; most is English-only
+- Prime Video has Bollywood but limited K-drama/C-drama/anime dubbing
+- Tamasha is Pakistani content only; no anime, no K-dramas
+- No single app gives Pakistani users **everything dubbed** — Hollywood,
+  Bollywood, K-drama, C-drama, anime, donghua — all in one place
+- This is genuinely unique in the Pakistani market
+
+### How to Describe the Library in Copy
+✅ "Hollywood, Bollywood, K-dramas, anime, donghua — sab kuch Hindi/Urdu mein"
+✅ "The world's best content, in your language"
+✅ "Hollywood to anime, sab dubbed"
+✅ "Netflix wala content, Urdu mein" (use carefully — competitive but honest)
+❌ Never say "Pakistani content only" — this undersells massively
+❌ Never say "we have rights to X" — do not reference content licensing
+
+---
+
+## 3. What We Tell Users (User-Facing Truth)
 
 Everything below is **100% true, honest, and safe to say publicly.**
 
 ### The Core Message
-> **"Stream Pakistani movies and dramas free on Jazz SIM.
-> No data bundle needed. Just open and watch."**
+> **"Hollywood, Bollywood, K-dramas, anime — sab Hindi/Urdu mein.
+> Jazz SIM pe bilkul free. No bundle needed."**
 
 This is the entire value proposition in two lines. Every piece of marketing,
 onboarding, and in-app copy should orbit this.
@@ -70,7 +107,9 @@ onboarding, and in-app copy should orbit this.
   permanent feature of streaming on Jazz SIM.
 
 ### What They Pay For
-- A **RaddFlix content subscription** — access to the full movie and drama catalogue.
+- A **RaddFlix content subscription** — access to the full global catalogue
+  (Hollywood, Bollywood, K-dramas, C-dramas, anime, donghua, Pakistani content),
+  all available in Hindi/Urdu dub.
 - Subscriptions are priced based on monthly streaming data quota:
   - **Lite** — 30 GB/month of streaming
   - **Standard** — 50 GB/month of streaming
@@ -84,12 +123,12 @@ promotional materials:
 
 | | Jazz Internet Bundle | RaddFlix Subscription |
 |---|---|---|
-| **30 GB/month** | ~Rs. 600 (data only, no content) | Less than Rs. 600 (data + full content library) |
+| **30 GB/month** | ~Rs. 600 (data only, no content) | Less than Rs. 600 (data + entire global library dubbed in Hindi/Urdu) |
 | **50 GB/month** | ~Rs. 900 (data only) | Less than Rs. 900 (data + content) |
-| **What you get** | Just internet data | Internet data equivalent + movies + dramas + shows |
+| **What you get** | Just internet data | Internet data equivalent + Hollywood + Bollywood + K-dramas + anime — sab Hindi/Urdu mein |
 
 The user pays less than a Jazz data-only bundle and gets the same data allowance
-**plus** a full streaming library. This is the only price comparison we make.
+**plus** the world's content in their language. This is the only price comparison we make.
 We do not say "we are a Jazz bundle." We say "compare what you pay vs what you get."
 
 ### The SIMOSA Daily Bonus (Planned Feature)
@@ -132,21 +171,27 @@ culturally rooted, short, punchy, modern. "Flix" signals streaming universally.
 Together: a Pakistani streaming identity with an international form factor.
 
 ### Tagline Options (choose one per campaign; these are all honest and accurate)
-- **"Pakistan ka apna streaming. Jazz pe bilkul free."** (primary — Urdu)
-- **"Stream free. Watch more. Pay less."** (English version)
+- **"Hollywood se anime tak — sab Urdu mein, Jazz pe free."** (primary — Urdu, full pitch)
+- **"Duniya bhar ka content, apni zubaan mein."** (identity — "The world's content, in your language")
 - **"No bundle. No balance. Just watch."** (punchy, Jazz SIM angle)
+- **"Stream free. Watch more. Pay less."** (English version)
+- **"Netflix wala content, Urdu mein, Jazz pe free."** (competitive — use in WhatsApp/casual marketing; honest)
 - **"Tamasha se sasta, Netflix se behtar."** (competitive — use carefully; Tamasha
-  comparison is fair since Tamasha is Jazz's own paid streaming app)
+  comparison is fair since Tamasha is Jazz's own paid streaming app but limited to Pakistani content)
 
 ### Visual Identity Rules
 - **Do not** use Jazz red (#E50914-adjacent reds) as the primary color in marketing.
   We use RaddFlix cardinal red (#C41E3A) which is our own brand color.
 - **Do not** use Jazz logo, Jazz name, Jazz color system in any marketing asset.
-- **Do** use distinctly Pakistani visual language: cultural references, Urdu typography,
-  Pakistani drama poster aesthetics — this differentiates us from global apps.
+- **Do** use Pakistani visual language — Urdu typography, bold poster aesthetics —
+  but also pull from anime visual culture, K-drama aesthetics, Hollywood cinematic
+  language. RaddFlix visually reflects the breadth of its library, not just one genre.
 - The signal-green (`#3DDC97`) is our data-free identity color. Use it as an
   accent in marketing to represent the "free streaming" proposition.
   Example: the ⚡ icon, "data-free" badges, and the data-saved counter on Home.
+- Marketing visuals should show diversity of content: not only Pakistani drama posters,
+  but anime thumbnails, K-drama stills, Hollywood action — all in one collage.
+  The visual message: "yeh sab kuch hai yahan."
 
 ### Tone of Voice
 - Confident, local, a little cheeky.
@@ -168,10 +213,10 @@ Together: a Pakistani streaming identity with an international form factor.
 ### Plan Names (rename from Basic/Standard/Premium)
 | Internal Name | User-Facing Name | Data Quota | Positioning |
 |---|---|---|---|
-| Free | Free | Limited catalogue, capped data | Guest/expired users |
-| Basic | **Lite** | 30 GB/month | "Same data as Jazz 30GB bundle, plus all our content" |
-| Standard | **Standard** | 50 GB/month | Most popular; hero plan |
-| Premium | **Radd** | 100 GB/month | Power users; cinephiles |
+| Free | Free | Limited catalogue, capped data | Guest/expired users — can browse everything, limited playback |
+| Basic | **Lite** | 30 GB/month | "Same data as Jazz 30GB bundle, plus the full dubbed library" |
+| Standard | **Standard** | 50 GB/month | Most popular; hero plan; anime + K-drama binge watchers |
+| Premium | **Radd** | 100 GB/month | Power users; cinephiles; donghua + long-series watchers |
 
 ### Pricing Positioning Rule
 RaddFlix plans must always be **priced below the Jazz equivalent data-only bundle**:
@@ -186,7 +231,7 @@ For each plan, show:
 1. Plan name + price
 2. Data quota (e.g. "30 GB streaming / month")
 3. A one-line Jazz comparison: "Jazz charges ~Rs. 600 for 30GB of data alone"
-4. "With RaddFlix Lite: same data + full movie & drama library for less."
+4. "With RaddFlix Lite: same data + Hollywood, anime, K-dramas, Bollywood — all Hindi/Urdu dubbed."
 5. Never use the word "bundle" (implies Jazz activation). Use "plan" or "subscription."
 
 ---
@@ -202,11 +247,11 @@ This is non-negotiable. Apps that gate immediately create distrust and bounce.
 2. **Jazz SIM Detect Screen** (if Jazz SIM detected):
    > "⚡ Jazz SIM detected!
    > Streaming is completely free for you — no data bundle needed.
-   > Browse our full library below."
+   > Hollywood, anime, K-dramas, Bollywood — sab Urdu mein. Browse below."
    → CTA: "Explore Free" (no login required)
 3. **Non-Jazz SIM Screen** (if no Jazz SIM):
-   > "Stream Pakistani movies and dramas.
-   > Jazz SIM users stream free. Other networks need a data bundle."
+   > "Hollywood, Bollywood, anime, K-dramas — sab Hindi/Urdu mein.
+   > Jazz SIM users stream free. Other networks need an active data bundle."
    → CTA: "Explore" + "I have Jazz SIM" (for cases where detection fails)
 4. **Browse Screen** — show full catalogue (free + paid tiles visible; paid tiles
    show a lock icon but are visible, not hidden)
@@ -260,6 +305,11 @@ A: "RaddFlix is an independent Pakistani streaming app. We're not part of Jazz, 
    content delivery works seamlessly on Jazz SIMs at zero data cost."
    *(Honest. Clears the record without damaging the perception.)*
 
+**Q: What content do you have? Only Pakistani dramas?**
+A: "Not at all! We have Hollywood movies, Bollywood films, Korean dramas, Chinese dramas,
+   anime, donghua, and Pakistani dramas — all available in Hindi or Urdu dub. One app,
+   everything in your language."
+
 **Q: Will it work on other networks (Zong, Telenor, Ufone)?**
 A: "RaddFlix works on all networks, but data-free streaming is currently only available
    on Jazz SIM. Other network users will need an active data bundle to stream."
@@ -307,14 +357,37 @@ These are the appropriate channels for controlled growth:
 
 ---
 
-## 10. The One-Sentence Pitch (Internal Reference)
+## 11. The One-Sentence Pitch (Internal Reference)
 
-> **RaddFlix is a Pakistani streaming app that gives Jazz SIM users a full movie and
-> drama library with zero data cost, priced below what Jazz charges for data alone.**
+> **RaddFlix is a streaming app for Pakistani users that gives Jazz SIM users
+> Hollywood, Bollywood, K-dramas, anime, and donghua — all in Hindi/Urdu dub —
+> with zero data cost, priced below what Jazz charges for data alone.**
 
 Every agent, developer, designer, and marketer working on this product should be
-able to say this sentence from memory. If a feature or decision doesn't serve this
-sentence, question whether it belongs in the roadmap.
+able to say this in one breath. If a feature or decision doesn't serve this,
+question whether it belongs in the roadmap.
+
+---
+
+## 12. Content Category UI Labels (In-App)
+
+These are the category chips and rail labels to use in the Browse/Home screen.
+Match the user's language — most Pakistani users know these names as-is:
+
+| Category | Display Label (Urdu/English mix) | Icon |
+|---|---|---|
+| Hollywood | Hollywood 🎬 | Film clapperboard |
+| Bollywood | Bollywood 💃 | — |
+| Korean Drama | K-Drama ❤️ | — |
+| Chinese Drama | C-Drama 🐉 | — |
+| Anime | Anime ⚡ | — |
+| Chinese Animation | Donghua 🌸 | — |
+| Pakistani Drama | Pakistani Drama 🇵🇰 | — |
+| All | Sab Kuch | — |
+| Free | Free Hai ⚡ | Signal bolt |
+
+Rail label for dubbed content: **"Hindi/Urdu Mein"** — used as a filter chip,
+not as a separate category. Every title in the library has this as a tag.
 
 ---
 
