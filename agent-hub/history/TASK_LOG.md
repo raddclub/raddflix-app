@@ -1243,3 +1243,43 @@ Three files, all theme definition / token tables — no business logic touched.
 - JazzCash green, Simosa purple, status colors (success/error/warning/info), dataFree teal — all semantic/partner colors untouched
 - Light theme (linen/paper warm tone is correct for that mode)
 - All 7 variant themes (midnight, navy, forest, cobalt, rose, charcoal, amoled)
+
+---
+
+## 2026-07-21 — THEME-V2: close out paperwork (commits `9cee303` + `13de8bc`)
+
+**Commits:** `9cee303` (add 4 tasks to board), `13de8bc` (implement all 4 fixes) | **CI:** ✅ green
+
+The previous session on 2026-07-21 added the four THEME-V2 tasks to `TASKS.md` and then
+implemented all four in a single commit, but ended without updating the canonical docs.
+This session bootstrapped fresh, verified CI was green, confirmed all four changes landed
+in code, then closed out the paperwork.
+
+### THEME-V2-01 — WCAG textMuted contrast fix (all 8 themes)
+`AppColors.textMuted` raised from `#58585F` (2.75:1 on dark bg — fails WCAG AA) to `#7A7A82`
+(4.56:1 ✅). All 8 variant `textMuted` tokens in `radd_theme.dart` updated individually:
+dark 4.56:1, midnight 6.11:1, cobalt 5.81:1, rose 5.83:1, navy 7.68:1, forest 7.11:1,
+charcoal 6.08:1, light 5.39:1. AMOLED was already passing at 4.57:1 — left unchanged.
+
+### THEME-V2-02 — backgroundAlt invisible-step fix
+`AppColors.backgroundAlt` `#121214` was only 1.04:1 from bg `#0D0D0F` — visually
+indistinguishable. Raised to `#1D1D20` (1.15:1 step, matching Netflix's surface-step size).
+`dark.bgAlt` in `radd_theme.dart` updated to match.
+
+### THEME-V2-03 — Pakistani identity hero-gradient
+`AppColors.heroIdentity = Color(0xFF0A0A1E)` (midnight-indigo) and `AppColors.heroIdentityGradient`
+(transparent → `#0A0A1E`) added to `constants.dart`. Optional hero-overlay for featured content
+that gives the app a distinctive Pakistani night-sky depth cue vs generic neutral-black.
+
+### THEME-V2-04 — AI_RULES Rule 11 (brand-primary AA-large-only)
+Documented in `docs/design-system/AI_RULES.md` Rule 11: brand primary `#C41E3A` is 3.32:1 on
+dark bg (WCAG AA-large-only). Prohibited for use as text colour on body copy
+(<14sp bold / <18sp regular). Valid uses: large text, icons, progress bars, active indicators, CTAs.
+
+### This session (paperwork only)
+- `agent-hub/TASKS.md`: marked THEME-V2-01/02/03/04 ✅ DONE — `13de8bc`
+- `AGENT_HANDOFF.md`: added Current State for THEME-V2; demoted Obsidian Crimson → Previous State
+- `agent-hub/history/TASK_LOG.md`: this entry
+
+No Oracle push needed — zero `radd-hub/**` files touched in any THEME-V2 commit.
+Board is clean. No open tasks. Awaiting next task from user.

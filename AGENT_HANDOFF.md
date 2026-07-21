@@ -5,7 +5,23 @@
 
 ---
 
-## Current State (2026-07-20 — THEME-REDESIGN: Obsidian Crimson, CI ✅ `cd8fc253`)
+## Current State (2026-07-21 — THEME-V2 polish complete, CI ✅ `13de8bc`)
+
+**THEME-V2 — Four polish fixes, commit `13de8bc`:**
+All four THEME-V2 tasks completed in one commit. No business logic touched — all changes are theme-token and doc updates only.
+
+1. **THEME-V2-01 — WCAG textMuted fix (all 8 themes):** `AppColors.textMuted` raised from `#58585F` (2.75:1 ❌) to `#7A7A82` (4.56:1 ✅). All 8 variant `textMuted` tokens in `radd_theme.dart` updated to pass WCAG AA (≥4.5:1). AMOLED was already passing at 4.57:1 and was left unchanged.
+2. **THEME-V2-02 — backgroundAlt step:** `AppColors.backgroundAlt` `#121214` (1.04:1 from bg — invisible) raised to `#1D1D20` (1.15:1, matching Netflix's surface-step size). `dark.bgAlt` in `radd_theme.dart` updated to match.
+3. **THEME-V2-03 — Pakistani identity hero-gradient:** `AppColors.heroIdentity = Color(0xFF0A0A1E)` (midnight-indigo) + `AppColors.heroIdentityGradient` (transparent → `#0A0A1E`) added to `constants.dart` as optional hero-overlay for featured content.
+4. **THEME-V2-04 — AI_RULES Rule 11:** Documented that brand primary `#C41E3A` is WCAG AA-large-only (3.32:1 on dark bg) — must not be used as text colour on body copy (<14sp bold / <18sp regular).
+
+**CI ✅ green on `13de8bc`.** No Oracle push needed — zero `radd-hub/**` files touched.
+
+**Board status:** All THEME-V2 tasks ✅ DONE. No open tasks on the board.
+
+---
+
+## Previous State (2026-07-20 — THEME-REDESIGN: Obsidian Crimson, CI ✅ `cd8fc253`)
 
 **THEME-REDESIGN — Obsidian Crimson, commit `cd8fc253`:**
 Replaced the "Warm Hearth" default theme across three files. Old palette: brownish-black bg `#130F0C`, muted terracotta primary `#D4784A`, warm cream text `#F5EFE6`. New palette: neutral near-black bg `#0D0D0F`, cardinal red primary `#C41E3A`, crisp near-white text `#F8F8FA`. Changes: `AppColors` (primary/bg/surface/card/text/divider/gradients), `AppGradients.brand/navCapsule/hero/dark/card`, `RaddTheme.dark` (all 17 tokens), `BrandThemeState.defaults` + `reload()` fallbacks. Light, AMOLED, and all 7 variant themes (midnight/navy/forest/cobalt/rose/charcoal) are intentionally unchanged. CI ✅ green on `cd8fc253`.
