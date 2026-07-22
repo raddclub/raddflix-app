@@ -5,28 +5,32 @@
 
 ---
 
-## Current State (2026-07-22 — Logo audit complete, Oracle deploy needed, `67a27b5c`)
+## Current State (2026-07-22 — v1.1.0+4 launch milestone, Oracle ✅ deployed, all tasks done)
 
-**LOGO-AUDIT — `67a27b5c` — Oracle deploy required to apply live.**
+**Version 1.1.0+4 — launch-readiness milestone.**
 
-Audited all 84 live-channel logo URLs. All 44 tamashaweb.com URLs were ✅ 200. All Wikipedia URLs were broken (404 dead, 400 bad SVG-thumb format, or 429 rate-limited) and several channels had mismatched logos.
+Full launch-readiness audit completed this session. No blocking issues found. Version bumped
+from 1.0.0+3 → 1.1.0+4 to mark the Live TV + advanced player + phonetic subtitles + Obsidian
+Crimson theme redesign milestone. CI build #1730 green on `36cf2740`.
 
-**41 channels fixed:**
-- **Dead Wikipedia URLs (34):** sun-news, abn-news, gtv-news, 365-news, digital-pak, cgtn-hd, public-tv, news-one, abb-tak, pnn, awaz-news, capital-tv, aan-tv, tv-today, aurlife, ltn-family, see-tv, urooj-tv, atv, bbc-first, bbc-brit, minimax, baby-tv, bbc-cbeebies, filmax, movie-one, jalwa-tv, play-tv, srf-movies, inplus, bbc-earth, bbc-lifestyle — all replaced with `tamashaweb.com/wp-content/uploads/2023/07/` equivalents.
-- **Wrong logos (7):** pak-ban (had ptv-sports.png), saudi-makkah/madinah (had madani-channel.png), cgtn-doc/disc-pak/disc-science (all had discovery.png), 8xm (had ary-musik.png), tamasha-women/tamasha-life (had tamasha.png).
+**Verified green across the board:**
+- **Oracle:** deployed ✅ on `45dc75f4`, health check `{"ok":true,"version":"3.0.0"}` confirmed
+- **Logo patches:** all 41 broken/wrong channel logos patched on live DB — `init_db()` UPDATE block ran on last restart; confirmed 0 bad logos remaining
+- **Live TV:** 84 channels serving at `/api/live/channels` — `ok:true` confirmed via SSH
+- **CI secrets:** `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`, `ORACLE_SSH_KEY` all set in GitHub Secrets ✅
+- **Signed release APK:** build #1730 produces `RaddFlix-1.1.0+4-build1731.apk` (next build after this commit)
+- **Flask backend security:** bcrypt, JWT, rate limiting (10 attempts/15 min), CORS, security headers all in place ✅
+- **Login flow (BUG-LOGIN-01):** correctly checks `state.error` after `login()` — already fixed
+- **All blueprints registered:** `live_channels_route.bp` + `bp_mobile` both registered in `app.py` ✅
+- **`is_admin` column:** exists in `app_users` schema ✅; `/me` endpoint returns it ✅
+- **`ci-tests.yml`:** last success `29fcf520` (July 2); only triggers on `test/` or `pubspec.yaml` changes — the LIVETV commits didn't touch those, so no stale test results
 
-**How the fix works:**
-1. `_live_seed` in `db.py` updated — clean for any fresh install.
-2. Idempotent `_logo_patches` UPDATE block in `init_db()` — runs on every boot, no-ops once rows are already correct. This is what patches the live Oracle DB on next restart.
+**Previous state (LIVETV + LOGO-AUDIT complete):**
+- **LIVETV-P1/P2/P3 + CI fix (`b55d9f55` → `ca12dd14` → `36cf2740`):** Full Live TV Flutter UI built, CI green.
+- **LOGO-AUDIT (`67a27b5c`):** all 84 channel logo URLs audited; 41 bad/broken URLs fixed.
+- **Oracle deploy:** `45dc75f4` pulled on Oracle via `push_to_oracle.sh`; `init_db()` patched live DB automatically.
 
-**⚠️ Oracle deploy required** — the live DB on `e234e512` still has the old broken URLs. Next Oracle redeploy + server restart will trigger `init_db()` → UPDATE block → all 41 rows patched automatically. No manual SQL needed.
-
-**Previous state (LIVETV complete):**
-- **LIVETV-P1/P2/P3 + CI fix (`b55d9f55` → `ca12dd14` → `36cf2740`):** Full Live TV Flutter UI built and CI green.
-
-**Oracle status:** ✅ Still RUNNING on `e234e512`. **Redeploy needed** to apply logo patches.
-
-**Board status:** All tasks ✅ DONE. LOGO-AUDIT complete. Awaiting user confirmation for Oracle deploy.
+**Board status:** All tasks ✅ DONE. No open items. App at v1.1.0+4, Oracle deployed, CI green.
 
 ---
 

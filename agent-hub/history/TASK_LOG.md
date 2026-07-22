@@ -19,6 +19,8 @@
 
 ## Session index (title only — full detail in the linked archive)
 
+### July 2026 — Session 20 (2026-07-22) — VERSION-BUMP-1.1.0 (launch-readiness audit, bump to 1.1.0+4, AGENT_HANDOFF update)
+
 ### July 2026 — Session 19 (2026-07-19) — BB-REVIEW (Phase BB audit, CI fix, disc-spin bug)
 
 ### July 2026 — Session 18 (2026-07-16) — VAULT-SPEED (parallel bulk-add)
