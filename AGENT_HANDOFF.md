@@ -5,21 +5,28 @@
 
 ---
 
-## Current State (2026-07-22 — Live TV Flutter UI complete, CI ✅ `36cf2740`)
+## Current State (2026-07-22 — Logo audit complete, Oracle deploy needed, `67a27b5c`)
 
-**LIVETV-P1 / P2 / P3 + CI fix — commits `b55d9f55` → `ca12dd14` → `36cf2740`:**
-Full Live TV Flutter UI is built, CI green, and merged to `main`. No Oracle push needed (zero `radd-hub/**` touched).
+**LOGO-AUDIT — `67a27b5c` — Oracle deploy required to apply live.**
 
-**What was built (prior session, completed this session):**
+Audited all 84 live-channel logo URLs. All 44 tamashaweb.com URLs were ✅ 200. All Wikipedia URLs were broken (404 dead, 400 bad SVG-thumb format, or 429 rate-limited) and several channels had mismatched logos.
 
-- **LIVETV-P1 (`b55d9f55`)** — `live_tv_screen.dart` full layout: featured hero banner (backdrop-gradient card, Watch Now button, pulsing LIVE dot); Netflix-style horizontal category rows with "See all →"; 2-col grid for single-category / search views; backdrop-tinted cards; lock icon for non-free channels; `isFree` added to `LiveChannel` model; local DB schema v25→v26 (`is_free` column on `live_channels`); `AppConstants.catalogDbVersion` bumped to 26.
-- **LIVETV-P3 (`b55d9f55`)** — `live_channel_provider.dart`: `recordWatched()` writes last 5 channel IDs to SharedPrefs; `recentChannels` getter resolves them to `LiveChannel` objects; Recently Watched row in `live_tv_screen.dart` (horizontal 72px avatar cards, backdrop tint, channel name).
-- **LIVETV-P2 (`ca12dd14`)** — `_ps_ui_mixin.dart`: `_isLive` getter (`widget.contentType == 'live'`); seek bar replaced with red ● LIVE status row (channel name alongside); simplified transport (play/pause centred, skip/replay/prev/next hidden); channel-switcher list button → `_LiveChannelSwitcherSheet` bottom sheet → `pushReplacementNamed` to switch channels without stacking routes.
-- **CI fix (`36cf2740`)** — `live_tv_screen.dart` used `RaddColors` (a BuildContext extension, not a class) as explicit type annotation in 8 method signatures. `RaddTheme.of(context)` returns `RaddTheme`; all 8 replaced. `dart analyze` now passes.
+**41 channels fixed:**
+- **Dead Wikipedia URLs (34):** sun-news, abn-news, gtv-news, 365-news, digital-pak, cgtn-hd, public-tv, news-one, abb-tak, pnn, awaz-news, capital-tv, aan-tv, tv-today, aurlife, ltn-family, see-tv, urooj-tv, atv, bbc-first, bbc-brit, minimax, baby-tv, bbc-cbeebies, filmax, movie-one, jalwa-tv, play-tv, srf-movies, inplus, bbc-earth, bbc-lifestyle — all replaced with `tamashaweb.com/wp-content/uploads/2023/07/` equivalents.
+- **Wrong logos (7):** pak-ban (had ptv-sports.png), saudi-makkah/madinah (had madani-channel.png), cgtn-doc/disc-pak/disc-science (all had discovery.png), 8xm (had ary-musik.png), tamasha-women/tamasha-life (had tamasha.png).
 
-**Oracle status:** ✅ Still RUNNING on `e234e512` (backend-only, no redeploy needed for Flutter changes).
+**How the fix works:**
+1. `_live_seed` in `db.py` updated — clean for any fresh install.
+2. Idempotent `_logo_patches` UPDATE block in `init_db()` — runs on every boot, no-ops once rows are already correct. This is what patches the live Oracle DB on next restart.
 
-**Board status:** All tasks ✅ DONE. No open items.
+**⚠️ Oracle deploy required** — the live DB on `e234e512` still has the old broken URLs. Next Oracle redeploy + server restart will trigger `init_db()` → UPDATE block → all 41 rows patched automatically. No manual SQL needed.
+
+**Previous state (LIVETV complete):**
+- **LIVETV-P1/P2/P3 + CI fix (`b55d9f55` → `ca12dd14` → `36cf2740`):** Full Live TV Flutter UI built and CI green.
+
+**Oracle status:** ✅ Still RUNNING on `e234e512`. **Redeploy needed** to apply logo patches.
+
+**Board status:** All tasks ✅ DONE. LOGO-AUDIT complete. Awaiting user confirmation for Oracle deploy.
 
 ---
 

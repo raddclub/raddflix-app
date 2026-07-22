@@ -1388,3 +1388,82 @@ The correct type for `RaddTheme.of(context)` is `RaddTheme`. Replace-all fixed a
 No Oracle push needed — zero `radd-hub/**` files touched.
 
 Board is clean. All tasks ✅ DONE. Awaiting next task from user.
+
+---
+
+## Session 2026-07-22 (continued) — Logo audit + fix
+
+### Task: LOGO-AUDIT
+
+Audited all 84 live-channel logo_url values in `radd-hub/hub/db.py` `_live_seed`.
+
+**Method:** HTTP HEAD on every URL. Tamashaweb's React SPA was bypassed by probing
+`/wp-content/uploads/` paths directly and guessing slug names (matching channel slugs
+already used by tamashaweb for their channel pages).
+
+**Findings:**
+- All 44 tamashaweb.com/wp-content/uploads URLs: ✅ 200 OK.
+- Wikipedia URLs: 11× 404 (deleted), 4× 400 (SVG thumbnail URLs that require browser
+  Accept headers), 15× 429 (rate-limited, unreliable for production use), 2× ambiguous.
+- Wrong logos (not dead, just pointing at wrong channel's image): pak-ban used
+  ptv-sports.png; saudi-makkah/madinah both used madani-channel.png; cgtn-doc,
+  disc-pak, disc-science all used discovery.png; 8xm used ary-musik.png;
+  tamasha-women and tamasha-life both used tamasha.png.
+
+**Fix applied (`67a27b5c`):**
+1. `_live_seed` in `db.py` — all 41 broken/wrong entries replaced with verified
+   `tamashaweb.com/wp-content/uploads/2023/07/` URLs.
+2. Added `_logo_patches` dict + idempotent UPDATE block in `init_db()` that runs on
+   every boot and patches any row whose `logo_url != correct_value`. This fixes the
+   already-seeded Oracle DB on next restart without manual SQL.
+
+### Channels fixed (41 total)
+
+| channel_id | old logo | new logo |
+|---|---|---|
+| pak-ban | ptv-sports.png | pak-ban.png |
+| saudi-makkah | madani-channel.png | saudi-makkah.png |
+| saudi-madinah | madani-channel.png | saudi-madinah.png |
+| sun-news | Wikipedia (400) | sun-news.png |
+| abn-news | Wikipedia (404) | abn-news.png |
+| gtv-news | Wikipedia (404) | gtv-news.png |
+| 365-news | Wikipedia (404) | 365-news.png |
+| digital-pak | Wikipedia (404) | digital-pakistan.png |
+| cgtn-hd | Wikipedia SVG (400) | cgtn.png |
+| public-tv | Wikipedia (404) | public-news.png |
+| news-one | Wikipedia (404) | news-one.png |
+| abb-tak | Wikipedia (404) | abb-tak.png |
+| pnn | Wikipedia (404) | aik-news.png |
+| awaz-news | Wikipedia (429) | awaz-tv.png |
+| capital-tv | Wikipedia (429) | capital-tv.png |
+| aan-tv | Wikipedia (404) | aan-tv.png |
+| tv-today | Wikipedia (404) | tv-today.png |
+| aurlife | Wikipedia (404) | aurlife.png |
+| ltn-family | Wikipedia (429) | ltn-family.png |
+| see-tv | Wikipedia (429) | see-tv.png |
+| urooj-tv | Wikipedia (429) | urooj-tv.png |
+| atv | Wikipedia (404) | atv.png |
+| bbc-first | Wikipedia SVG (429) | bbc-first.png |
+| bbc-brit | Wikipedia SVG (429) | bbc-brit.png |
+| minimax | Wikipedia SVG thumb (400) | minimax.png |
+| baby-tv | Wikipedia SVG thumb (400) | baby-tv.png |
+| bbc-cbeebies | Wikipedia SVG thumb (400) | bbc-cbeebies.png |
+| filmax | Wikipedia (404) | filmax.png |
+| movie-one | Wikipedia (429) | movie-one.png |
+| 8xm | ary-musik.png (wrong) | 8xm.png |
+| jalwa-tv | Wikipedia (429) | jalwa-tv.png |
+| play-tv | Wikipedia (429) | play-tv.png |
+| srf-movies | Wikipedia SVG thumb (400) | srf-movies.png |
+| inplus | Wikipedia (404) | inplus.png |
+| cgtn-doc | discovery.png (wrong) | cgtn-doc.png |
+| disc-pak | discovery.png (wrong) | disc-pak.png |
+| tamasha-women | tamasha.png (wrong) | tamasha-women.png |
+| tamasha-life | tamasha.png (wrong) | tamasha-life.png |
+| bbc-earth | BBC_Logo_2021.svg (wrong, generic) | bbc-earth.png |
+| bbc-lifestyle | BBC_Logo_2021.svg (wrong, generic) | bbc-lifestyle.png |
+| disc-science | discovery.png (wrong) | disc-science.png |
+
+### Next step
+Oracle redeploy required (`radd-hub/hub/db.py` changed). On next Oracle restart,
+`init_db()` runs the UPDATE block and all 41 rows are patched automatically.
+Awaiting user confirmation to deploy.
