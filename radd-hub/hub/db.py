@@ -541,6 +541,32 @@ _DDL = [
        INSERT INTO titles_fts(rowid, title, plot, genres, language)
        VALUES (new.id, new.title, new.plot, new.genres, new.language);
     END""",
+
+    # ── Live TV channels (admin-managed channel catalogue) ───────────────────
+    """CREATE TABLE IF NOT EXISTS live_channels (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        channel_id     TEXT UNIQUE NOT NULL,
+        name           TEXT NOT NULL,
+        category       TEXT NOT NULL,
+        genre_label    TEXT NOT NULL,
+        logo_url       TEXT NOT NULL DEFAULT '',
+        local_asset    TEXT NOT NULL DEFAULT '',
+        stream_url     TEXT NOT NULL DEFAULT '',
+        backdrop_color TEXT NOT NULL DEFAULT '#1A1A2E',
+        is_free        INTEGER NOT NULL DEFAULT 1,
+        is_featured    INTEGER NOT NULL DEFAULT 0,
+        is_active      INTEGER NOT NULL DEFAULT 1,
+        sort_order     INTEGER NOT NULL DEFAULT 999,
+        notes          TEXT DEFAULT '',
+        created_at     INTEGER DEFAULT (strftime('%s','now')),
+        updated_at     INTEGER DEFAULT (strftime('%s','now'))
+    )""",
+    """CREATE UNIQUE INDEX IF NOT EXISTS idx_live_ch_id
+       ON live_channels(channel_id)""",
+    """CREATE INDEX IF NOT EXISTS idx_live_ch_cat
+       ON live_channels(category, is_active)""",
+    """CREATE INDEX IF NOT EXISTS idx_live_ch_sort
+       ON live_channels(sort_order, is_active)""",
 ]
 
 
@@ -671,6 +697,118 @@ def init_db() -> None:
                         color,features_json,badge,is_active,created_at)
                        VALUES(?,?,?,?,?,?,?,?,1,?)""",
                     (_name, _price, _gb, _devs, _days, _color, _feats, _badge, _now)
+                )
+
+    # ── Seed live channels if table is empty ────────────────────────────────
+    # Mirrors the hardcoded kAllLiveChannels list in raddflix_flutter/lib/data/live_channels.dart.
+    # Seed runs once — guarded by COUNT(*). Admin can edit freely after first boot.
+    _live_seed = [
+        # (channel_id, name, category, genre_label, logo_url, stream_url, backdrop_color, is_featured, sort_order)
+        # SPORTS
+        ("pak-ban",      "PAK v BAN",          "sports",        "🏏 Sports",   "https://tamashaweb.com/wp-content/uploads/2024/01/ptv-sports.png",          "https://cdn02lhr-n.tamashaweb.com:8087/jazzauth/PAKvsBANTS-2026-ABR/playlist.m3u8",                        "#FF6B35", 0,  10),
+        ("ten-sports",   "Ten Sports",          "sports",        "🏏 Sports",   "https://tamashaweb.com/wp-content/uploads/2023/07/ten-sports.png",            "https://cdn07isb.tamashaweb.com:8087/YlUHeDQb7a/157-3H/playlist.m3u8",                                   "#FF6B35", 0,  20),
+        ("ptv-sports",   "PTV Sports",          "sports",        "🏏 Sports",   "https://tamashaweb.com/wp-content/uploads/2024/01/ptv-sports.png",            "https://cdn21lhr.tamashaweb.com:8087/jazzauth/189H/chunks.m3u8",                                          "#FF6B35", 0,  30),
+        ("eurosport",    "Eurosport",           "sports",        "⚽ Sports",   "https://tamashaweb.com/wp-content/uploads/2023/07/eurosport.png",             "https://cdn21lhr.tamashaweb.com:8087/jazzauth/Eurosport-abr/playlist.m3u8",                               "#FF6B35", 0,  40),
+        # ISLAMIC
+        ("saudi-makkah", "Saudi Makkah",        "religious",     "🕌 Islamic",  "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Saudi_Arabia_TV.svg/200px-Saudi_Arabia_TV.svg.png", "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/Saudimakkah(nw)-abr/playlist.m3u8", "#00BFA5", 0, 50),
+        ("saudi-madinah","Saudi Madinah",       "religious",     "🕌 Islamic",  "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8b/Saudi_Arabia_TV.svg/200px-Saudi_Arabia_TV.svg.png", "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/SaudiSunnah(NW)-abr/playlist.m3u8","#00BFA5", 0, 60),
+        ("madani-ch",    "Madani Channel",      "religious",     "🕌 Islamic",  "https://tamashaweb.com/wp-content/uploads/2023/07/madani-channel.png",        "https://cdn07isb.tamashaweb.com:8087/jazzauth/Madni-abr/playlist.m3u8",                                  "#00BFA5", 0,  70),
+        ("paigham-tv",   "Paigham TV",          "religious",     "🕌 Islamic",  "https://tamashaweb.com/wp-content/uploads/2023/07/paigham-tv.png",            "https://cdn22lhr.tamashaweb.com:8087/jazzauth/PaighamTV-abr/playlist.m3u8",                               "#00BFA5", 0,  80),
+        # NEWS
+        ("geo-news",     "Geo News",            "news",          "📰 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/geo-news.png",              "https://cdn07isb.tamashaweb.com:8087/jazzauth/vsat-geonews-abr/playlist_dvr_timeshift-0-3600.m3u8",        "#42A5F5", 1,  90),
+        ("ary-news",     "ARY News",            "news",          "📰 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/ary-news.png",              "https://cdn07isb.tamashaweb.com:8087/jazzauth/vsat-arynews-abr/playlist.m3u8",                            "#42A5F5", 0, 100),
+        ("hum-news",     "Hum News",            "news",          "📰 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/hum-news.png",              "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/humnews-abr/playlist.m3u8",                               "#42A5F5", 0, 110),
+        ("express-news", "Express News",        "news",          "📰 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/express-news.png",          "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/expressnews-abr/playlist.m3u8",                           "#42A5F5", 0, 120),
+        ("samaa-tv",     "Samaa TV",            "news",          "📰 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/samaa-tv.png",              "https://cdn05khi.tamashaweb.com:8087/jazzauth/samaaTV-abr/playlist.m3u8",                                 "#42A5F5", 0, 130),
+        ("bol-news",     "BOL News",            "news",          "📰 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/bol-news.png",              "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/BolNews-abr/playlist.m3u8",                               "#42A5F5", 0, 140),
+        ("gnn",          "GNN",                 "news",          "📰 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/gnn.png",                   "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/GNN-abr/playlist.m3u8",                                   "#42A5F5", 0, 150),
+        ("dawn-news",    "Dawn News",           "news",          "📰 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/dawn-news.png",             "https://cdn21lhr.tamashaweb.com:8087/jazzauth/DawnNews-abr/playlist.m3u8",                                "#42A5F5", 0, 160),
+        ("suno-news",    "Suno News",           "news",          "📰 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/suno-news.png",             "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/Suno_News-abr/playlist.m3u8",                             "#42A5F5", 0, 170),
+        ("neo-news",     "Neo News",            "news",          "📰 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/neo-news.png",              "https://cdn24lhr.tamashaweb.com:8087/jazzauth/NeoNews-abr/playlist.m3u8",                                 "#42A5F5", 0, 180),
+        ("sun-news",     "Sun News",            "news",          "📰 News",     "https://upload.wikimedia.org/wikipedia/en/thumb/6/6d/Sun_News_Pakistan_Logo.png/200px-Sun_News_Pakistan_Logo.png", "https://cdn21lhr.tamashaweb.com:8087/jazzauth/SUN-NEWS-abr/playlist.m3u8", "#42A5F5", 0, 190),
+        ("ptv-news",     "PTV News",            "news",          "📰 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/ptv-news.png",              "https://cdn05khi.tamashaweb.com:8087/jazzauth/PTVNews-abr/playlist.m3u8",                                 "#42A5F5", 0, 200),
+        ("abn-news",     "ABN News",            "news",          "📰 News",     "https://upload.wikimedia.org/wikipedia/en/b/b8/Abn_news_logo.jpg",            "https://cdn22lhr.tamashaweb.com:8087/jazzauth/ABNnews-abr/playlist.m3u8",                                "#42A5F5", 0, 210),
+        ("gtv-news",     "GTV News",            "news",          "📰 News",     "https://upload.wikimedia.org/wikipedia/en/a/ad/GTV_News.png",                 "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/GTVNews-abr/playlist.m3u8",                               "#42A5F5", 0, 220),
+        ("aaj-news",     "Aaj News",            "news",          "📰 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/aaj-news.png",              "https://cdn21lhr.tamashaweb.com:8087/jazzauth/AajNews-abr/playlist.m3u8",                                 "#42A5F5", 0, 230),
+        ("365-news",     "365 News",            "news",          "📰 News",     "https://upload.wikimedia.org/wikipedia/en/8/87/365_News_Logo.jpg",            "https://cdn22lhr.tamashaweb.com:8087/jazzauth/365News-abr/playlist.m3u8",                                "#42A5F5", 0, 240),
+        ("tamasha-news", "Tamasha News",        "news",          "📰 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/tamasha.png",               "https://cdn07isb.tamashaweb.com:8087/jazzauth/Tamasha-News-abr/playlist.m3u8",                            "#42A5F5", 0, 250),
+        ("digital-pak",  "Digital Pak",         "news",          "📰 News",     "https://upload.wikimedia.org/wikipedia/en/f/f6/Digital_Pakistan_TV.jpg",      "https://cdn23lhr.tamashaweb.com:8087/jazzauth/Digital-pak-abr/playlist.m3u8",                            "#42A5F5", 0, 260),
+        ("aljazeera",    "Al Jazeera",          "news",          "🌍 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/aljazeera.png",             "https://cdn05khi.tamashaweb.com:8087/jazzauth/AL-Jazeera-abr/playlist.m3u8",                             "#42A5F5", 0, 270),
+        ("cnn",          "CNN",                 "news",          "🌍 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/cnn.png",                   "https://cdn22lhr.tamashaweb.com:8087/jazzauth/Livecnn-abr/playlist.m3u8",                                 "#42A5F5", 0, 280),
+        ("dw-news",      "DW News",             "news",          "🌍 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/dw-news.png",               "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/DWNews-abr/playlist.m3u8",                               "#42A5F5", 0, 290),
+        ("cgtn-hd",      "CGTN HD",             "news",          "🌍 News",     "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/CGTN_logo.svg/200px-CGTN_logo.svg.png", "https://cdn21lhr.tamashaweb.com:8087/jazzauth/CgtnHD-abr/playlist.m3u8", "#42A5F5", 0, 300),
+        ("24-news",      "24 News",             "news",          "📰 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/24-news.png",               "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/24News-abr/playlist.m3u8",                               "#42A5F5", 0, 310),
+        ("public-tv",    "Public TV",           "news",          "📰 News",     "https://upload.wikimedia.org/wikipedia/en/0/09/Public_News_Pakistan.jpg",     "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/PublicTV-abr/playlist.m3u8",                             "#42A5F5", 0, 320),
+        ("news-one",     "News One",            "news",          "📰 News",     "https://upload.wikimedia.org/wikipedia/en/2/24/Newsone_logo.png",             "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/NewsOne-abr/playlist.m3u8",                              "#42A5F5", 0, 330),
+        ("abb-tak",      "Abb Tak",             "news",          "📰 News",     "https://upload.wikimedia.org/wikipedia/en/6/68/Abb_Tak_logo.png",             "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/abbtak-abr/playlist.m3u8",                               "#42A5F5", 0, 340),
+        ("pnn",          "PNN (Aik News)",      "news",          "📰 News",     "https://upload.wikimedia.org/wikipedia/en/7/71/Aik_News_Logo.jpg",            "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/PNN-abr/playlist.m3u8",                                 "#42A5F5", 0, 350),
+        ("bbc-news",     "BBC News",            "news",          "🌍 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/bbc-news.png",              "https://cdn21lhr.tamashaweb.com:8087/jazzauth/BBCNEWS-abr/playlist.m3u8",                                "#42A5F5", 0, 360),
+        ("trt-world",    "TRT World",           "news",          "🌍 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/trt-world.png",             "https://cdn21lhr.tamashaweb.com:8087/jazzauth/153H/playlist.m3u8",                                       "#42A5F5", 0, 370),
+        ("dunya-news",   "Dunya News",          "news",          "📰 News",     "https://tamashaweb.com/wp-content/uploads/2023/07/dunya-news.png",            "https://cdn21lhr.tamashaweb.com:8087/jazzauth/113M/playlist.m3u8",                                       "#42A5F5", 0, 380),
+        ("awaz-news",    "Awaz News",           "news",          "📰 News",     "https://upload.wikimedia.org/wikipedia/en/b/b2/Awaz_TV_logo.jpg",             "https://cdn21lhr.tamashaweb.com:8087/jazzauth/120M/playlist.m3u8",                                       "#42A5F5", 0, 390),
+        ("capital-tv",   "Capital TV",          "news",          "📰 News",     "https://upload.wikimedia.org/wikipedia/en/a/ae/Capital_TV_Pakistan.jpg",      "https://cdn21lhr.tamashaweb.com:8087/jazzauth/111M/playlist.m3u8",                                       "#42A5F5", 0, 400),
+        # ENTERTAINMENT
+        ("ary-digital",  "ARY Digital",         "entertainment", "🎭 Drama",    "https://tamashaweb.com/wp-content/uploads/2023/07/ary-digital.png",           "https://cdn07lhr.tamashaweb.com:8087/jazzauth/vsat-arydigital-abr/playlist.m3u8",                         "#AB47BC", 0, 410),
+        ("hum-tv",       "Hum TV",              "entertainment", "🎭 Drama",    "https://tamashaweb.com/wp-content/uploads/2023/07/hum-tv.png",                "https://cdn23lhr.tamashaweb.com:8087/jazzauth/humTV-abr/playlist.m3u8",                                   "#AB47BC", 0, 420),
+        ("geo-ent",      "Geo Entertainment",   "entertainment", "🎭 Drama",    "https://tamashaweb.com/wp-content/uploads/2023/07/geo-entertainment.png",     "https://cdn24lhr.tamashaweb.com:8087/jazzauth/GeoEntertainment-abr/playlist.m3u8",                        "#AB47BC", 0, 430),
+        ("green-ent",    "Green Entertainment", "entertainment", "🎭 Drama",    "https://tamashaweb.com/wp-content/uploads/2023/07/green-entertainment.png",   "https://cdn23lhr.tamashaweb.com:8087/jazzauth/Green_Entertainment-abr/playlist.m3u8",                     "#AB47BC", 0, 440),
+        ("ptv-home",     "PTV Home",            "entertainment", "🏠 Entertainment","https://tamashaweb.com/wp-content/uploads/2023/07/ptv-home.png",          "https://cdn23lhr.tamashaweb.com:8087/jazzauth/PTVHome-abr/playlist.m3u8",                                 "#AB47BC", 0, 450),
+        ("express-ent",  "Express Entertainment","entertainment","🎭 Entertainment","https://tamashaweb.com/wp-content/uploads/2023/07/express-entertainment.png","https://cdn21lhr.tamashaweb.com:8087/jazzauth/ExpressEntertainment-abr/playlist.m3u8",                  "#AB47BC", 0, 460),
+        ("set-hd",       "SET HD",              "entertainment", "🎭 Entertainment","https://tamashaweb.com/wp-content/uploads/2023/07/set-hd.png",            "https://cdn24lhr.tamashaweb.com:8087/jazzauth/SetEntertainment-abr/playlist.m3u8",                        "#AB47BC", 0, 470),
+        ("bol-ent",      "BOL Entertainment",   "entertainment", "🎭 Entertainment","https://tamashaweb.com/wp-content/uploads/2023/07/bol-entertainment.png", "https://cdn12isb.tamashaweb.com:8087/jazzauth/BolEntertainment-abr/playlist.m3u8",                        "#AB47BC", 0, 480),
+        ("ary-zindagi",  "ARY Zindagi",         "entertainment", "🎭 Drama",    "https://tamashaweb.com/wp-content/uploads/2023/07/ary-zindagi.png",           "https://cdn21lhr.tamashaweb.com:8087/jazzauth/ARYzindagi-abr/playlist.m3u8",                             "#AB47BC", 0, 490),
+        ("hum-sitaray",  "Hum Sitaray",         "entertainment", "⭐ Entertainment","https://tamashaweb.com/wp-content/uploads/2023/07/hum-sitaray.png",       "https://cdn22lhr.tamashaweb.com:8087/jazzauth/HumSitaray-abr/playlist.m3u8",                              "#AB47BC", 0, 500),
+        ("aan-tv",       "AAN TV",              "entertainment", "🎭 Entertainment","https://upload.wikimedia.org/wikipedia/en/2/2b/Aan_TV_Logo.jpg",          "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/AAN-TV-abr/playlist.m3u8",                                "#AB47BC", 0, 510),
+        ("sab-tv",       "Sab TV",              "entertainment", "🎭 Entertainment","https://tamashaweb.com/wp-content/uploads/2023/07/sab-tv.png",            "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/SabTV-abr/playlist.m3u8",                                 "#AB47BC", 0, 520),
+        ("tv-one",       "TV One",              "entertainment", "🎭 Entertainment","https://tamashaweb.com/wp-content/uploads/2023/07/tv-one.png",             "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/TVOne-abr/playlist.m3u8",                                 "#AB47BC", 0, 530),
+        ("tv-today",     "TV Today",            "entertainment", "🎭 Entertainment","https://upload.wikimedia.org/wikipedia/en/7/77/TV_Today_Pakistan_logo.jpg","https://cdn12isb.tamashaweb.com:8087/jazzauth/TvToday-abr/playlist.m3u8",                                 "#AB47BC", 0, 540),
+        ("aurlife",      "AurLife",             "entertainment", "🎭 Entertainment","https://upload.wikimedia.org/wikipedia/en/e/ef/AurLife_TV_Logo.jpg",      "https://cdn21lhr.tamashaweb.com:8087/jazzauth/AurLife-abr/playlist.m3u8",                                 "#AB47BC", 0, 550),
+        ("ltn-family",   "LTN Family",          "entertainment", "👨‍👩‍👧 Family",  "https://upload.wikimedia.org/wikipedia/en/0/07/LTN_Family_logo.jpg",        "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/LTNFamily-abr/playlist.m3u8",                             "#AB47BC", 0, 560),
+        ("aplus",        "A-Plus",              "entertainment", "🎭 Drama",    "https://tamashaweb.com/wp-content/uploads/2023/07/aplus.png",                 "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/Aplus-abr/playlist.m3u8",                                 "#AB47BC", 0, 570),
+        ("aaj-ent",      "Aaj Entertainment",   "entertainment", "🎭 Entertainment","https://tamashaweb.com/wp-content/uploads/2023/07/aaj-entertainment.png", "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/AajEntertainment-abr/playlist.m3u8",                       "#AB47BC", 0, 580),
+        ("see-tv",       "See TV",              "entertainment", "👁️ Entertainment","https://upload.wikimedia.org/wikipedia/en/1/16/See_TV_logo.jpg",          "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/seeTV-abr/playlist.m3u8",                                 "#AB47BC", 0, 590),
+        ("urooj-tv",     "Urooj TV",            "entertainment", "🎭 Entertainment","https://upload.wikimedia.org/wikipedia/en/5/59/Urooj_TV_Logo.jpg",        "https://cdn07isb.tamashaweb.com:8087/YlUHeDQb7a/117M/playlist.m3u8",                                      "#AB47BC", 0, 600),
+        ("atv",          "ATV",                 "entertainment", "📺 Entertainment","https://upload.wikimedia.org/wikipedia/en/7/72/ATV_Pakistan.jpg",          "https://cdn07isb.tamashaweb.com:8087/YlUHeDQb7a/123M/chunks.m3u8",                                         "#AB47BC", 0, 610),
+        ("bbc-first",    "BBC First",           "entertainment", "🎭 Entertainment","https://upload.wikimedia.org/wikipedia/en/6/66/BBC_First_logo.svg",        "https://cdn21lhr.tamashaweb.com:8087/jazzauth/BBC-First-abr/playlist.m3u8",                               "#AB47BC", 0, 620),
+        ("bbc-brit",     "BBC Brit",            "entertainment", "🎭 Entertainment","https://upload.wikimedia.org/wikipedia/en/b/b9/BBC_Brit_logo.svg",         "https://cdn21lhr.tamashaweb.com:8087/jazzauth/BBC-Brit-abr/playlist.m3u8",                                "#AB47BC", 0, 630),
+        # KIDS
+        ("cartoon-network","Cartoon Network",   "kids",          "🧸 Kids",     "https://tamashaweb.com/wp-content/uploads/2023/07/cartoon-network.png",       "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/cartoonnetwork-abr/playlist.m3u8",                        "#FFCA28", 0, 640),
+        ("minimax",      "Minimax",             "kids",          "🚀 Kids",     "https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/Minimax_logo.svg/200px-Minimax_logo.svg.png", "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/Minimax-abr/playlist.m3u8", "#FFCA28", 0, 650),
+        ("baby-tv",      "Baby TV",             "kids",          "🍼 Kids",     "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/BabyTV_logo.svg/200px-BabyTV_logo.svg.png",  "https://cdn22lhr.tamashaweb.com:8087/jazzauth/BabyTV-abr/playlist.m3u8",   "#FFCA28", 0, 660),
+        ("bbc-cbeebies", "BBC CBeebies",        "kids",          "🧸 Kids",     "https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/CBeebies_2022.svg/200px-CBeebies_2022.svg.png","https://cdn21lhr.tamashaweb.com:8087/jazzauth/BBC-Cbeebies-abr/playlist.m3u8","#FFCA28", 0, 670),
+        # MOVIES
+        ("filmax",       "Filmax",              "movies",        "🎞️ Movies",   "https://upload.wikimedia.org/wikipedia/en/4/4e/Filmax_logo.png",              "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/Filmax-abr/playlist.m3u8",                                "#FF7043", 0, 680),
+        ("movie-one",    "Movie One",           "movies",        "🍿 Movies",   "https://upload.wikimedia.org/wikipedia/en/2/22/Movie_One_Pakistan.jpg",        "https://cdn21lhr.tamashaweb.com:8087/jazzauth/MovieOne-abr/playlist.m3u8",                               "#FF7043", 0, 690),
+        ("8xm",          "8xM Music",           "movies",        "🎵 Music",    "https://tamashaweb.com/wp-content/uploads/2023/07/ary-musik.png",              "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/8xm-abr/playlist.m3u8",                                  "#FF7043", 0, 700),
+        ("jalwa-tv",     "Jalwa TV",            "movies",        "💃 Music",    "https://upload.wikimedia.org/wikipedia/en/d/d3/Jalwa_TV_logo.jpg",             "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/jalwa-abr/playlist.m3u8",                                "#FF7043", 0, 710),
+        ("play-tv",      "Play TV",             "movies",        "🎶 Music",    "https://upload.wikimedia.org/wikipedia/en/c/c3/Play_Entertainment_TV.jpg",     "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/play-abr/playlist.m3u8",                                 "#FF7043", 0, 720),
+        ("srf-movies",   "SRF Movies",          "movies",        "🎬 Movies",   "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/SRF_logo.svg/200px-SRF_logo.svg.png", "https://cdn21lhr.tamashaweb.com:8087/jazzauth/177H/playlist.m3u8",          "#FF7043", 0, 730),
+        ("inplus",       "InPlus Pak",          "movies",        "⭐ Movies",   "https://upload.wikimedia.org/wikipedia/en/0/04/InPlus_Pak_logo.jpg",           "https://cdn23lhr.tamashaweb.com:8087/jazzauth/Inplus-abr/playlist.m3u8",                                 "#FF7043", 0, 740),
+        # DOCS & LIFESTYLE
+        ("discovery-hd", "Discovery HD",        "docs",          "🦁 Discovery","https://tamashaweb.com/wp-content/uploads/2023/07/discovery.png",              "https://cdn05khi.tamashaweb.com:8087/jazzauth/DiscoveryHD-abr/playlist.m3u8",                             "#66BB6A", 0, 750),
+        ("cgtn-doc",     "CGTN Documentary",    "docs",          "🎥 Docs",     "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/CGTN_logo.svg/200px-CGTN_logo.svg.png", "https://cdn23lhr.tamashaweb.com:8087/jazzauth/CgtnDocumentary-abr/playlist.m3u8","#66BB6A", 0, 760),
+        ("animal-planet","Animal Planet",       "docs",          "🐘 Nature",   "https://tamashaweb.com/wp-content/uploads/2023/07/animal-planet.png",          "https://cdn07isb.tamashaweb.com:8087/YlUHeDQb7a/AnimalPlanet-abr/playlist.m3u8",                         "#66BB6A", 0, 770),
+        ("disc-pak",     "Discover Pakistan",   "docs",          "🇵🇰 Docs",    "https://upload.wikimedia.org/wikipedia/en/e/e5/PTV_Sports_logo.png",           "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/DiscoveryPakistan-abr/playlist.m3u8",                     "#66BB6A", 0, 780),
+        ("hum-masala",   "Hum Masala",          "docs",          "🍳 Food",     "https://tamashaweb.com/wp-content/uploads/2023/07/hum-masala.png",             "https://cdn05khi.tamashaweb.com:8087/jazzauth/hummasala-abr/playlist.m3u8",                              "#66BB6A", 0, 790),
+        ("tamasha-women","Tamasha Woman",        "docs",          "👩 Lifestyle","https://tamashaweb.com/wp-content/uploads/2023/07/tamasha.png",                "https://cdn21lhr.tamashaweb.com:8087/jazzauth/Tamasha-Women-abr/playlist.m3u8",                           "#66BB6A", 0, 800),
+        ("tamasha-life", "Tamasha Life",        "docs",          "🌿 Lifestyle","https://tamashaweb.com/wp-content/uploads/2023/07/tamasha.png",                "https://cdn22lhr.tamashaweb.com:8087/jazzauth/Tamasha-Life-HD-abr/playlist.m3u8",                         "#66BB6A", 0, 810),
+        ("bbc-earth",    "BBC Earth",           "docs",          "🌍 Nature",   "https://upload.wikimedia.org/wikipedia/en/4/4c/BBC_Earth_logo.svg",            "https://cdn22lhr.tamashaweb.com:8087/jazzauth/BBC-Earth-abr/playlist.m3u8",                              "#66BB6A", 0, 820),
+        ("bbc-lifestyle","BBC Lifestyle",       "docs",          "🌱 Lifestyle","https://upload.wikimedia.org/wikipedia/commons/4/41/BBC_Logo_2021.svg",        "https://cdn21lhr.tamashaweb.com:8087/jazzauth/BBC-Lifestyle-abr/playlist.m3u8",                          "#66BB6A", 0, 830),
+        ("disc-science", "Discovery Science",   "docs",          "🔬 Science",  "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/Discovery_Channel_logo_2019.svg/200px-Discovery_Channel_logo_2019.svg.png","https://cdn22lhr.tamashaweb.com:8087/jazzauth/Discovery-Science-abr/playlist.m3u8","#66BB6A", 0, 840),
+    ]
+    with db._lock, db._conn() as c:
+        existing_live = c.execute("SELECT COUNT(*) AS n FROM live_channels").fetchone()["n"]
+        if existing_live == 0:
+            _now_live = int(time.time())
+            for (_cid, _cname, _cat, _genre, _logo, _stream, _color, _feat, _sort) in _live_seed:
+                c.execute(
+                    """INSERT OR IGNORE INTO live_channels
+                       (channel_id, name, category, genre_label, logo_url, stream_url,
+                        backdrop_color, is_free, is_featured, is_active, sort_order,
+                        created_at, updated_at)
+                       VALUES (?,?,?,?,?,?,?,1,?,1,?,?,?)""",
+                    (_cid, _cname, _cat, _genre, _logo, _stream,
+                     _color, _feat, _sort, _now_live, _now_live),
                 )
 
     # Run schema check at startup — logs WARNING for any missing critical columns.

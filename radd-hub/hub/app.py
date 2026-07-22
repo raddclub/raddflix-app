@@ -85,7 +85,7 @@ def create_app() -> Flask:
                         tid_panel, app_users_panel, analytics, subscriptions, broadcast, zero_rating, \
                         plans_panel, payment_gateway, mobile_api, \
                         catalog_api, search_api, poster_proxy, \
-                        brand_studio
+                        brand_studio, live_channels as live_channels_route
     app.register_blueprint(auth.bp,                    url_prefix="/auth")
     app.register_blueprint(home.bp)
     app.register_blueprint(settings_route.bp,          url_prefix="/settings")
@@ -125,6 +125,9 @@ def create_app() -> Flask:
     app.register_blueprint(poster_proxy.poster_proxy_bp)  # /api/poster/*
     # ── Brand Studio (P6) ──────────────────────────────────────────────────────
     app.register_blueprint(brand_studio.bp)  # /brand/ + /api/brand/*
+    # ── Live TV (admin panel + mobile API) ────────────────────────────────────
+    app.register_blueprint(live_channels_route.bp)         # /live/*
+    app.register_blueprint(live_channels_route.bp_mobile)  # /api/live/channels
     # ── Security telemetry (Phase 25.6) ──────────────────────────────────────
     from .routes.security_telemetry import bp_security
     app.register_blueprint(bp_security)   # POST /api/security/tamper-report
