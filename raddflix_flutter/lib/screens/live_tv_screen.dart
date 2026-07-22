@@ -170,7 +170,7 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
 
   // ── Header ─────────────────────────────────────────────────────────────────
 
-  Widget _buildHeader(RaddColors t, LiveChannelState lvState) => Padding(
+  Widget _buildHeader(RaddTheme t, LiveChannelState lvState) => Padding(
     padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
     child: Row(
       children: [
@@ -222,7 +222,7 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
 
   // ── Search bar ─────────────────────────────────────────────────────────────
 
-  Widget _buildSearchBar(RaddColors t) => Padding(
+  Widget _buildSearchBar(RaddTheme t) => Padding(
     padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
     child: Container(
       height: 44,
@@ -264,7 +264,7 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
 
   // ── Category chips ─────────────────────────────────────────────────────────
 
-  Widget _buildCategoryChips(RaddColors t) => SizedBox(
+  Widget _buildCategoryChips(RaddTheme t) => SizedBox(
     height: 48,
     child: ListView.separated(
       scrollDirection: Axis.horizontal,
@@ -304,7 +304,7 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
 
   // ── Loading / error states ──────────────────────────────────────────────────
 
-  Widget _buildLoading(RaddColors t) => SizedBox(
+  Widget _buildLoading(RaddTheme t) => SizedBox(
     height: 300,
     child: Center(
       child: Column(
@@ -321,7 +321,7 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
     ),
   );
 
-  Widget _buildError(RaddColors t, LiveChannelState lvState) => SizedBox(
+  Widget _buildError(RaddTheme t, LiveChannelState lvState) => SizedBox(
     height: 300,
     child: Center(
       child: Padding(
@@ -360,7 +360,7 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
   // ── Content dispatcher ─────────────────────────────────────────────────────
 
   List<Widget> _buildContent(
-    RaddColors t,
+    RaddTheme t,
     LiveChannelState lvState,
     List<LiveChannel> all,
   ) {
@@ -425,7 +425,7 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
   // ── All-view: hero + recently watched + per-category rows ──────────────────
 
   List<Widget> _buildAllView(
-    RaddColors t,
+    RaddTheme t,
     LiveChannelState lvState,
     List<LiveChannel> all,
   ) {
@@ -483,7 +483,7 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
 
   // ── Recently watched row ───────────────────────────────────────────────────
 
-  Widget _buildRecentRow(RaddColors t, List<LiveChannel> recents) => Padding(
+  Widget _buildRecentRow(RaddTheme t, List<LiveChannel> recents) => Padding(
     padding: const EdgeInsets.only(top: 20),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
