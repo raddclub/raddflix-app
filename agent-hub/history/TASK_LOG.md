@@ -1283,3 +1283,48 @@ dark bg (WCAG AA-large-only). Prohibited for use as text colour on body copy
 
 No Oracle push needed — zero `radd-hub/**` files touched in any THEME-V2 commit.
 Board is clean. No open tasks. Awaiting next task from user.
+
+---
+
+## Session 2026-07-22 — LIVE-TV-BACKEND
+
+**Context:** Flutter side (live_channels.dart + live_tv_screen.dart) was already fully built in a
+prior session. Previous agent had approval for the DB schema but was cut off mid-write at the
+daily credit limit before writing any backend files.
+
+### What was built
+
+**`radd-hub/hub/db.py`** — Added `live_channels` DDL to `_DDL` list (CREATE TABLE IF NOT EXISTS +
+3 indexes: unique on channel_id, composite on category+is_active, composite on sort_order+is_active).
+Added seed block to `init_db()`: 86 channels seeded in category order
+(sports → religious → news → entertainment → kids → movies → docs), guarded by `COUNT(*) = 0`.
+Backdrop colors per category, Geo News flagged is_featured=1, all channels is_free=1/is_active=1.
+
+**`radd-hub/hub/routes/live_channels.py`** — New blueprint file (two blueprints):
+- `bp` (`/live/*`) — admin panel using `render_template_string` (same pattern as `plans_panel.py`).
+  Routes: `GET /live/` (list + category tabs), `POST /live/<id>/toggle`, `POST /live/<id>/free`,
+  `POST /live/<id>/featured` (clears existing featured first), `POST /live/<id>/sort`,
+  `POST /live/<id>/edit` (stream_url + logo_url + notes).
+- `bp_mobile` — `GET /api/live/channels` returning `{ok, channels[], total, categories[], server_ts}`.
+  Active channels only; supports `?cat=` filter. Each channel object includes all display fields
+  the Flutter app needs (`backdrop_color`, `is_featured`, `sort_order`, `updated_at`).
+
+**`radd-hub/hub/app.py`** — `live_channels as live_channels_route` added to the main import line;
+two `register_blueprint` calls added after the Brand Studio block.
+
+**`radd-hub/hub/templates/base.html`** — `📺 Live TV / Channels & streams` nav link added
+under the APP section (after Broadcast).
+
+### Commit
+`c7b619a4` — "Live TV backend: live_channels table + seed (86 ch) + admin panel + mobile API"
+
+### Notes for next agent
+- The Flutter app still uses the hardcoded `kAllLiveChannels` list in `live_channels.dart`.
+  Making it call `/api/live/channels` instead is a separate task — not yet discussed with the user.
+  Do NOT scope-creep into Flutter changes without explicit user approval.
+- Oracle deploy needed before the admin panel or API endpoint will be live on the server.
+  Follow OPERATIONS.md: run `push_to_oracle.sh` and confirm with user first.
+- The DB seed is a one-time boot operation. If channels need to be updated after deploy,
+  use the admin panel at `/live/` — do NOT manually run SQL.
+
+Board is clean. No open tasks. Awaiting next task from user.

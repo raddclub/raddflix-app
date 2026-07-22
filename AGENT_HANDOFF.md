@@ -5,7 +5,25 @@
 
 ---
 
-## Current State (2026-07-21 — THEME-V2 polish complete, CI ✅ `13de8bc`)
+## Current State (2026-07-22 — Live TV backend complete, commit `c7b619a4`)
+
+**LIVE-TV-BACKEND — commit `c7b619a4`:**
+Backend for the Live TV feature is now fully built. The Flutter UI side (`live_channels.dart`, `live_tv_screen.dart`) was already complete from a prior session. This session added everything on the server side:
+
+1. **`radd-hub/hub/db.py`** — `live_channels` table DDL added to `_DDL` (`CREATE TABLE IF NOT EXISTS` + 3 indexes). Seed block in `init_db()`: 86 channels across 7 categories, seeded once on first boot. Backdrop colors per category; Geo News is_featured=1; all channels is_free=1, is_active=1.
+2. **`radd-hub/hub/routes/live_channels.py`** — Admin panel blueprint (`GET /live/`, toggle is_active/is_free/featured, inline stream-URL edit, sort-order edit) + mobile API blueprint (`GET /api/live/channels` — active channels list with category filter). Both use the `render_template_string` pattern from `plans_panel.py`.
+3. **`radd-hub/hub/app.py`** — Both blueprints imported and registered.
+4. **`radd-hub/hub/templates/base.html`** — `📺 Live TV / Channels & streams` nav link added under APP section.
+
+**⚠️ Oracle deploy pending** — `radd-hub/**` files were touched. The admin panel and API endpoint will not be live until `push_to_oracle.sh` is run. Confirm with user before pushing.
+
+**Flutter note** — The app still uses the hardcoded `kAllLiveChannels` in `live_channels.dart`. A future task would switch it to call `/api/live/channels` instead — but this is NOT yet approved. Do not touch Flutter files for this feature without explicit user sign-off.
+
+**Board status:** All tasks ✅ DONE. No open items.
+
+---
+
+## Previous State (2026-07-21 — THEME-V2 polish complete, CI ✅ `13de8bc`)
 
 **THEME-V2 — Four polish fixes, commit `13de8bc`:**
 All four THEME-V2 tasks completed in one commit. No business logic touched — all changes are theme-token and doc updates only.
