@@ -796,7 +796,7 @@ def init_db() -> None:
         ("bbc-lifestyle","BBC Lifestyle",       "docs",          "🌱 Lifestyle","https://upload.wikimedia.org/wikipedia/commons/4/41/BBC_Logo_2021.svg",        "https://cdn21lhr.tamashaweb.com:8087/jazzauth/BBC-Lifestyle-abr/playlist.m3u8",                          "#66BB6A", 0, 830),
         ("disc-science", "Discovery Science",   "docs",          "🔬 Science",  "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/Discovery_Channel_logo_2019.svg/200px-Discovery_Channel_logo_2019.svg.png","https://cdn22lhr.tamashaweb.com:8087/jazzauth/Discovery-Science-abr/playlist.m3u8","#66BB6A", 0, 840),
     ]
-    with db._lock, db._conn() as c:
+    with _lock, _conn() as c:
         existing_live = c.execute("SELECT COUNT(*) AS n FROM live_channels").fetchone()["n"]
         if existing_live == 0:
             _now_live = int(time.time())
