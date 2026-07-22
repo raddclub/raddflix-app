@@ -101,6 +101,9 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
 
   bool _panelOpen = false;
 
+  // ── Live TV helpers ──────────────────────────────────────────────────────────
+  bool get _isLive => widget.contentType == 'live';
+
   Timer? _hideTimer;
 
   static const _speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
@@ -1294,6 +1297,9 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
     }
 
     Widget _buildBottomArea(BoxConstraints constraints, Duration currentPos) {
+      // Live TV: replace seek bar + full transport with live status row + simplified controls.
+      if (_isLive) return _buildLiveBottomArea();
+
       // J1: compact layout actually reduces chrome density
       final isCompact = _layoutPreset == 'compact';
       return Padding(
@@ -1561,6 +1567,181 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
             ),
           ),
         ],
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  Live TV UI helpers
+    //  Shown when widget.contentType == 'live'.
+    //  • Seek bar is replaced with a red ● LIVE status indicator.
+    //  • Replay/skip/prev/next transport buttons are hidden.
+    //  • A channel-switcher button opens a bottom sheet listing all live channels.
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /// Landscape bottom area for live content.
+    Widget _buildLiveBottomArea() {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildLiveStatusRow(),
+            const SizedBox(height: 6),
+            _buildLiveTransportRow(),
+          ],
+        ),
+      );
+    }
+
+    /// Portrait panel for live content.
+    Widget _buildLivePortraitPanel() {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildLiveStatusRow(),
+            const SizedBox(height: 6),
+            _buildLiveTransportRow(),
+          ],
+        ),
+      );
+    }
+
+    /// Red ● LIVE indicator row with channel name.
+    Widget _buildLiveStatusRow() {
+      return Row(
+        children: [
+          // Static red dot — clear enough without animation inside the player.
+          Container(
+            width: 8, height: 8,
+            decoration: BoxDecoration(
+              color: Colors.red,
+              shape: BoxShape.circle,
+              boxShadow: const [
+                BoxShadow(color: Color(0x88FF0000), blurRadius: 8),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          const Text(
+            'LIVE',
+            style: TextStyle(
+              color: Colors.red,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.4,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              widget.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    /// Simplified transport row for live: play/pause centred, channel-switcher
+    /// on the left, lock/immersive/settings on the right.
+    Widget _buildLiveTransportRow() {
+      return SizedBox(
+        height: 52,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Channel switcher
+                _RaddIconBtn(
+                  icon: Icons.list_rounded,
+                  size: 22,
+                  onTap: _openChannelSwitcher,
+                ),
+                const Spacer(),
+                // Utility buttons
+                const SizedBox(width: RaddSpace.xs),
+                _RaddIconBtn(
+                  icon: Icons.lock_outline_rounded,
+                  size: 19,
+                  onTap: () => setState(() {
+                    _isLocked = true;
+                    _showControls = false;
+                    _applySubtitleMargin(controlsVisible: false);
+                  }),
+                ),
+                _RaddIconBtn(
+                  icon: _isImmersive
+                      ? Icons.theaters_rounded
+                      : Icons.theaters_outlined,
+                  size: 19,
+                  onTap: _isImmersive ? _exitImmersive : _enterImmersive,
+                ),
+                _RaddIconBtn(
+                  icon: Icons.settings_rounded,
+                  size: 19,
+                  onTap: _openSettingsPanel,
+                ),
+              ],
+            ),
+            // Play/pause — always pixel-centred via Stack
+            GestureDetector(
+              onTap: () { _player.playOrPause(); _scheduleHide(); },
+              child: Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.12),
+                  border: Border.all(
+                      color: Colors.white.withOpacity(0.35), width: 1.2),
+                ),
+                child: Icon(
+                  _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    /// Bottom sheet listing all live channels — tap one to switch via
+    /// pushReplacementNamed so the route stack stays clean.
+    void _openChannelSwitcher() {
+      final channels = ref.read(liveChannelProvider).channels;
+      if (channels.isEmpty) return;
+
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => _LiveChannelSwitcherSheet(
+          channels: channels,
+          currentTitle: widget.title,
+          onSelect: (ch) {
+            Navigator.pop(context);
+            Navigator.pushReplacementNamed(context, AppRoutes.player,
+                arguments: {
+                  'file_id':      'live_${ch.id}',
+                  'title':        ch.name,
+                  'stream_url':   ch.streamUrl,
+                  'content_type': 'live',
+                  'is_free':      ch.isFree,
+                  'poster_url':   ch.logoUrl,
+                });
+          },
+        ),
       );
     }
 
@@ -2347,6 +2528,9 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
     }
 
     Widget _buildPortraitControlsPanel(BoxConstraints constraints, Duration currentPos) {
+      // Live TV: show live status row + simplified transport only.
+      if (_isLive) return _buildLivePortraitPanel();
+
       // Floating overlay over full-bleed video — sizes to its content instead of
       // stretching to fill a fixed panel height (TikTok/Shorts style controls).
       return Padding(
@@ -3585,4 +3769,218 @@ void _openPanel({
       final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
       return h > 0 ? '$h:$m:$s' : '$m:$s';
     }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Live channel switcher bottom sheet
+//  Shown when the user taps the ≡ button during live playback.
+//  Tapping a channel invokes pushReplacementNamed so the player route is
+//  recycled cleanly (no stacked live sessions in the navigation history).
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _LiveChannelSwitcherSheet extends StatefulWidget {
+  final List<LiveChannel> channels;
+  final String            currentTitle;
+  final void Function(LiveChannel) onSelect;
+
+  const _LiveChannelSwitcherSheet({
+    required this.channels,
+    required this.currentTitle,
+    required this.onSelect,
+  });
+
+  @override
+  State<_LiveChannelSwitcherSheet> createState() => _LiveChannelSwitcherSheetState();
+}
+
+class _LiveChannelSwitcherSheetState extends State<_LiveChannelSwitcherSheet> {
+  final TextEditingController _ctrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  List<LiveChannel> get _filtered {
+    if (_query.isEmpty) return widget.channels;
+    final q = _query.toLowerCase();
+    return widget.channels
+        .where((c) =>
+            c.name.toLowerCase().contains(q) ||
+            c.genre.toLowerCase().contains(q))
+        .toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _filtered;
+    return DraggableScrollableSheet(
+      initialChildSize: 0.65,
+      minChildSize: 0.40,
+      maxChildSize: 0.92,
+      expand: false,
+      builder: (_, scrollCtrl) => Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFF12121E),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            // Handle bar
+            const SizedBox(height: 8),
+            Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  const Icon(Icons.live_tv_rounded, size: 18, color: Colors.red),
+                  const SizedBox(width: 8),
+                  const Text('Switch Channel', style: TextStyle(
+                    color: Colors.white, fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  )),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: const Icon(Icons.close_rounded, size: 20, color: Colors.white54),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            // Search
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.07),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white12),
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 10),
+                    const Icon(Icons.search_rounded, size: 16, color: Colors.white38),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _ctrl,
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        onChanged: (v) => setState(() => _query = v.toLowerCase().trim()),
+                        decoration: const InputDecoration(
+                          hintText: 'Search channels…',
+                          hintStyle: TextStyle(color: Colors.white38, fontSize: 13),
+                          border: InputBorder.none,
+                          isDense: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Divider(color: Colors.white10, height: 1),
+            // Channel list
+            Expanded(
+              child: filtered.isEmpty
+                  ? const Center(
+                      child: Text('No channels found',
+                          style: TextStyle(color: Colors.white38, fontSize: 14)),
+                    )
+                  : ListView.builder(
+                      controller: scrollCtrl,
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      itemCount: filtered.length,
+                      itemBuilder: (_, i) {
+                        final ch         = filtered[i];
+                        final isCurrent  = ch.name == widget.currentTitle;
+                        final bgColor    = _parseHexColor(ch.backdropColor);
+                        return ListTile(
+                          dense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 2),
+                          leading: Container(
+                            width: 44, height: 44,
+                            decoration: BoxDecoration(
+                              color: bgColor.withOpacity(0.25),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: bgColor.withOpacity(0.45)),
+                            ),
+                            child: ch.logoUrl.isNotEmpty
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(7),
+                                    child: Image.network(
+                                      ch.logoUrl,
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (_, __, ___) => Icon(
+                                          Icons.live_tv_rounded,
+                                          size: 20,
+                                          color: Colors.white38),
+                                    ),
+                                  )
+                                : const Icon(Icons.live_tv_rounded,
+                                    size: 20, color: Colors.white38),
+                          ),
+                          title: Text(
+                            ch.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isCurrent ? Colors.red : Colors.white,
+                              fontSize: 13,
+                              fontWeight: isCurrent
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                            ),
+                          ),
+                          subtitle: Text(
+                            ch.genre,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white38, fontSize: 11),
+                          ),
+                          trailing: isCurrent
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: const [
+                                    Icon(Icons.circle, size: 8, color: Colors.red),
+                                    SizedBox(width: 4),
+                                    Text('LIVE', style: TextStyle(
+                                      color: Colors.red, fontSize: 9,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.8,
+                                    )),
+                                  ],
+                                )
+                              : null,
+                          onTap: isCurrent ? null : () => widget.onSelect(ch),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static Color _parseHexColor(String hex) {
+    final h = hex.replaceAll('#', '');
+    if (h.length == 6) return Color(int.parse('FF$h', radix: 16));
+    return const Color(0xFF1A1A2E);
+  }
 }

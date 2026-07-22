@@ -58,6 +58,8 @@ import '../widgets/player/word_definition_sheet.dart';
 import '../core/player/subtitle_style.dart';
 import '../core/utils/anim_config.dart';
 import '../core/utils/anim_durations.dart';
+import '../providers/live_channel_provider.dart';
+import '../data/live_channels.dart';
 
 // ── Phase J: panel classes extracted to part files ─────────────────────────
 part 'player/_ps_panels_subtitle.dart';
