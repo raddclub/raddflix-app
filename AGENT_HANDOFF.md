@@ -5,19 +5,25 @@
 
 ---
 
-## Current State (2026-07-22 — Live TV backend complete, commit `c7b619a4`)
+## Current State (2026-07-22 — Live TV backend complete + deployed, CI ✅ `e234e512`)
 
-**LIVE-TV-BACKEND — commit `c7b619a4`:**
-Backend for the Live TV feature is now fully built. The Flutter UI side (`live_channels.dart`, `live_tv_screen.dart`) was already complete from a prior session. This session added everything on the server side:
+**LIVE-TV-BACKEND — commits `c7b619a4` → `e234e512` (all deployed to Oracle):**
+Backend for the Live TV feature is fully built, bug-checked, and live on Oracle. The Flutter UI side (`live_channels.dart`, `live_tv_screen.dart`) was already complete from a prior session.
 
-1. **`radd-hub/hub/db.py`** — `live_channels` table DDL added to `_DDL` (`CREATE TABLE IF NOT EXISTS` + 3 indexes). Seed block in `init_db()`: 86 channels across 7 categories, seeded once on first boot. Backdrop colors per category; Geo News is_featured=1; all channels is_free=1, is_active=1.
-2. **`radd-hub/hub/routes/live_channels.py`** — Admin panel blueprint (`GET /live/`, toggle is_active/is_free/featured, inline stream-URL edit, sort-order edit) + mobile API blueprint (`GET /api/live/channels` — active channels list with category filter). Both use the `render_template_string` pattern from `plans_panel.py`.
+**What was built:**
+1. **`radd-hub/hub/db.py`** — `live_channels` table DDL in `_DDL` (`CREATE TABLE IF NOT EXISTS` + 3 indexes). Seed block in `init_db()`: 84 channels across 7 categories (sports/religious/news/entertainment/kids/movies/docs), seeded once on first boot (`COUNT(*) = 0` guard). Backdrop color per category; Geo News `is_featured=1`; all channels `is_free=1`, `is_active=1`.
+2. **`radd-hub/hub/routes/live_channels.py`** — Two blueprints: `bp` (`/live/*`) admin panel with category filter tabs, per-channel toggles (active/free/featured), inline stream-URL edit (Enter to save), sort-order edit — all POST actions preserve `?cat=` so the admin stays on the current category tab after each action. `bp_mobile` serves `GET /api/live/channels` → JSON channel list for Flutter.
 3. **`radd-hub/hub/app.py`** — Both blueprints imported and registered.
-4. **`radd-hub/hub/templates/base.html`** — `📺 Live TV / Channels & streams` nav link added under APP section.
+4. **`radd-hub/hub/templates/base.html`** — `📺 Live TV / Channels & streams` nav link under APP section.
 
-**⚠️ Oracle deploy pending** — `radd-hub/**` files were touched. The admin panel and API endpoint will not be live until `push_to_oracle.sh` is run. Confirm with user before pushing.
+**Bugs found and fixed in same session:**
+- `db.py` seed used `db._lock`/`db._conn()` inside `db.py` itself (where they are just `_lock`/`_conn()`). Fixed `22ee2471`. Server crashed on first boot; fixed before any data loss.
+- POST form actions in admin template lost `?cat=` filter on redirect (user always landed on "All" tab after every toggle). Fixed `e234e512`.
+- Dead `_conn()`/`_lock()` wrapper functions removed. Fixed `e234e512`.
 
-**Flutter note** — The app still uses the hardcoded `kAllLiveChannels` in `live_channels.dart`. A future task would switch it to call `/api/live/channels` instead — but this is NOT yet approved. Do not touch Flutter files for this feature without explicit user sign-off.
+**Oracle status:** ✅ Deployed and RUNNING (`e234e512`). API verified: `GET /api/live/channels` returns 84 channels.
+
+**Flutter note** — The app still reads from the hardcoded `kAllLiveChannels` in `live_channels.dart`. Switching it to call `/api/live/channels` is a **separate, not-yet-approved task**. Do NOT touch Flutter files for this without explicit user sign-off.
 
 **Board status:** All tasks ✅ DONE. No open items.
 

@@ -1328,3 +1328,36 @@ under the APP section (after Broadcast).
   use the admin panel at `/live/` — do NOT manually run SQL.
 
 Board is clean. No open tasks. Awaiting next task from user.
+
+---
+
+## Session 2026-07-22 (continued) — Bug audit + Oracle deploy
+
+After completing LIVE-TV-BACKEND, ran a full bug audit of all new code before handoff.
+
+### Bugs found and fixed
+
+**Bug 1 — `db.py` seed crash (`22ee2471`)**
+Seed block in `init_db()` referenced `db._lock`/`db._conn()` — but inside `db.py` those are
+bare module-level names `_lock`/`_conn()`. Python raised `NameError: name 'db' is not defined`
+on every boot, crashing the server immediately after first deploy. Fixed same session.
+
+**Bug 2 — Admin panel lost `?cat=` filter on POST redirect (`e234e512`)**
+All five POST form actions had no `?cat=` in the URL. After any toggle/edit, Flask read
+`request.args.get("cat","all")` from the POST (which has no query string) and always redirected
+to "All" tab — discarding the user's active category. Fixed by adding `?cat={{ cat }}` to every
+form action in the `_PAGE` template.
+
+**Bug 3 — Dead wrapper functions (`e234e512`)**
+`_conn()` and `_lock()` at the top of `live_channels.py` were defined but never called.
+Removed.
+
+### Final state
+`e234e512` deployed to Oracle. Server RUNNING. `GET /api/live/channels` returns 84 channels,
+all 7 categories, `ok: True`. Admin panel live at `http://92.4.95.252/live/`.
+
+### Permanent rule for next agent
+When adding seed blocks to `db.py`, use `_lock`/`_conn()` bare — NOT `db._lock`/`db._conn()`.
+`db.py` cannot reference itself by module name.
+
+Board is clean. No open tasks. Awaiting next task from user.
