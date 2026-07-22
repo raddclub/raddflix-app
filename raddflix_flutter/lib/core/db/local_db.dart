@@ -280,6 +280,7 @@ class LocalDb {
         stream_url     TEXT NOT NULL DEFAULT '',
         backdrop_color TEXT NOT NULL DEFAULT '#1A1A2E',
         is_featured    INTEGER NOT NULL DEFAULT 0,
+        is_free        INTEGER NOT NULL DEFAULT 1,
         updated_at     INTEGER NOT NULL DEFAULT 0
       )
     ''');
@@ -628,6 +629,14 @@ class LocalDb {
         ''');
         await db.execute(
           'CREATE INDEX IF NOT EXISTS idx_live_ch_cat ON live_channels(category)',
+        );
+      } catch (_) {}
+    }
+    if (oldV < 26) {
+      // v26: is_free column on live_channels (default 1 — all existing rows stay free).
+      try {
+        await db.execute(
+          'ALTER TABLE live_channels ADD COLUMN is_free INTEGER NOT NULL DEFAULT 1',
         );
       } catch (_) {}
     }

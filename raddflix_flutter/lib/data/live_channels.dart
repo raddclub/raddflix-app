@@ -16,6 +16,7 @@ class LiveChannel {
   final String streamUrl;
   final String backdropColor; // hex string, e.g. '#42A5F5'
   final bool   isFeatured;
+  final bool   isFree;        // false = paywalled channel
 
   const LiveChannel({
     required this.id,
@@ -26,6 +27,7 @@ class LiveChannel {
     required this.streamUrl,
     this.backdropColor = '#1A1A2E',
     this.isFeatured    = false,
+    this.isFree        = true,  // all Oracle channels are free by default
   });
 
   // ── Deserialise from Oracle API response ────────────────────────────────
@@ -39,6 +41,7 @@ class LiveChannel {
     streamUrl:     j['stream_url']    as String? ?? '',
     backdropColor: j['backdrop_color'] as String? ?? '#1A1A2E',
     isFeatured:    j['is_featured'] == true || j['is_featured'] == 1,
+    isFree:        !(j['is_free'] == false || j['is_free'] == 0),
   );
 
   // ── Serialise/deserialise for local SQLite ──────────────────────────────
@@ -52,6 +55,7 @@ class LiveChannel {
     streamUrl:     r['stream_url']    as String? ?? '',
     backdropColor: r['backdrop_color'] as String? ?? '#1A1A2E',
     isFeatured:    (r['is_featured']  as int? ?? 0) == 1,
+    isFree:        (r['is_free']      as int? ?? 1) == 1,
   );
 
   Map<String, dynamic> toRow() => {
@@ -63,6 +67,7 @@ class LiveChannel {
     'stream_url':     streamUrl,
     'backdrop_color': backdropColor,
     'is_featured':    isFeatured ? 1 : 0,
+    'is_free':        isFree    ? 1 : 0,
   };
 }
 
