@@ -5,25 +5,19 @@
 
 ---
 
-## Current State (2026-07-22 — Live TV backend complete + deployed, CI ✅ `e234e512`)
+## Current State (2026-07-22 — Live TV Flutter UI complete, CI ✅ `36cf2740`)
 
-**LIVE-TV-BACKEND — commits `c7b619a4` → `e234e512` (all deployed to Oracle):**
-Backend for the Live TV feature is fully built, bug-checked, and live on Oracle. The Flutter UI side (`live_channels.dart`, `live_tv_screen.dart`) was already complete from a prior session.
+**LIVETV-P1 / P2 / P3 + CI fix — commits `b55d9f55` → `ca12dd14` → `36cf2740`:**
+Full Live TV Flutter UI is built, CI green, and merged to `main`. No Oracle push needed (zero `radd-hub/**` touched).
 
-**What was built:**
-1. **`radd-hub/hub/db.py`** — `live_channels` table DDL in `_DDL` (`CREATE TABLE IF NOT EXISTS` + 3 indexes). Seed block in `init_db()`: 84 channels across 7 categories (sports/religious/news/entertainment/kids/movies/docs), seeded once on first boot (`COUNT(*) = 0` guard). Backdrop color per category; Geo News `is_featured=1`; all channels `is_free=1`, `is_active=1`.
-2. **`radd-hub/hub/routes/live_channels.py`** — Two blueprints: `bp` (`/live/*`) admin panel with category filter tabs, per-channel toggles (active/free/featured), inline stream-URL edit (Enter to save), sort-order edit — all POST actions preserve `?cat=` so the admin stays on the current category tab after each action. `bp_mobile` serves `GET /api/live/channels` → JSON channel list for Flutter.
-3. **`radd-hub/hub/app.py`** — Both blueprints imported and registered.
-4. **`radd-hub/hub/templates/base.html`** — `📺 Live TV / Channels & streams` nav link under APP section.
+**What was built (prior session, completed this session):**
 
-**Bugs found and fixed in same session:**
-- `db.py` seed used `db._lock`/`db._conn()` inside `db.py` itself (where they are just `_lock`/`_conn()`). Fixed `22ee2471`. Server crashed on first boot; fixed before any data loss.
-- POST form actions in admin template lost `?cat=` filter on redirect (user always landed on "All" tab after every toggle). Fixed `e234e512`.
-- Dead `_conn()`/`_lock()` wrapper functions removed. Fixed `e234e512`.
+- **LIVETV-P1 (`b55d9f55`)** — `live_tv_screen.dart` full layout: featured hero banner (backdrop-gradient card, Watch Now button, pulsing LIVE dot); Netflix-style horizontal category rows with "See all →"; 2-col grid for single-category / search views; backdrop-tinted cards; lock icon for non-free channels; `isFree` added to `LiveChannel` model; local DB schema v25→v26 (`is_free` column on `live_channels`); `AppConstants.catalogDbVersion` bumped to 26.
+- **LIVETV-P3 (`b55d9f55`)** — `live_channel_provider.dart`: `recordWatched()` writes last 5 channel IDs to SharedPrefs; `recentChannels` getter resolves them to `LiveChannel` objects; Recently Watched row in `live_tv_screen.dart` (horizontal 72px avatar cards, backdrop tint, channel name).
+- **LIVETV-P2 (`ca12dd14`)** — `_ps_ui_mixin.dart`: `_isLive` getter (`widget.contentType == 'live'`); seek bar replaced with red ● LIVE status row (channel name alongside); simplified transport (play/pause centred, skip/replay/prev/next hidden); channel-switcher list button → `_LiveChannelSwitcherSheet` bottom sheet → `pushReplacementNamed` to switch channels without stacking routes.
+- **CI fix (`36cf2740`)** — `live_tv_screen.dart` used `RaddColors` (a BuildContext extension, not a class) as explicit type annotation in 8 method signatures. `RaddTheme.of(context)` returns `RaddTheme`; all 8 replaced. `dart analyze` now passes.
 
-**Oracle status:** ✅ Deployed and RUNNING (`e234e512`). API verified: `GET /api/live/channels` returns 84 channels.
-
-**Flutter note** — The app still reads from the hardcoded `kAllLiveChannels` in `live_channels.dart`. Switching it to call `/api/live/channels` is a **separate, not-yet-approved task**. Do NOT touch Flutter files for this without explicit user sign-off.
+**Oracle status:** ✅ Still RUNNING on `e234e512` (backend-only, no redeploy needed for Flutter changes).
 
 **Board status:** All tasks ✅ DONE. No open items.
 

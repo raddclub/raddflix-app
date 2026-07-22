@@ -1361,3 +1361,30 @@ When adding seed blocks to `db.py`, use `_lock`/`_conn()` bare — NOT `db._lock
 `db.py` cannot reference itself by module name.
 
 Board is clean. No open tasks. Awaiting next task from user.
+
+---
+
+## Session 2026-07-22 (continued) — LIVETV-P1/P2/P3 close-out + CI fix
+
+### Context
+All three LIVETV tasks (P1/P2/P3) had been implemented by a prior agent in the same day
+but left marked ⏳ IN PROGRESS in TASKS.md. CI was failing on both implementation commits.
+
+### Root cause of CI failure
+`live_tv_screen.dart` used `RaddColors` as an explicit type annotation in 8 method
+signatures (`_buildHeader`, `_buildSearchBar`, `_buildCategoryChips`, `_buildLoading`,
+`_buildError`, `_buildContent`, `_buildAllView`, `_buildRecentRow`). `RaddColors` is a
+BuildContext extension (`extension RaddColors on BuildContext` in `radd_colors.dart`),
+not a concrete class — `dart analyze` emits `undefined_class` for this usage.
+The correct type for `RaddTheme.of(context)` is `RaddTheme`. Replace-all fixed all 8.
+
+### Commits
+| SHA | Description |
+|---|---|
+| `b55d9f55` | LIVETV-P1+P3: featured hero + Netflix rows + backdrop cards + isFree + v26 migration + recently watched |
+| `ca12dd14` | LIVETV-P2: player live UI — red LIVE status row, hide seek bar, channel switcher sheet |
+| `36cf2740` | CI fix: `live_tv_screen.dart` — `RaddColors` → `RaddTheme` in 8 method signatures |
+
+No Oracle push needed — zero `radd-hub/**` files touched.
+
+Board is clean. All tasks ✅ DONE. Awaiting next task from user.
