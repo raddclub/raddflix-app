@@ -69,6 +69,7 @@ class AppIcons {
   static PhosphorIconData get tv             => PhosphorIcons.television();
   static PhosphorIconData get tvFill         => PhosphorIcons.television(PhosphorIconsStyle.fill);
   static PhosphorIconData get liveTv         => PhosphorIcons.broadcast();
+  static PhosphorIconData get liveTvFill     => PhosphorIcons.broadcast(PhosphorIconsStyle.fill);
   static PhosphorIconData get videoLibrary   => PhosphorIcons.filmStrip();
   static PhosphorIconData get music          => PhosphorIcons.musicNote();
   static PhosphorIconData get musicFill      => PhosphorIcons.musicNote(PhosphorIconsStyle.fill);

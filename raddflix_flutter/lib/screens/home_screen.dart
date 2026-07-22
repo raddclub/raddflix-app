@@ -33,6 +33,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 // UX4-01: IndexedStack tab-shell — persistent children (3-tab shell)
 // NAV-RESTRUCTURE: Search + Downloads moved to top-bar icons; not in IndexedStack.
+import 'live_tv_screen.dart';
 import 'local_media_screen.dart';
 import 'profile_screen.dart';
 import '../providers/downloads_provider.dart';
@@ -217,9 +218,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               ]),
             ],
           ),
-          // ── Tab 1: Local media ────────────────────────────────────────────
+          // ── Tab 1: Live TV ────────────────────────────────────────────────
+          const LiveTvScreen(),
+          // ── Tab 2: Local media ────────────────────────────────────────────
           const LocalMediaScreen(showBottomNav: false),
-          // ── Tab 2: Profile ────────────────────────────────────────────────
+          // ── Tab 3: Profile ────────────────────────────────────────────────
           const ProfileScreen(showBottomNav: false),
         ],
       ),
@@ -230,7 +233,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             if (i == _navIndex) return; // already on this tab — no-op
             setState(() => _navIndex = i);
             DebugLogger.logTap('Shell', 'bottomNav tab=$i',
-                i == 0 ? 'Home' : i == 1 ? 'Local' : 'Profile');
+                i == 0 ? 'Home' : i == 1 ? 'Live' : i == 2 ? 'Local' : 'Profile');
           },
         ),
       ),

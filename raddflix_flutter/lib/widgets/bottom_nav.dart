@@ -36,8 +36,9 @@ class RaddFlixBottomNav extends ConsumerStatefulWidget {
 }
 
 class _RaddFlixBottomNavState extends ConsumerState<RaddFlixBottomNav> {
-  // NAV-RESTRUCTURE: 3-tab shell — Search moved to top-bar icon; Downloads
+  // NAV-RESTRUCTURE: 4-tab shell — Search moved to top-bar icon; Downloads
   // moved to top-bar icon with active-count badge (Vidmate/YouTube pattern).
+  // Live TV added as tab 1 (between Home and Local).
   static final _items = [
     // D6: use the shared AppIcons source instead of raw PhosphorIcons calls,
     // so icon families can be swapped app-wide from one place.
@@ -45,6 +46,11 @@ class _RaddFlixBottomNavState extends ConsumerState<RaddFlixBottomNav> {
       label: 'Home',
       icon:     () => AppIcons.home,
       iconFill: () => AppIcons.homeFill,
+    ),
+    _NavItem(
+      label: 'Live',
+      icon:     () => AppIcons.liveTv,
+      iconFill: () => AppIcons.liveTvFill,
     ),
     _NavItem(
       label: 'Local',
