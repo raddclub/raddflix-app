@@ -27,7 +27,7 @@ class AppConstants {
 
   static const Duration catalogSyncInterval = Duration(hours: 6);
   static const String catalogDbName = 'raddflix_catalog.db';
-  static const int catalogDbVersion = 24; // DA-2: smc_log table
+  static const int catalogDbVersion = 25; // v25: live_channels table
   static const int streamCacheTtlSeconds = 6600; // 110 min
 
   // ── JazzDrive (zero-rated CDN) ─────────────────────────────────────────────
@@ -492,5 +492,8 @@ class ApiPaths {
   // ── Phase 6: Data Usage ───────────────────────────────────────────────
   static const String usage  = '/api/usage';
   static const String quota  = '/api/usage/quota';
+
+  // ── Live TV ───────────────────────────────────────────────────────────
+  static const String liveChannels = '/api/live/channels';
 
 }

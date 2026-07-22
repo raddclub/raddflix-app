@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:sqflite_sqlcipher/sqflite.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import '../../data/live_channels.dart';
 import '../../models/catalog_item.dart';
 import '../constants.dart';
 import '../security/keystore.dart';
@@ -267,6 +268,23 @@ class LocalDb {
     ''');
     await db.execute(
       'CREATE UNIQUE INDEX IF NOT EXISTS idx_smc_log_title_day ON smc_log(title_id, charged_on)',
+    );
+    // v25 — Live TV channels: API-managed, locally cached
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS live_channels (
+        channel_id     TEXT PRIMARY KEY,
+        name           TEXT NOT NULL,
+        genre_label    TEXT NOT NULL DEFAULT '',
+        category       TEXT NOT NULL DEFAULT 'entertainment',
+        logo_url       TEXT NOT NULL DEFAULT '',
+        stream_url     TEXT NOT NULL DEFAULT '',
+        backdrop_color TEXT NOT NULL DEFAULT '#1A1A2E',
+        is_featured    INTEGER NOT NULL DEFAULT 0,
+        updated_at     INTEGER NOT NULL DEFAULT 0
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_live_ch_cat ON live_channels(category)',
     );
     // Seed the default "Me" profile — id 1, matching the profile_id default
     // already baked into watchlist/watch_positions above.
@@ -589,6 +607,27 @@ class LocalDb {
         ''');
         await db.execute(
           'CREATE UNIQUE INDEX IF NOT EXISTS idx_smc_log_title_day ON smc_log(title_id, charged_on)',
+        );
+      } catch (_) {}
+    }
+    if (oldV < 25) {
+      // v25: Live TV channels — API-managed, locally cached.
+      try {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS live_channels (
+            channel_id     TEXT PRIMARY KEY,
+            name           TEXT NOT NULL,
+            genre_label    TEXT NOT NULL DEFAULT '',
+            category       TEXT NOT NULL DEFAULT 'entertainment',
+            logo_url       TEXT NOT NULL DEFAULT '',
+            stream_url     TEXT NOT NULL DEFAULT '',
+            backdrop_color TEXT NOT NULL DEFAULT '#1A1A2E',
+            is_featured    INTEGER NOT NULL DEFAULT 0,
+            updated_at     INTEGER NOT NULL DEFAULT 0
+          )
+        ''');
+        await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_live_ch_cat ON live_channels(category)',
         );
       } catch (_) {}
     }
@@ -2037,6 +2076,56 @@ class LocalDb {
       'dl_bytes':  dlBytes,
       'top_genre': topGenre,
     };
+  }
+
+  // ── Live TV channels ───────────────────────────────────────────────────────
+
+  /// Replace the full live_channels table with [channels] in one transaction.
+  /// Saves fetch timestamp to sync_meta so the TTL check works next launch.
+  static Future<void> saveLiveChannels(List<LiveChannel> channels) async {
+    final db  = await instance;
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    await db.transaction((txn) async {
+      await txn.delete('live_channels');
+      for (final ch in channels) {
+        final row = ch.toRow()..['updated_at'] = now;
+        await txn.insert(
+          'live_channels',
+          row,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+    // Persist timestamp so _init() can compute cache age on next launch.
+    await db.insert(
+      'sync_meta',
+      {'key': 'live_channels_ts', 'value': now.toString()},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Read all live channels from local SQLite.
+  /// Featured channels appear first; within each group sorted by updated_at.
+  static Future<List<LiveChannel>> getLiveChannels() async {
+    final db   = await instance;
+    final rows = await db.query(
+      'live_channels',
+      orderBy: 'is_featured DESC, updated_at ASC',
+    );
+    return rows.map(LiveChannel.fromRow).toList();
+  }
+
+  /// Returns the unix-seconds timestamp of the last successful channel fetch,
+  /// or 0 if channels have never been fetched.
+  static Future<int> getLiveChannelsTimestamp() async {
+    final db   = await instance;
+    final rows = await db.query(
+      'sync_meta',
+      where: 'key = ?',
+      whereArgs: ['live_channels_ts'],
+    );
+    if (rows.isEmpty) return 0;
+    return int.tryParse(rows.first['value'] as String? ?? '0') ?? 0;
   }
 }
 
