@@ -46,12 +46,6 @@ _CAT_COLORS = {
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _conn():
-    return db._conn()
-
-def _lock():
-    return db._lock
-
 def _all_channels(cat: str = "all", include_inactive: bool = True):
     q = "SELECT * FROM live_channels"
     params: list = []
@@ -180,7 +174,7 @@ _PAGE = """
         </span>
       </td>
       <td style="max-width:280px">
-        <form class="edit-form" method="post" action="/live/{{ ch['channel_id'] }}/edit">
+        <form class="edit-form" method="post" action="/live/{{ ch['channel_id'] }}/edit?cat={{ cat }}">
           <input class="url-input" name="stream_url" value="{{ ch['stream_url'] }}"
                  title="Edit and press Enter to save" onkeydown="if(event.key==='Enter'){this.form.submit()}">
           <input type="hidden" name="logo_url" value="{{ ch['logo_url'] }}">
@@ -188,21 +182,21 @@ _PAGE = """
         </form>
       </td>
       <td>
-        <form method="post" action="/live/{{ ch['channel_id'] }}/free">
+        <form method="post" action="/live/{{ ch['channel_id'] }}/free?cat={{ cat }}">
           <button class="btn-xs {{ 'btn-on' if ch['is_free'] else 'btn-off' }}">
             {{ 'FREE' if ch['is_free'] else 'PAID' }}
           </button>
         </form>
       </td>
       <td>
-        <form method="post" action="/live/{{ ch['channel_id'] }}/toggle">
+        <form method="post" action="/live/{{ ch['channel_id'] }}/toggle?cat={{ cat }}">
           <button class="btn-xs {{ 'btn-on' if ch['is_active'] else 'btn-off' }}">
             {{ 'ON' if ch['is_active'] else 'OFF' }}
           </button>
         </form>
       </td>
       <td>
-        <form method="post" action="/live/{{ ch['channel_id'] }}/featured">
+        <form method="post" action="/live/{{ ch['channel_id'] }}/featured?cat={{ cat }}">
           <button class="btn-xs btn-star {{ 'active-star' if ch['is_featured'] }}"
                   title="Set as auto-loaded featured channel">
             ★
@@ -210,7 +204,7 @@ _PAGE = """
         </form>
       </td>
       <td>
-        <form method="post" action="/live/{{ ch['channel_id'] }}/sort">
+        <form method="post" action="/live/{{ ch['channel_id'] }}/sort?cat={{ cat }}">
           <input class="sort-input" name="sort_order" value="{{ ch['sort_order'] }}"
                  onchange="this.form.submit()">
         </form>
