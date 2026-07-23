@@ -252,12 +252,12 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
             ),
           ),
           if (_searchQuery.isNotEmpty)
-            GestureDetector(
-              onTap: _searchCtrl.clear,
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Icon(AppIcons.close, size: 16, color: t.textMuted),
-              ),
+            IconButton(
+              onPressed: _searchCtrl.clear,
+              icon: Icon(AppIcons.close, size: 16, color: t.textMuted),
+              padding: const EdgeInsets.all(10),
+              constraints: const BoxConstraints(),
+              splashRadius: 16,
             ),
         ],
       ),
@@ -276,29 +276,13 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
       itemBuilder: (_, i) {
         final cat    = kLiveCategories[i];
         final active = _selectedCat == cat.id;
-        return GestureDetector(
+        return RaddChip(
+          label: cat.label,
+          active: active,
           onTap: () {
             HapticFeedback.selectionClick();
             setState(() => _selectedCat = cat.id);
           },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-            decoration: BoxDecoration(
-              color: active ? AppColors.primary : t.surface,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: active ? AppColors.primary : t.border.withOpacity(0.4),
-              ),
-            ),
-            child: Text(
-              cat.label,
-              style: TextStyle(
-                color: active ? Colors.white : t.textMuted,
-                fontSize: 12, fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
         );
       },
     ),
@@ -339,19 +323,12 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
               style: TextStyle(color: t.textMuted, fontSize: 14),
             ),
             const SizedBox(height: 18),
-            GestureDetector(
-              onTap: () => ref.read(liveChannelProvider.notifier).refresh(),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.4)),
-                ),
-                child: Text('Try again', style: TextStyle(
-                  color: AppColors.primary, fontSize: 13, fontWeight: FontWeight.w600,
-                )),
-              ),
+            RaddButton(
+              variant: RaddButtonVariant.tonal,
+              size: RaddButtonSize.small,
+              label: 'Try again',
+              leadingIcon: AppIcons.refresh,
+              onPressed: () => ref.read(liveChannelProvider.notifier).refresh(),
             ),
           ],
         ),

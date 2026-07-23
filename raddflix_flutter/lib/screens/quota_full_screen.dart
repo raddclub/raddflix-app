@@ -103,29 +103,14 @@ import '../core/constants.dart';
 
                 // FIX-21: Primary CTA moved ABOVE the GB bar — always visible above fold
                 // on small phones (Infinix Hot, Techno, etc — common in Pakistan).
-                GestureDetector(
-                  onTap: () => Navigator.of(context)
+                RaddButton(
+                  variant: RaddButtonVariant.signal,
+                  size: RaddButtonSize.large,
+                  label: 'Renew or Upgrade Plan',
+                  leadingIcon: AppIcons.crown,
+                  fullWidth: true,
+                  onPressed: () => Navigator.of(context)
                       .pushReplacementNamed(AppRoutes.subscription),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 17),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppColors.primary, AppColors.primaryLight],
-                        begin: Alignment.centerLeft, end: Alignment.centerRight),
-                      borderRadius: RaddRadius.mdRadius,
-                      boxShadow: [
-                        BoxShadow(color: AppColors.primary.withOpacity(0.4),
-                            blurRadius: 20, offset: const Offset(0, 8)),
-                      ]),
-                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Icon(AppIcons.crown, color: Colors.white, size: 20),
-                      SizedBox(width: 10),
-                      Text('Renew or Upgrade Plan',
-                          style: TextStyle(color: Colors.white,
-                              fontWeight: FontWeight.w800, fontSize: 16)),
-                    ]),
-                  ),
                 ),
                 const SizedBox(height: 20),
 
@@ -165,35 +150,39 @@ import '../core/constants.dart';
                 ],
 
                 // SIMOSA promo (Jazz's earn-free-MB app — external only)
-                GestureDetector(
-                  onTap: () async {
-                    final uri = Uri.tryParse(AppConstants.simosaPlayStoreUrl);
-                    if (uri != null) {
-                      await launchUrl(uri, mode: LaunchMode.externalApplication);
-                    }
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    decoration: BoxDecoration(
-                      color: t.card,
-                      borderRadius: RaddRadius.mdRadius,
-                      border: Border.all(color: t.cardBorder)),
-                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: Image.asset(
-                          'assets/brand/simosa_logo.jpg',
-                          width: 20, height: 20, fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              const Text('🔥', style: TextStyle(fontSize: 17)),
+                Material(
+                  color: t.card,
+                  borderRadius: RaddRadius.mdRadius,
+                  child: InkWell(
+                    borderRadius: RaddRadius.mdRadius,
+                    onTap: () async {
+                      final uri = Uri.tryParse(AppConstants.simosaPlayStoreUrl);
+                      if (uri != null) {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      }
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      decoration: BoxDecoration(
+                        borderRadius: RaddRadius.mdRadius,
+                        border: Border.all(color: t.cardBorder)),
+                      child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: Image.asset(
+                            'assets/brand/simosa_logo.jpg',
+                            width: 20, height: 20, fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                const Text('🔥', style: TextStyle(fontSize: 17)),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: RaddSpace.sm),
-                      Text('Earn Free MB on Jazz via SIMOSA',
-                          style: TextStyle(color: t.textPrimary,
-                              fontWeight: FontWeight.w700, fontSize: 14)),
-                    ]),
+                        const SizedBox(width: RaddSpace.sm),
+                        Text('Earn Free MB on Jazz via SIMOSA',
+                            style: TextStyle(color: t.textPrimary,
+                                fontWeight: FontWeight.w700, fontSize: 14)),
+                      ]),
+                    ),
                   ),
                 ),
 

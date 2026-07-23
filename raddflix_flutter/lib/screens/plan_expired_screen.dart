@@ -73,41 +73,14 @@ class PlanExpiredScreen extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 48),
-                GestureDetector(
-                  onTap: () => Navigator.of(context)
+                RaddButton(
+                  variant: RaddButtonVariant.signal,
+                  size: RaddButtonSize.large,
+                  label: 'Renew Plan',
+                  leadingIcon: AppIcons.crown,
+                  fullWidth: true,
+                  onPressed: () => Navigator.of(context)
                       .pushReplacementNamed(AppRoutes.subscription),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppColors.primary, AppColors.primaryLight],
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                      ),
-                      borderRadius: RaddRadius.mdRadius,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.primary.withOpacity(0.4),
-                          blurRadius: 20,
-                          offset: const Offset(0, 8),
-                        )
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(AppIcons.crown,
-                            color: Colors.white, size: 20),
-                        SizedBox(width: 10),
-                        Text('Renew Plan',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 16)),
-                      ],
-                    ),
-                  ),
                 ),
                 SizedBox(height: 20),
                 TextButton(

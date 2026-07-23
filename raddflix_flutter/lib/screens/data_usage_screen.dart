@@ -279,7 +279,7 @@ class _DataUsageScreenState extends ConsumerState<DataUsageScreen>
                         padding: const EdgeInsets.symmetric(vertical: 13),
                         shape: RoundedRectangleBorder(
                             borderRadius:
-                                BorderRadius.circular(AppRadius.md)),
+                                RaddRadius.mdRadius),
                       ),
                     ),
                   ).animate(delay: 420.ms).fadeIn(duration: 280.ms),
@@ -353,7 +353,7 @@ class _GaugeCard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderRadius: RaddRadius.mdRadius,
         border: Border.all(color: gaugeColor.withOpacity(0.28)),
         boxShadow: [
           BoxShadow(
@@ -551,7 +551,7 @@ class _BreakdownChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
         color: t.surface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderRadius: RaddRadius.mdRadius,
         border: Border.all(color: t.border),
       ),
       child: Row(children: [
@@ -627,7 +627,7 @@ class _SparklineCardState extends State<_SparklineCard>
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
       decoration: BoxDecoration(
         color: t.surface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderRadius: RaddRadius.mdRadius,
         border: Border.all(color: t.border),
       ),
       child: Column(
@@ -739,7 +739,7 @@ class _RenewalStrip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: color.withOpacity(0.07),
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderRadius: RaddRadius.mdRadius,
         border: Border.all(color: color.withOpacity(0.25)),
       ),
       child: Row(children: [
@@ -818,7 +818,7 @@ class _DataSaverTileState extends State<_DataSaverTile> {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
       decoration: BoxDecoration(
         color: t.surface,
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        borderRadius: RaddRadius.mdRadius,
         border: Border.all(color: t.border),
       ),
       child: Row(children: [
