@@ -1572,3 +1572,15 @@ Two instances in `live_tv_screen.dart`:
 2. Channel grid star badge (circle, 22px): same colour swap; `Colors.black` → `Colors.white`. Second instance also made `const BoxDecoration` since `AppColors.primary` is const.
 
 **Scope:** Flutter only. No Oracle changes. CI must pass before marking DONE.
+
+---
+
+## LIVE-P0 + LIVE-P5 CI RESULT (2026-07-23)
+
+**P0 fix note — mixin architecture:** `_isLive` getter is defined in `_ps_ui_mixin.dart` as `bool get _isLive => widget.contentType == 'live';`. `_PlayerPlaybackMixin` in `_ps_playback_mixin.dart` is a separate mixin with no cross-cluster declaration for `_isLive`, so all three P0 insertion points (`_openMedia()`, `_friendlyError()`, `_startAutoRetry()`) must inline `widget.contentType == 'live'` directly — NOT use `_isLive`. Initial push (`89bb581b`) used `_isLive` → Dart analyze error `undefined_identifier` → CI FAIL. Corrected push (`aa997d82`) inlines the check → CI ✅ success. **Future agents: any code added to `_ps_playback_mixin.dart` must inline `widget.contentType == 'live'`, not use `_isLive`.**
+
+**P5-C fix note:** `live_tv_screen.dart` already had `AppColors` imported via `core/constants.dart` (line 18). Both `const Color(0xFFFFC107)` instances (banner pill + grid star) updated to `AppColors.primary`. Second instance (grid star `BoxDecoration`) made `const`. CI verified green via `aa997d82` which is HEAD above the `cfe0fe9b` P5-C commit.
+
+**Final commit SHAs:**
+- LIVE-P0: `aa997d82` — CI ✅ (`build-apk.yml` run #30030329208 success)
+- LIVE-P5-C: `cfe0fe9b` — CI ✅ (verified via `aa997d82` HEAD)

@@ -1,5 +1,5 @@
 # LIVE_PLAYER_PLAN.md — RaddFlix Live TV Player Redesign
-Last updated: 2026-07-23
+Last updated: 2026-07-23 | P0 done `aa997d82` CI ✅ | P5-C done `cfe0fe9b` CI ✅ via `aa997d82`
 
 > **This is the active plan for the Live TV player overhaul.**
 > Work phase-by-phase, top-to-bottom. Check each checkbox only after push + CI green.

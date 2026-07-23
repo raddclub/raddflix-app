@@ -5,15 +5,15 @@
 
 ---
 
-## Current State (2026-07-23 — LIVE-P0 + LIVE-P5 complete, APK ✅ green, Oracle ✅ deployed `3c593e7d`)
+## Current State (2026-07-23 — LIVE-P0 + LIVE-P5 done, APK ✅ CI green `aa997d82`, Oracle ✅ deployed `3c593e7d`)
 
 **LIVE-P0 — Critical live stream fix (all live TV was broken) + LIVE-P5 tab polish.**
 
 Root cause: `_openMedia()` routed live HLS CDN URLs through `JazzDriveService.getStreamLink()` → `_extractShareKey()` found no `/f/` pattern → threw `Exception('Invalid JazzDrive share URL: …')` → `_friendlyError()` matched `'Jazz'` in that string → showed false "Jazz SIM required" message. Live stream was never attempted.
 
-Fixed in `_ps_playback_mixin.dart`:
-- `_isLive` early-exit in `_openMedia()` opens `widget.streamUrl` directly via `_player.open(Media(url))`, returning before any JazzDrive / SMC / quota / position-save code
-- `_friendlyError()` now checks `_isLive` first — 403/Forbidden/401 → "Jazz SIM required. Connect to Jazz mobile data to watch live TV." otherwise → "Could not load channel. Check your connection and retry."
+Fixed in `_ps_playback_mixin.dart` (commits `89bb581b` → corrected `aa997d82` CI ✅):
+- `widget.contentType == 'live'` early-exit in `_openMedia()` opens `widget.streamUrl` directly via `_player.open(Media(url))`, returning before any JazzDrive / SMC / quota / position-save code. Note: `_isLive` getter is in `_ps_ui_mixin.dart`; playback mixin must inline the check.
+- `_friendlyError()` checks `widget.contentType == 'live'` first — 403/Forbidden/401 → "Jazz SIM required. Connect to Jazz mobile data to watch live TV." otherwise → "Could not load channel. Check your connection and retry."
 - `_startAutoRetry()` uses 10s countdown for live vs 30s for VOD
 
 Fixed in `live_tv_screen.dart`:
