@@ -5,32 +5,25 @@
 
 ---
 
-## Current State (2026-07-22 — v1.1.0+4 launch milestone, Oracle ✅ deployed, all tasks done)
+## Current State (2026-07-22 — LOGO-AUDIT-2 complete, Oracle deploy pending)
 
-**Version 1.1.0+4 — launch-readiness milestone.**
+**LOGO-AUDIT-2 — canvas.tamashaweb.com CDN migration (`c372e136`).**
 
-Full launch-readiness audit completed this session. No blocking issues found. Version bumped
-from 1.0.0+3 → 1.1.0+4 to mark the Live TV + advanced player + phonetic subtitles + Obsidian
-Crimson theme redesign milestone. CI build #1730 green on `36cf2740`.
+Tamashaweb migrated their CDN from WordPress (`wp-content/uploads/`) to `canvas.tamashaweb.com/jazzlive/uploads/channels/`. ALL old `wp-content/*.png` logo URLs now return `Content-Type: text/html` (dead). Audited all 84 channels against the current tamashaweb.com/live-tv HTML source; updated 75/84 seed entries and replaced the static `_logo_patches` dict with a self-maintaining `_live_seed` loop that patches all 84 channels on every boot.
 
-**Verified green across the board:**
-- **Oracle:** deployed ✅ on `45dc75f4`, health check `{"ok":true,"version":"3.0.0"}` confirmed
-- **Logo patches:** all 41 broken/wrong channel logos patched on live DB — `init_db()` UPDATE block ran on last restart; confirmed 0 bad logos remaining
-- **Live TV:** 84 channels serving at `/api/live/channels` — `ok:true` confirmed via SSH
-- **CI secrets:** `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`, `ORACLE_SSH_KEY` all set in GitHub Secrets ✅
-- **Signed release APK:** build #1730 produces `RaddFlix-1.1.0+4-build1731.apk` (next build after this commit)
-- **Flask backend security:** bcrypt, JWT, rate limiting (10 attempts/15 min), CORS, security headers all in place ✅
-- **Login flow (BUG-LOGIN-01):** correctly checks `state.error` after `login()` — already fixed
-- **All blueprints registered:** `live_channels_route.bp` + `bp_mobile` both registered in `app.py` ✅
-- **`is_admin` column:** exists in `app_users` schema ✅; `/me` endpoint returns it ✅
-- **`ci-tests.yml`:** last success `29fcf520` (July 2); only triggers on `test/` or `pubspec.yaml` changes — the LIVETV commits didn't touch those, so no stale test results
+**Status:**
+- **`radd-hub/hub/db.py` committed** at `c372e136` — no Flutter files touched, no CI APK build needed
+- **Oracle deploy PENDING** — `push_to_oracle.sh` not yet run; live DB still has old wp-content URLs
+- **9 channels not on tamashaweb live page** (pak-ban, ten-sports, trt-world, dunya-news, awaz-news, capital-tv, urooj-tv, atv, srf-movies) — old wp-content URLs kept; no replacement source available from the provided HTML. These logos are also dead (text/html) but cannot be fixed without another source.
+- **pnn (Aik News):** canvas URL requires `Referer: https://tamashaweb.com/` header — Flutter CachedNetworkImage doesn't send Referer so this logo may still fail in-app. Canvas URL is the correct source; consider adding a custom Referer header to the image loader if needed.
 
 **Previous state (LIVETV + LOGO-AUDIT complete):**
 - **LIVETV-P1/P2/P3 + CI fix (`b55d9f55` → `ca12dd14` → `36cf2740`):** Full Live TV Flutter UI built, CI green.
 - **LOGO-AUDIT (`67a27b5c`):** all 84 channel logo URLs audited; 41 bad/broken URLs fixed.
 - **Oracle deploy:** `45dc75f4` pulled on Oracle via `push_to_oracle.sh`; `init_db()` patched live DB automatically.
+- **v1.1.0+4 launch milestone:** verified green across the board (Oracle health, CI, secrets, blueprints, security).
 
-**Board status:** All tasks ✅ DONE. No open items. App at v1.1.0+4, Oracle deployed, CI green.
+**Board status:** LOGO-AUDIT-2 ✅ DONE. Oracle deploy required to propagate logo fix to live DB. No other open tasks.
 
 ---
 

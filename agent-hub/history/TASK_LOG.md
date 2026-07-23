@@ -19,6 +19,21 @@
 
 ## Session index (title only — full detail in the linked archive)
 
+### July 2026 — Session 21 (2026-07-22) — LOGO-AUDIT-2 (canvas.tamashaweb.com CDN migration, 75/84 logos updated)
+
+**Task:** LOGO-AUDIT-2 — re-audit all 84 live-channel logo_url values in `radd-hub/hub/db.py`.
+
+**Root cause:** Tamashaweb migrated their CDN from WordPress (`tamashaweb.com/wp-content/uploads/20xx/xx/*.png`) to `canvas.tamashaweb.com/jazzlive/uploads/channels/*.webp`. ALL old wp-content URLs now return `Content-Type: text/html; charset=UTF-8` at HTTP 200 — dead as image sources. New canvas URLs return HTTP 200 `binary/octet-stream` (actual image bytes).
+
+**Changes:**
+- `radd-hub/hub/db.py` — `_live_seed`: 75/84 `logo_url` values updated to `canvas.tamashaweb.com` URLs extracted from the tamashaweb.com/live-tv HTML source. 9 channels absent from live page (pak-ban, ten-sports, trt-world, dunya-news, awaz-news, capital-tv, urooj-tv, atv, srf-movies) kept with old wp-content URLs (no replacement source available).
+- `_logo_patches` dict (41 entries) replaced with a self-maintaining `_live_seed` loop — on every boot, all 84 channel logo_url values are synced to the current seed values. This propagates future seed updates to existing Oracle rows automatically without maintaining a separate patch dict.
+- Commit `c372e136`. No Flutter files touched. No CI APK build needed.
+
+**Notes:**
+- pnn (Aik News): canvas URL `AIKNEWS-LOGO.webp` requires `Referer: https://tamashaweb.com/` header — works with Referer (HTTP 200), 403 without. Flutter CachedNetworkImage doesn't send Referer by default — logo may fail in-app.
+- Oracle deploy pending (not yet run) — live DB still has old wp-content URLs until `push_to_oracle.sh` is run.
+
 ### July 2026 — Session 20 (2026-07-22) — VERSION-BUMP-1.1.0 (launch-readiness audit, bump to 1.1.0+4, AGENT_HANDOFF update)
 
 ### July 2026 — Session 19 (2026-07-19) — BB-REVIEW (Phase BB audit, CI fix, disc-spin bug)
