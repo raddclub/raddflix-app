@@ -18,6 +18,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants.dart';
 import '../core/theme/radd_theme.dart';
 import '../core/design/app_icons.dart';
+import '../design_system/components/radd_button.dart';
+import '../design_system/components/radd_chip.dart';
 import '../design_system/radius/radd_radius.dart';
 import '../design_system/spacing/radd_space.dart';
 import '../data/live_channels.dart';
