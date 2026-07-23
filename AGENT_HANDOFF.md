@@ -5,25 +5,26 @@
 
 ---
 
-## Current State (2026-07-22 — LOGO-AUDIT-2 complete, Oracle deploy pending)
+## Current State (2026-07-23 — LOGO-AUDIT-2 complete, Oracle ✅ deployed, APK ✅ green)
 
 **LOGO-AUDIT-2 — canvas.tamashaweb.com CDN migration (`c372e136`).**
 
 Tamashaweb migrated their CDN from WordPress (`wp-content/uploads/`) to `canvas.tamashaweb.com/jazzlive/uploads/channels/`. ALL old `wp-content/*.png` logo URLs now return `Content-Type: text/html` (dead). Audited all 84 channels against the current tamashaweb.com/live-tv HTML source; updated 75/84 seed entries and replaced the static `_logo_patches` dict with a self-maintaining `_live_seed` loop that patches all 84 channels on every boot.
 
-**Status:**
-- **`radd-hub/hub/db.py` committed** at `c372e136` — no Flutter files touched, no CI APK build needed
-- **Oracle deploy PENDING** — `push_to_oracle.sh` not yet run; live DB still has old wp-content URLs
-- **9 channels not on tamashaweb live page** (pak-ban, ten-sports, trt-world, dunya-news, awaz-news, capital-tv, urooj-tv, atv, srf-movies) — old wp-content URLs kept; no replacement source available from the provided HTML. These logos are also dead (text/html) but cannot be fixed without another source.
-- **pnn (Aik News):** canvas URL requires `Referer: https://tamashaweb.com/` header — Flutter CachedNetworkImage doesn't send Referer so this logo may still fail in-app. Canvas URL is the correct source; consider adding a custom Referer header to the image loader if needed.
+**Verified green across the board:**
+- **`db.py` committed** at `c372e136`; docs at `0101627b` — both on GitHub main ✅
+- **Oracle deployed** — `push_to_oracle.sh` ran on `0101627b`; server pulled, restarted, `init_db()` patched live DB automatically. API health: `{"ok":true,"version":"1.0.0"}` ✅
+- **APK build** — `workflow_dispatch` triggered on `0101627b`; CI completed **success** ✅
+- **75/84 channels** updated to `canvas.tamashaweb.com` URLs; broken logos are now fixed on live DB
+- **9 channels not on tamashaweb live page** (pak-ban, ten-sports, trt-world, dunya-news, awaz-news, capital-tv, urooj-tv, atv, srf-movies) — old wp-content URLs kept; no replacement source available. These 9 logos remain broken.
+- **pnn (Aik News):** canvas URL requires `Referer: https://tamashaweb.com/` header — Flutter CachedNetworkImage doesn't send Referer; logo may still fail in-app. Correct URL is in place; consider custom Referer header in the image loader if needed.
 
-**Previous state (LIVETV + LOGO-AUDIT complete):**
+**Previous state (LIVETV + LOGO-AUDIT + v1.1.0+4 milestone):**
 - **LIVETV-P1/P2/P3 + CI fix (`b55d9f55` → `ca12dd14` → `36cf2740`):** Full Live TV Flutter UI built, CI green.
 - **LOGO-AUDIT (`67a27b5c`):** all 84 channel logo URLs audited; 41 bad/broken URLs fixed.
-- **Oracle deploy:** `45dc75f4` pulled on Oracle via `push_to_oracle.sh`; `init_db()` patched live DB automatically.
-- **v1.1.0+4 launch milestone:** verified green across the board (Oracle health, CI, secrets, blueprints, security).
+- **VERSION-BUMP-1.1.0 (`b39050b2`):** bumped to v1.1.0+4; launch-readiness audit completed.
 
-**Board status:** LOGO-AUDIT-2 ✅ DONE. Oracle deploy required to propagate logo fix to live DB. No other open tasks.
+**Board status:** All tasks ✅ DONE. No open items. Oracle deployed on `0101627b`. APK CI green.
 
 ---
 
