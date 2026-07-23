@@ -341,10 +341,12 @@ def api_channels():
             "local_asset":   r["local_asset"],
             "stream_url":    r["stream_url"],
             "backdrop_color": r["backdrop_color"],
-            "is_free":       bool(r["is_free"]),
-            "is_featured":   bool(r["is_featured"]),
-            "sort_order":    r["sort_order"],
-            "updated_at":    r["updated_at"],
+            "is_free":            bool(r["is_free"]),
+            "is_featured":        bool(r["is_featured"]),
+            "sort_order":         r["sort_order"],
+            "has_dvr":            bool(r["has_dvr"]),
+            "dvr_window_seconds": r["dvr_window_seconds"],
+            "updated_at":         r["updated_at"],
         })
     cats = [c[0] for c in _CATS if c[0] != "all"]
     return jsonify(

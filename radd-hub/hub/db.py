@@ -544,22 +544,24 @@ _DDL = [
 
     # ── Live TV channels (admin-managed channel catalogue) ───────────────────
     """CREATE TABLE IF NOT EXISTS live_channels (
-        id             INTEGER PRIMARY KEY AUTOINCREMENT,
-        channel_id     TEXT UNIQUE NOT NULL,
-        name           TEXT NOT NULL,
-        category       TEXT NOT NULL,
-        genre_label    TEXT NOT NULL,
-        logo_url       TEXT NOT NULL DEFAULT '',
-        local_asset    TEXT NOT NULL DEFAULT '',
-        stream_url     TEXT NOT NULL DEFAULT '',
-        backdrop_color TEXT NOT NULL DEFAULT '#1A1A2E',
-        is_free        INTEGER NOT NULL DEFAULT 1,
-        is_featured    INTEGER NOT NULL DEFAULT 0,
-        is_active      INTEGER NOT NULL DEFAULT 1,
-        sort_order     INTEGER NOT NULL DEFAULT 999,
-        notes          TEXT DEFAULT '',
-        created_at     INTEGER DEFAULT (strftime('%s','now')),
-        updated_at     INTEGER DEFAULT (strftime('%s','now'))
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        channel_id          TEXT UNIQUE NOT NULL,
+        name                TEXT NOT NULL,
+        category            TEXT NOT NULL,
+        genre_label         TEXT NOT NULL,
+        logo_url            TEXT NOT NULL DEFAULT '',
+        local_asset         TEXT NOT NULL DEFAULT '',
+        stream_url          TEXT NOT NULL DEFAULT '',
+        backdrop_color      TEXT NOT NULL DEFAULT '#1A1A2E',
+        is_free             INTEGER NOT NULL DEFAULT 1,
+        is_featured         INTEGER NOT NULL DEFAULT 0,
+        is_active           INTEGER NOT NULL DEFAULT 1,
+        sort_order          INTEGER NOT NULL DEFAULT 999,
+        has_dvr             INTEGER NOT NULL DEFAULT 0,
+        dvr_window_seconds  INTEGER NOT NULL DEFAULT 0,
+        notes               TEXT DEFAULT '',
+        created_at          INTEGER DEFAULT (strftime('%s','now')),
+        updated_at          INTEGER DEFAULT (strftime('%s','now'))
     )""",
     """CREATE UNIQUE INDEX IF NOT EXISTS idx_live_ch_id
        ON live_channels(channel_id)""",
@@ -646,6 +648,9 @@ def init_db() -> None:
             "ALTER TABLE payment_methods ADD COLUMN min_amount_pkr REAL DEFAULT 0",
             "ALTER TABLE payment_methods ADD COLUMN amount_tolerance_pkr REAL DEFAULT 10",
             "ALTER TABLE payment_methods ADD COLUMN updated_at INTEGER",
+            # ── live_channels — DVR support (safe: default 0 for all existing rows) ──
+            "ALTER TABLE live_channels ADD COLUMN has_dvr INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE live_channels ADD COLUMN dvr_window_seconds INTEGER NOT NULL DEFAULT 0",
         ]:
             try:
                 c.execute(migration_sql)
@@ -826,6 +831,23 @@ def init_db() -> None:
                 "UPDATE live_channels SET logo_url=?, updated_at=?"
                 " WHERE channel_id=? AND logo_url!=?",
                 (_logo, _patch_ts, _cid, _logo),
+            )
+
+    # ── DVR patch: mark known DVR streams after every boot (idempotent) ────────
+    # Channels with DVR timeshift playlists get has_dvr=1 and the window size
+    # set from the known stream URL parameter. Add more entries here as CDN
+    # audits identify additional DVR-capable streams.
+    _dvr_channels = {
+        # geo-news CDN playlist: playlist_dvr_timeshift-0-3600.m3u8 → 1-hour window
+        "geo-news": (1, 3600),
+    }
+    with _lock, _conn() as c:
+        _dvr_ts = int(time.time())
+        for _cid, (_has_dvr, _dvr_win) in _dvr_channels.items():
+            c.execute(
+                "UPDATE live_channels SET has_dvr=?, dvr_window_seconds=?, updated_at=?"
+                " WHERE channel_id=?",
+                (_has_dvr, _dvr_win, _dvr_ts, _cid),
             )
 
     # Run schema check at startup — logs WARNING for any missing critical columns.

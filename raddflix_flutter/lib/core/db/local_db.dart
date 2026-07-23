@@ -279,9 +279,11 @@ class LocalDb {
         logo_url       TEXT NOT NULL DEFAULT '',
         stream_url     TEXT NOT NULL DEFAULT '',
         backdrop_color TEXT NOT NULL DEFAULT '#1A1A2E',
-        is_featured    INTEGER NOT NULL DEFAULT 0,
-        is_free        INTEGER NOT NULL DEFAULT 1,
-        updated_at     INTEGER NOT NULL DEFAULT 0
+        is_featured          INTEGER NOT NULL DEFAULT 0,
+        is_free              INTEGER NOT NULL DEFAULT 1,
+        has_dvr              INTEGER NOT NULL DEFAULT 0,
+        dvr_window_seconds   INTEGER NOT NULL DEFAULT 0,
+        updated_at           INTEGER NOT NULL DEFAULT 0
       )
     ''');
     await db.execute(
@@ -637,6 +639,19 @@ class LocalDb {
       try {
         await db.execute(
           'ALTER TABLE live_channels ADD COLUMN is_free INTEGER NOT NULL DEFAULT 1',
+        );
+      } catch (_) {}
+    }
+    if (oldV < 27) {
+      // v27: DVR support columns — default 0 (no DVR) for all existing rows.
+      try {
+        await db.execute(
+          'ALTER TABLE live_channels ADD COLUMN has_dvr INTEGER NOT NULL DEFAULT 0',
+        );
+      } catch (_) {}
+      try {
+        await db.execute(
+          'ALTER TABLE live_channels ADD COLUMN dvr_window_seconds INTEGER NOT NULL DEFAULT 0',
         );
       } catch (_) {}
     }
