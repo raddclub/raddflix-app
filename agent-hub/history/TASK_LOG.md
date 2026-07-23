@@ -1542,3 +1542,33 @@ Awaiting user confirmation to deploy.
 **Scope:** Oracle server was stale — `live_channels.py` had been changed in LIVETV-AUDIT (`e128942`) but `push_to_oracle.sh` had not been run since. Ran the deploy.
 
 **Result:** Server pulled to `3c593e7d`, restarted, API confirmed `{"ok":true,"version":"1.0.0"}` ✅. No code changes — deploy only.
+
+---
+
+## LIVE-P0 + LIVE-P5 — Live stream resolution fix + tab badge polish (2026-07-23)
+
+### LIVE-P0 — Critical: fix live stream resolution
+
+**Root cause (full chain):**
+`_openMedia()` in `_ps_playback_mixin.dart` had no `_isLive` special case. For a live channel (e.g. `fileId = 'live_geo-news'`):
+1. `isLocal = false` (doesn't start with `/` or `content://`)
+2. `LocalDb.getShareInfo('live_geo-news')` → empty row (no DB entry for live IDs)
+3. Falls back to `widget.streamUrl` (the direct HLS CDN URL)
+4. Calls `JazzDriveService.getStreamLink(cacheKey, m3u8Url)`
+5. `_extractShareKey()` regex finds no `/f/` pattern in CDN URL → throws `Exception('Invalid JazzDrive share URL: https://cdn*.tamashaweb.com:8087/…')`
+6. `_friendlyError()` matches `'Jazz'` in the exception string → shows "Jazz SIM required" — **wrong error, stream never attempted**
+
+**Changes made (all in `raddflix_flutter/lib/screens/player/_ps_playback_mixin.dart`):**
+
+- **LIVE-P0-A** — `_isLive` early-exit in `_openMedia()` inserted after `_isLocal = isLocal` assignment, before usage-tracking setup. Checks `widget.streamUrl` non-null/non-empty, then calls `_player.open(Media(url))` directly and returns. Bypasses: JazzDrive, SMC tracking, `_restoreWatchPos()`, `_startSavePositionTimer()`, subscription gate, quota gate.
+- **LIVE-P0-B** — `_friendlyError()` now checks `_isLive` first. Live branch: 403/Forbidden/401 → "Jazz SIM required. Connect to Jazz mobile data to watch live TV."; all other live errors → "Could not load channel. Check your connection and retry." VOD logic unchanged below.
+- **LIVE-P0-C** — Already handled by early-exit (returns before all VOD lifecycle calls).
+- **LIVE-P0-D** — `_startAutoRetry()` now sets `retryDelay = _isLive ? 10 : 30` so live channels reconnect in 10s instead of 30s.
+
+### LIVE-P5-C — FEATURED badge → AppColors.primary red pill
+
+Two instances in `live_tv_screen.dart`:
+1. Featured banner badge (pill, rectangular): `Color(0xFFFFC107).withOpacity(0.90)` → `AppColors.primary`; text `Colors.black87` → `Colors.white`
+2. Channel grid star badge (circle, 22px): same colour swap; `Colors.black` → `Colors.white`. Second instance also made `const BoxDecoration` since `AppColors.primary` is const.
+
+**Scope:** Flutter only. No Oracle changes. CI must pass before marking DONE.
