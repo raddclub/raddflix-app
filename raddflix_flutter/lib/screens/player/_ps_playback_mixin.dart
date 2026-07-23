@@ -560,7 +560,7 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
     // throw (no /f/ pattern in CDN path), and _friendlyError() then matches
     // 'Jazz' in the exception string → false "Jazz SIM required" message while
     // the stream was never even attempted. LIVE-P0-A fix.
-    if (_isLive) {
+    if (widget.contentType == 'live') {
       final url = widget.streamUrl;
       if (url == null || url.isEmpty) {
         if (mounted) setState(() { _streamError = 'No stream URL for this channel.'; _isLinkLoading = false; });
@@ -723,7 +723,7 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
     // LIVE-P0-B: live-specific messages before generic VOD checks so the CDN's
     // real 403/401 is surfaced correctly instead of matching 'Jazz' in the
     // JazzDrive exception string (which was the false-positive path).
-    if (_isLive) {
+    if (widget.contentType == 'live') {
       if (raw.contains('403') || raw.contains('Forbidden') || raw.contains('401')) {
         return 'Jazz SIM required. Connect to Jazz mobile data to watch live TV.';
       }
@@ -1231,7 +1231,7 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
   void _startAutoRetry() {
     _autoRetryTimer?.cancel();
     // LIVE-P0-D: live streams disconnect frequently — retry in 10s, not 30s.
-    final retryDelay = _isLive ? 10 : 30;
+    final retryDelay = (widget.contentType == 'live') ? 10 : 30;
     setState(() => _autoRetryCountdown = retryDelay);
     _autoRetryTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) { t.cancel(); return; }
