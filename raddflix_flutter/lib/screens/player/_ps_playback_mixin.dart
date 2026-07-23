@@ -554,6 +554,26 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
         (fileId.startsWith('/') || fileId.startsWith('content://'));
     _isLocal = isLocal;
 
+    // ── Live TV early-exit — bypass JazzDrive entirely ────────────────────────
+    // Live streams are direct HLS CDN URLs (tamashaweb), NOT JazzDrive share
+    // links. Routing them through JazzDriveService causes _extractShareKey() to
+    // throw (no /f/ pattern in CDN path), and _friendlyError() then matches
+    // 'Jazz' in the exception string → false "Jazz SIM required" message while
+    // the stream was never even attempted. LIVE-P0-A fix.
+    if (_isLive) {
+      final url = widget.streamUrl;
+      if (url == null || url.isEmpty) {
+        if (mounted) setState(() { _streamError = 'No stream URL for this channel.'; _isLinkLoading = false; });
+        return;
+      }
+      if (mounted) setState(() { _streamError = null; _isLinkLoading = false; _ended = false; });
+      _videoOpened = true;
+      await _player.open(Media(url));
+      _scheduleHide();
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     // ── Usage tracking setup ─────────────────────────────────────────────────
     // Read is_free flag passed by show_detail_screen in route args.
     // Local files (downloaded or user's own) never count toward quota.
@@ -700,6 +720,15 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
   }
 
   String _friendlyError(String raw) {
+    // LIVE-P0-B: live-specific messages before generic VOD checks so the CDN's
+    // real 403/401 is surfaced correctly instead of matching 'Jazz' in the
+    // JazzDrive exception string (which was the false-positive path).
+    if (_isLive) {
+      if (raw.contains('403') || raw.contains('Forbidden') || raw.contains('401')) {
+        return 'Jazz SIM required. Connect to Jazz mobile data to watch live TV.';
+      }
+      return 'Could not load channel. Check your connection and retry.';
+    }
     if (raw.contains('Jazz') || raw.contains('SIM') || raw.contains('401')) {
       return 'Jazz SIM required to stream. Connect to Jazz mobile data.';
     }
@@ -1201,7 +1230,9 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
 
   void _startAutoRetry() {
     _autoRetryTimer?.cancel();
-    setState(() => _autoRetryCountdown = 30);
+    // LIVE-P0-D: live streams disconnect frequently — retry in 10s, not 30s.
+    final retryDelay = _isLive ? 10 : 30;
+    setState(() => _autoRetryCountdown = retryDelay);
     _autoRetryTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) { t.cancel(); return; }
       setState(() => _autoRetryCountdown--);
