@@ -5,6 +5,40 @@
 
 ---
 
+## Current State (2026-07-23 — LIVETV-AUDIT complete, APK CI in progress, Oracle ⬆️ needed)
+
+**LIVETV-AUDIT — 12 bugs fixed, commit `e128942`.**
+
+Full audit of the Live TV tab completed this session; all 12 identified bugs fixed in one commit across 5 files.
+
+**P0 fixes (critical):**
+- **Paywall gate:** `_playChannel()` now reads `subscriptionProvider.status` + `authProvider.user` before opening the player. Non-free channels blocked for non-subscribers; `_showLivePaywall()` shows a SnackBar with Sign In / Subscribe CTA.
+- **AnimationController jank:** Removed shared `_pulseCtrl` from `_HorizontalCard` and `_GridCard`. All card LIVE badges are now static `Container` pills — eliminates ~5040 `AnimatedBuilder` rebuilds/sec. Pulse kept only on hero banner and header dot.
+- **Channel switcher ID match:** `_LiveChannelSwitcherSheet` now receives `currentChannelId` (from `widget.fileId.substring(5)`) and matches `ch.id` instead of `ch.name`.
+
+**P1 fixes (high):**
+- **CachedNetworkImage in switcher:** Replaced `Image.network` with `CachedNetworkImage` (import added to `player_screen.dart`).
+- **Global search:** `_filteredAll()` ignores selected category when `_searchQuery.isNotEmpty` — search is now cross-category.
+- **Back-to-All row:** `← All Channels` tappable row appears at top of single-category grid; tapping resets `_selectedCat = 'all'`.
+- **Reconnecting overlay:** When `_isLive && _buffering`, a "Reconnecting…" label appears below the spinner.
+
+**P2 fixes (polish):**
+- **hexColor() shared util:** Moved to `live_channels.dart`; removed duplicate `_hexColor()` in `live_tv_screen.dart` and `_parseHexColor()` in `_ps_ui_mixin.dart`.
+- **Font sizes:** recently-watched 9.5→11px, `_LogoFallback` 9→10px, `_SmallLogoFallback` 8→9px.
+- **Card width:** `_HorizontalCard` 100→120px; row height 155→165px.
+- **`_buildLiveArea()` merge:** `_buildLiveBottomArea()` + `_buildLivePortraitPanel()` merged into `_buildLiveArea({topPadding})`.
+- **Admin doc fix:** live_channels.py panel subtitle corrected from "takes effect immediately" to "within 1 hour".
+
+**Verified:**
+- All 18 patch steps confirmed (string-match verified before apply) ✅
+- pushTree SHA `e128942` confirmed on GitHub ✅
+- APK CI triggered — check run status before next session ✅
+- Oracle redeploy required (live_channels.py changed) — run `push_to_oracle.sh` ⚠️
+
+**Board status:** All 12 LIVETV-AUDIT tasks ✅ DONE. No open items.
+
+---
+
 ## Current State (2026-07-23 — LOGO-AUDIT-2 complete, Oracle ✅ deployed, APK ✅ green)
 
 **LOGO-AUDIT-2 — canvas.tamashaweb.com CDN migration (`c372e136`).**

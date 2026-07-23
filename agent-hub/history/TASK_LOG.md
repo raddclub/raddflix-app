@@ -1484,3 +1484,33 @@ already used by tamashaweb for their channel pages).
 Oracle redeploy required (`radd-hub/hub/db.py` changed). On next Oracle restart,
 `init_db()` runs the UPDATE block and all 41 rows are patched automatically.
 Awaiting user confirmation to deploy.
+
+
+---
+
+## LIVETV-AUDIT — Live TV full audit + 12 bug fixes (2026-07-23, commit `e128942`)
+
+**Scope:** Full audit of the Live TV tab and player. Rating before fixes: 6/10.
+
+**Files changed:** `live_channels.dart`, `live_tv_screen.dart`, `_ps_ui_mixin.dart`, `player_screen.dart`, `live_channels.py`
+
+### Bugs fixed
+
+| ID | Priority | Fix |
+|---|---|---|
+| P0A PAYWALL-ENFORCE | 🔴 | `_playChannel()` checks `subscriptionProvider` + `authProvider`; `_showLivePaywall()` added |
+| P0B SHARED-ANIM-CTRL | 🔴 | Removed `pulseCtrl` from `_HorizontalCard`/`_GridCard`; static red pill badges |
+| P0C CHANNEL-ID-MATCH | 🔴 | Switcher now passes/matches `currentChannelId` (int) not name string |
+| P1A IMAGE-NETWORK | 🟠 | `CachedNetworkImage` in switcher sheet; import added to `player_screen.dart` |
+| P1B GLOBAL-SEARCH | 🟠 | `_filteredAll()` ignores `_selectedCat` when query non-empty |
+| P1C BACK-TO-ALL | 🟠 | Tappable "← All Channels" row added at top of single-category grid |
+| P1D RECONNECT-OVERLAY | 🟠 | "Reconnecting…" label below spinner when `_isLive && _buffering` |
+| P2A HEXCOLOR-DEDUP | 🟡 | `hexColor()` moved to `live_channels.dart`; dupes removed |
+| P2B FONT-SIZES | 🟡 | +1–2px on three small text labels |
+| P2C CARD-WIDTH | 🟡 | `_HorizontalCard` 100→120px wide; row height 155→165px |
+| P2D LIVE-METHODS-DEDUP | 🟡 | Merged into `_buildLiveArea({topPadding})` |
+| P2E ADMIN-DOC-FIX | 🟡 | Admin panel subtitle corrected to "within 1 hour" |
+
+### Pending after this session
+- **Oracle redeploy required** — `live_channels.py` changed. Run `push_to_oracle.sh` on next session.
+- Verify APK CI green on `e128942`.
