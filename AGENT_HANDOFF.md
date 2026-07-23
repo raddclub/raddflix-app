@@ -5,6 +5,22 @@
 
 ---
 
+## Current State (2026-07-23 — THEME-WIDGET-FIX complete, APK ✅ green, Oracle ⬆️ still needed)
+
+**THEME-WIDGET-FIX — Design-system button/chip migration across 4 screens (commits `f56e9540` + `87455ea3`).**
+
+A prior agent session added imports but did not make the actual widget replacements. This session completed the work:
+- `plan_expired_screen.dart`: GestureDetector+gradient Container → `RaddButton.signal`
+- `quota_full_screen.dart`: gradient CTA → `RaddButton.signal`; SIMOSA button → `Material+InkWell` (has `Image.asset` child, can't use RaddButton)
+- `live_tv_screen.dart`: clear-search → `IconButton`; category chips → `RaddChip`; "Try again" → `RaddButton.tonal`
+- `data_usage_screen.dart`: `BorderRadius.circular(AppRadius.md)` → `RaddRadius.mdRadius` ×6
+
+APK CI confirmed green on `87455ea3`. Oracle not affected (Flutter-only).
+
+**⚠️ Oracle redeploy still pending** from LIVETV-AUDIT (`live_channels.py` changed in `e128942`). Run `push_to_oracle.sh` to apply.
+
+---
+
 ## Current State (2026-07-23 — LIVETV-AUDIT complete, APK CI in progress, Oracle ⬆️ needed)
 
 **LIVETV-AUDIT — 12 bugs fixed, commit `e128942`.**

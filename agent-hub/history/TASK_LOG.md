@@ -1514,3 +1514,23 @@ Awaiting user confirmation to deploy.
 ### Pending after this session
 - **Oracle redeploy required** — `live_channels.py` changed. Run `push_to_oracle.sh` on next session.
 - Verify APK CI green on `e128942`.
+
+---
+
+## THEME-WIDGET-FIX — Design-system button/chip migration: 4 screens (2026-07-23, commits `f56e9540` + `87455ea3`)
+
+**Context:** A previous agent session added missing imports (`radd_button`, `radd_chip`, `radd_radius`) to 5 screens but stopped before making the actual widget replacements. The commit message claimed the replacements were done; they were not. This session completed the real work.
+
+**Changes (commit `87455ea3`):**
+- `plan_expired_screen.dart`: GestureDetector+hand-rolled gradient Container → `RaddButton(variant: .signal, size: .large, label: 'Renew Plan', leadingIcon: AppIcons.crown, fullWidth: true)`
+- `quota_full_screen.dart`:
+  - "Renew or Upgrade Plan" GestureDetector+gradient Container → `RaddButton.signal`
+  - SIMOSA GestureDetector+Container → `Material(color: t.card) + InkWell` (kept custom `Image.asset` child — RaddButton cannot accommodate it)
+- `live_tv_screen.dart`:
+  - Clear-search X: `GestureDetector` → `IconButton(constraints: BoxConstraints(), splashRadius: 16)`
+  - Category chips: `GestureDetector + AnimatedContainer` → `RaddChip(label:, active:, onTap:)` — eliminates hardcoded `AppColors.primary`, `t.surface`, `BorderRadius.circular(20)`, manual animation
+  - "Try again" error button: `GestureDetector + Container` → `RaddButton(variant: .tonal, size: .small, leadingIcon: AppIcons.refresh)`
+- `data_usage_screen.dart`: `BorderRadius.circular(AppRadius.md)` → `RaddRadius.mdRadius` ×6 (token normalization, same effective value)
+
+**CI:** Both commits green (`build-apk.yml` confirmed via API). No `test/`, `pubspec.yaml`, or workflow files touched — `ci-tests.yml` check not required (Rule 50).
+**Oracle:** Not required — Flutter-only changes.
