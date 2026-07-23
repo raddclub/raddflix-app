@@ -630,15 +630,15 @@ class _FeaturedHero extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            // FEATURED badge
+                            // FEATURED badge — primary red pill (LIVE-P5-C)
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFFC107).withOpacity(0.90),
+                                color: AppColors.primary,
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: const Text('FEATURED', style: TextStyle(
-                                color: Colors.black87, fontSize: 8,
+                                color: Colors.white, fontSize: 8,
                                 fontWeight: FontWeight.w800, letterSpacing: 1.0,
                               )),
                             ),
@@ -1046,12 +1046,12 @@ class _GridCard extends StatelessWidget {
                         top: 7, left: 7,
                         child: Container(
                           width: 22, height: 22,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFFC107).withOpacity(0.90),
+                          decoration: const BoxDecoration(
+                            color: AppColors.primary,
                             shape: BoxShape.circle,
                           ),
                           child: const Center(
-                            child: Text('★', style: TextStyle(fontSize: 11, color: Colors.black, height: 1.1)),
+                            child: Text('★', style: TextStyle(fontSize: 11, color: Colors.white, height: 1.1)),
                           ),
                         ),
                       ),
