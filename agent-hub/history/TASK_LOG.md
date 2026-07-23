@@ -1534,3 +1534,11 @@ Awaiting user confirmation to deploy.
 
 **CI:** Both commits green (`build-apk.yml` confirmed via API). No `test/`, `pubspec.yaml`, or workflow files touched — `ci-tests.yml` check not required (Rule 50).
 **Oracle:** Not required — Flutter-only changes.
+
+---
+
+## ORACLE-REDEPLOY — Deploy pending live_channels.py change to Oracle (2026-07-23, commit `3c593e7d`)
+
+**Scope:** Oracle server was stale — `live_channels.py` had been changed in LIVETV-AUDIT (`e128942`) but `push_to_oracle.sh` had not been run since. Ran the deploy.
+
+**Result:** Server pulled to `3c593e7d`, restarted, API confirmed `{"ok":true,"version":"1.0.0"}` ✅. No code changes — deploy only.

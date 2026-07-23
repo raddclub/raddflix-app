@@ -5,7 +5,7 @@
 
 ---
 
-## Current State (2026-07-23 — THEME-WIDGET-FIX complete, APK ✅ green, Oracle ⬆️ still needed)
+## Current State (2026-07-23 — THEME-WIDGET-FIX complete, APK ✅ green, Oracle ✅ deployed `3c593e7d`)
 
 **THEME-WIDGET-FIX — Design-system button/chip migration across 4 screens (commits `f56e9540` + `87455ea3`).**
 
@@ -17,7 +17,7 @@ A prior agent session added imports but did not make the actual widget replaceme
 
 APK CI confirmed green on `87455ea3`. Oracle not affected (Flutter-only).
 
-**⚠️ Oracle redeploy still pending** from LIVETV-AUDIT (`live_channels.py` changed in `e128942`). Run `push_to_oracle.sh` to apply.
+**Oracle deployed** — `push_to_oracle.sh` ran on `3c593e7d` (covers LIVETV-AUDIT `live_channels.py` change from `e128942`). API: `{"ok":true,"version":"1.0.0"}` ✅
 
 ---
 
@@ -49,7 +49,7 @@ Full audit of the Live TV tab completed this session; all 12 identified bugs fix
 - All 18 patch steps confirmed (string-match verified before apply) ✅
 - pushTree SHA `e128942` confirmed on GitHub ✅
 - APK CI triggered — check run status before next session ✅
-- Oracle redeploy required (live_channels.py changed) — run `push_to_oracle.sh` ⚠️
+- Oracle deployed on `3c593e7d` — `live_channels.py` change live ✅
 
 **Board status:** All 12 LIVETV-AUDIT tasks ✅ DONE. No open items.
 
