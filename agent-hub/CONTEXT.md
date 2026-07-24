@@ -1,5 +1,5 @@
 # agent-hub/CONTEXT.md — RaddFlix System Context
-Last updated: 2026-06-18
+Last updated: 2026-07-24
 
 ## What is RaddFlix?
 Pakistani Flutter streaming app. Content is zero-rated (free data) on Jazz SIM via JazzDrive.
@@ -32,6 +32,37 @@ BUG-FREE-EP-01 (episode `is_free` inheritance) in `hub/routes/catalog_api.py`
 by mistake, leaving the real, live `radd-hub/hub/routes/catalog_api.py` still
 broken in production for weeks — always double check you are editing the
 `radd-hub/hub/` copy, and grep both if unsure which one a past commit touched.
+
+---
+
+## tamashaweb CDN — Live TV Streams
+
+### Access model (confirmed 2026-07-24)
+tamashaweb CDN streams (`https://cdn*.tamashaweb.com:8087/jazzauth/…/playlist.m3u8`) are
+**globally accessible from any internet connection** — home WiFi, Replit environment, any SIM.
+They are **zero-rated (free data) on Jazz mobile SIM only**. Non-Jazz users can stream but are
+billed normally by their ISP/carrier. The CDN does NOT IP-block non-Jazz traffic.
+
+Evidence: DVR audit (2026-07-24) run from Replit (non-Jazz IP) fetched live M3U8 playlists from
+all 8 CDN hosts successfully. User also opened PTV News stream URL directly in Chrome browser on
+home WiFi and it played live video immediately — Chrome (v107+) supports HLS natively.
+
+**Previous incorrect assumption:** docs said "requires Jazz mobile data — CDN checks the source IP."
+This was wrong. Do NOT gate any research or testing task on "needs Jazz SIM."
+
+### HLS stream structure
+All channels serve a proper HLS master playlist with multiple quality renditions:
+```
+#EXT-X-STREAM-INF:BANDWIDTH=1776986,RESOLUTION=1920x1080  → live/<channel>-H/chunks.m3u8?nimblesessionid=…
+#EXT-X-STREAM-INF:BANDWIDTH=1325000,RESOLUTION=720x480    → live/<channel>-M/chunks.m3u8?nimblesessionid=…
+#EXT-X-STREAM-INF:BANDWIDTH=925000,RESOLUTION=640x360     → live/<channel>-L/chunks.m3u8?nimblesessionid=…
+```
+- Rendition paths use H/M/L suffix naming (channel-specific, e.g. `vsat-arynews-H`)
+- `nimblesessionid` is session-scoped (changes per master playlist fetch) — re-fetch master when
+  switching to a specific rendition so the session token is fresh
+- DVR channels add `playlist_dvr_timeshift-0-3600.m3u8` as the master instead of `playlist.m3u8`;
+  renditions then become `chunks_dvr_timeshift-0-3600.m3u8`
+- Confirmed DVR channels (1-hour window): geo-news, ary-news, ary-digital
 
 ---
 
