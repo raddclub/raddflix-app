@@ -753,6 +753,19 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
       _dragIntent = null;
       return;
     }
+    // LIVE-P3: horizontal swipe on a live stream switches channels instead of
+    // seeking (live streams have no meaningful seek target).
+    if (_isLive && _dragIntent == 'seek') {
+      final vx = d.velocity.pixelsPerSecond.dx;
+      if (vx.abs() > 500) {
+        // Swipe right (positive dx) → previous channel; left → next channel.
+        _switchToAdjacentLiveChannel(vx > 0 ? -1 : 1);
+      }
+      _seekBarDelta = null;
+      _dragIntent = null;
+      if (mounted) setState(() {});
+      return;
+    }
     if (_dragIntent == 'seek' && _seekBarDelta != null) {
       final targetMs = (_seekBarDelta! * _duration.inMilliseconds).round();
       _player.seek(Duration(milliseconds: targetMs));
@@ -1593,7 +1606,8 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
       );
     }
 
-    /// Portrait panel for live content.
+    /// Portrait panel for live content (landscape controls bottom area only —
+    /// not used in portrait since P2 replaced portrait with its own scaffold).
     Widget _buildLivePortraitPanel() {
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
@@ -1605,6 +1619,437 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
             _buildLiveTransportRow(),
           ],
         ),
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  LIVE-P2: YouTube-style portrait scaffold for live TV
+    //  Layout: header bar → 16:9 video box → identity bar → channel list.
+    //  Replaces the full-bleed TikTok portrait layout for live content only.
+    // ══════════════════════════════════════════════════════════════════════════
+
+    Widget _buildLivePortraitScaffold(BoxConstraints constraints) {
+      final channels = ref.watch(liveChannelProvider).channels;
+      return Container(
+        color: Colors.black,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── 1. Header bar (back + channel name + settings) ─────────────
+            SafeArea(
+              bottom: false,
+              child: _buildLivePortraitHeader(),
+            ),
+
+            // ── 2. 16:9 video box with tap overlay and status overlays ─────
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: _buildLiveVideoBox(),
+            ),
+
+            // ── 3. Channel identity bar (logo + name + LIVE badge) ─────────
+            _buildLiveIdentityBar(),
+
+            const Divider(height: 0.5, color: Color(0x1AFFFFFF), thickness: 0.5),
+
+            // ── 4. Inline channel list (scrollable, fills remaining space) ──
+            Expanded(
+              child: _buildLiveInlineChannelList(channels),
+            ),
+          ],
+        ),
+      );
+    }
+
+    /// Top header bar for the live portrait scaffold.
+    Widget _buildLivePortraitHeader() {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Row(
+          children: [
+            _RaddIconBtn(
+              icon: Icons.arrow_back_ios_new_rounded,
+              size: 18,
+              onTap: () => Navigator.of(context).pop(),
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                widget.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            _RaddIconBtn(
+              icon: Icons.settings_rounded,
+              size: 18,
+              onTap: _openSettingsPanel,
+            ),
+          ],
+        ),
+      );
+    }
+
+    /// 16:9 video box with status overlays for the live portrait scaffold.
+    Widget _buildLiveVideoBox() {
+      return Stack(
+        children: [
+          // Video surface — fills the AspectRatio box
+          Positioned.fill(child: RepaintBoundary(child: _buildVideoSurface())),
+
+          // Gesture layer: tap to toggle controls overlay
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _toggleControls,
+            ),
+          ),
+
+          // Buffering spinner
+          if (_buffering && !_isLinkLoading && _streamError == null)
+            const Center(
+              child: CircularProgressIndicator(
+                  color: Colors.white, strokeWidth: 2.5),
+            ),
+
+          // Reconnecting label shown below spinner during live stream stall
+          if (_buffering && !_isLinkLoading && _streamError == null)
+            Positioned(
+              bottom: 8, left: 0, right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.70),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'Reconnecting…',
+                    style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ),
+            ),
+
+          // Link loading
+          if (_isLinkLoading)
+            Container(
+              color: Colors.black87,
+              child: const Center(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  CircularProgressIndicator(color: Colors.white),
+                  SizedBox(height: 8),
+                  Text('Connecting…',
+                      style: TextStyle(color: Colors.white70, fontSize: 11)),
+                ]),
+              ),
+            ),
+
+          // Error overlay (compact live version)
+          if (_streamError != null) _buildLiveErrorOverlay(),
+
+          // Controls overlay (auto-hides)
+          AnimatedOpacity(
+            opacity: _showControls && !_isLocked ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 250),
+            child: IgnorePointer(
+              ignoring: !_showControls || _isLocked,
+              child: _buildLiveVideoControlsOverlay(),
+            ),
+          ),
+
+          // Always-visible LIVE badge when controls are hidden
+          if (!_showControls || _isLocked)
+            Positioned(
+              top: 7, left: 9,
+              child: _buildLiveBadgePill(),
+            ),
+        ],
+      );
+    }
+
+    /// Compact controls overlay that sits on the 16:9 video box in portrait.
+    Widget _buildLiveVideoControlsOverlay() {
+      return Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0x99000000), Colors.transparent, Color(0x99000000)],
+            stops: [0.0, 0.5, 1.0],
+          ),
+        ),
+        child: Stack(
+          children: [
+            // LIVE badge — top-left
+            Positioned(
+              top: 7, left: 9,
+              child: _buildLiveBadgePill(),
+            ),
+            // Fullscreen button — top-right
+            Positioned(
+              top: 2, right: 2,
+              child: _RaddIconBtn(
+                icon: Icons.fullscreen_rounded,
+                size: 22,
+                onTap: () {
+                  _setNativeOrientation('sensor_landscape');
+                  setState(() => _orientMode = 1);
+                },
+              ),
+            ),
+            // Play/pause — center
+            Center(
+              child: GestureDetector(
+                onTap: () { _player.playOrPause(); _scheduleHide(); },
+                child: Container(
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.12),
+                    border: Border.all(
+                        color: Colors.white.withOpacity(0.35), width: 1.2),
+                  ),
+                  child: Icon(
+                    _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+              ),
+            ),
+            // Bottom row: channel list + lock
+            Positioned(
+              bottom: 6, left: 6, right: 6,
+              child: Row(
+                children: [
+                  _RaddIconBtn(
+                    icon: Icons.list_rounded,
+                    size: 18,
+                    onTap: _openChannelSwitcher,
+                  ),
+                  const Spacer(),
+                  _RaddIconBtn(
+                    icon: Icons.lock_outline_rounded,
+                    size: 18,
+                    onTap: () => setState(() {
+                      _isLocked = true;
+                      _showControls = false;
+                      _applySubtitleMargin(controlsVisible: false);
+                    }),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    /// Compact LIVE badge pill — shown on video box corner.
+    Widget _buildLiveBadgePill() {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.red,
+          borderRadius: BorderRadius.circular(3),
+        ),
+        child: const Text(
+          'LIVE',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.0,
+          ),
+        ),
+      );
+    }
+
+    /// Identity bar: channel logo + name + LIVE status + channel switcher icon.
+    Widget _buildLiveIdentityBar() {
+      final logoUrl = widget.posterUrl ?? '';
+      return Container(
+        color: const Color(0xFF111111),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          children: [
+            // Channel logo
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.07),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: logoUrl.isNotEmpty
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(7),
+                      child: Image.network(
+                        logoUrl,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Icon(
+                            Icons.live_tv_rounded, size: 22, color: Colors.white38),
+                      ),
+                    )
+                  : const Icon(Icons.live_tv_rounded, size: 26, color: Colors.white38),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      // Pulsing red dot
+                      Container(
+                        width: 6, height: 6,
+                        decoration: const BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                          boxShadow: [BoxShadow(
+                            color: Color(0x88FF0000), blurRadius: 6)],
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      const Text(
+                        'LIVE',
+                        style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            // Channel list button
+            _RaddIconBtn(
+              icon: Icons.swap_vert_rounded,
+              size: 20,
+              onTap: _openChannelSwitcher,
+            ),
+          ],
+        ),
+      );
+    }
+
+    /// Inline scrollable channel list shown below the identity bar in portrait.
+    Widget _buildLiveInlineChannelList(List<LiveChannel> channels) {
+      final String currentId = widget.fileId.startsWith('live_')
+          ? widget.fileId.substring(5)
+          : '';
+      if (channels.isEmpty) {
+        return const Center(
+          child: Text('Loading channels…',
+              style: TextStyle(color: Colors.white38, fontSize: 13)),
+        );
+      }
+      return ListView.builder(
+        padding: const EdgeInsets.only(top: 4, bottom: 20),
+        itemCount: channels.length,
+        itemBuilder: (_, i) {
+          final ch = channels[i];
+          final isCurrent = ch.id == currentId;
+          return ListTile(
+            dense: true,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+            tileColor: isCurrent ? Colors.white.withOpacity(0.06) : null,
+            leading: Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: ch.hexColor.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(7),
+              ),
+              child: ch.logoUrl.isNotEmpty
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Image.network(
+                        ch.logoUrl,
+                        fit: BoxFit.contain,
+                        errorBuilder: (_, __, ___) => const Icon(
+                            Icons.live_tv_rounded,
+                            size: 18,
+                            color: Colors.white38),
+                      ),
+                    )
+                  : const Icon(Icons.live_tv_rounded,
+                      size: 18, color: Colors.white38),
+            ),
+            title: Text(
+              ch.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: isCurrent ? Colors.white : Colors.white70,
+                fontSize: 13,
+                fontWeight:
+                    isCurrent ? FontWeight.w700 : FontWeight.w400,
+              ),
+            ),
+            subtitle: Text(
+              ch.genre,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white38, fontSize: 11),
+            ),
+            trailing: isCurrent
+                ? Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: const Text(
+                      'LIVE',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  )
+                : null,
+            onTap: isCurrent
+                ? null
+                : () {
+                    Navigator.pushReplacementNamed(
+                        context, AppRoutes.player,
+                        arguments: {
+                          'file_id':      'live_${ch.id}',
+                          'title':        ch.name,
+                          'stream_url':   ch.streamUrl,
+                          'content_type': 'live',
+                          'is_free':      ch.isFree,
+                          'poster_url':   ch.logoUrl,
+                        });
+                  },
+          );
+        },
       );
     }
 
@@ -1714,6 +2159,123 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
           ],
         ),
       );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  LIVE-P4: Error/reconnecting UX for live streams
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /// Compact error overlay used inside the 16:9 live video box.
+    Widget _buildLiveErrorOverlay() {
+      return Container(
+        color: Colors.black87,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                    Icons.signal_wifi_connected_no_internet_4_rounded,
+                    color: Colors.white38,
+                    size: 38),
+                const SizedBox(height: 10),
+                Text(
+                  _streamError ?? 'Stream unavailable',
+                  style: const TextStyle(
+                      color: Colors.white70, fontSize: 12),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        textStyle: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                      icon: const Icon(Icons.refresh_rounded, size: 14),
+                      label: const Text('Retry'),
+                      onPressed: () {
+                        _cancelAutoRetry();
+                        setState(() => _streamError = null);
+                        _openMedia(_currentFileId);
+                      },
+                    ),
+                    TextButton(
+                      onPressed: _openChannelSwitcher,
+                      child: const Text(
+                        'Switch Channel',
+                        style: TextStyle(
+                            color: Colors.white54, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    //  LIVE-P3: Landscape watermark + swipe-to-switch
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /// Semi-transparent channel logo watermark — bottom-right corner.
+    /// Used in landscape fullscreen live mode. Always visible (not control-gated).
+    Widget _buildLiveLandscapeWatermark() {
+      final logoUrl = widget.posterUrl ?? '';
+      if (logoUrl.isEmpty) return const SizedBox.shrink();
+      return Positioned(
+        bottom: 18,
+        right: 76, // clear of the shortcut sidebar
+        child: IgnorePointer(
+          child: Opacity(
+            opacity: 0.20,
+            child: Image.network(
+              logoUrl,
+              width: 56,
+              height: 38,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+            ),
+          ),
+        ),
+      );
+    }
+
+    /// Swipe-to-switch: called from _onScaleEnd when a horizontal swipe is
+    /// detected on a live stream. [delta] = -1 for previous, +1 for next.
+    void _switchToAdjacentLiveChannel(int delta) {
+      final channels = ref.read(liveChannelProvider).channels;
+      if (channels.isEmpty) return;
+      final currentId = widget.fileId.startsWith('live_')
+          ? widget.fileId.substring(5)
+          : '';
+      final idx = channels.indexWhere((c) => c.id == currentId);
+      if (idx < 0) return;
+      final nextIdx = (idx + delta).clamp(0, channels.length - 1);
+      if (nextIdx == idx) return;
+      final next = channels[nextIdx];
+      HapticFeedback.lightImpact();
+      Navigator.pushReplacementNamed(context, AppRoutes.player,
+          arguments: {
+            'file_id':      'live_${next.id}',
+            'title':        next.name,
+            'stream_url':   next.streamUrl,
+            'content_type': 'live',
+            'is_free':      next.isFree,
+            'poster_url':   next.logoUrl,
+          });
     }
 
     /// Bottom sheet listing all live channels — tap one to switch via
@@ -2137,6 +2699,11 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
     }
 
     Widget _buildPortraitLayout(BoxConstraints constraints) {
+      // LIVE-P2: Live TV gets a YouTube-style portrait layout —
+      // 16:9 video box at the top, identity bar, then inline channel list below.
+      // This replaces the full-bleed TikTok layout for live content only.
+      if (_isLive) return _buildLivePortraitScaffold(constraints);
+
       // Full-bleed video — video surface fills the entire screen (TikTok/YouTube
       // Shorts style) instead of being confined to a fixed top zone. Controls are
       // a floating, auto-hiding overlay on top, not a permanent panel that eats

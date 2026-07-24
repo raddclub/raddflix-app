@@ -839,6 +839,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     ),
                   ),
 
+                // LIVE-P3: Channel logo watermark — bottom-right, always visible
+                // in landscape live mode regardless of control visibility.
+                if (_isLive) _buildLiveLandscapeWatermark(),
+
                 // 5. Customizable shortcut sidebar — hidden in immersive and lock mode
                 if (!_isLocked && !_isImmersive)
                   Positioned(
