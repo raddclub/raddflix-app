@@ -130,32 +130,32 @@ actually on non-Jazz network (403/Forbidden from CDN), not due to JazzDrive fail
 
 ### Tasks
 
-- [ ] **LIVE-P1-A** — Add DVR fields to `LiveChannel` model (`live_channels.dart`):
+- [x] **LIVE-P1-A** — Add DVR fields to `LiveChannel` model (`live_channels.dart`):
   ```dart
   final bool hasDvr;             // true only for channels with DVR window
   final int  dvrWindowSeconds;   // 0 if no DVR, 3600 for Geo News, etc.
   ```
   Update `fromJson`, `fromRow`, `toRow`. Default: `hasDvr=false`, `dvrWindowSeconds=0`.
 
-- [ ] **LIVE-P1-B** — DB migration: add columns to `live_channels` table (`local_db.dart`):
+- [x] **LIVE-P1-B** — DB migration: add columns to `live_channels` table (`local_db.dart`):
   ```sql
   ALTER TABLE live_channels ADD COLUMN has_dvr INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE live_channels ADD COLUMN dvr_window_seconds INTEGER NOT NULL DEFAULT 0;
   ```
   Bump schema version (currently v26 → v27). Add migration in `_onUpgrade`.
 
-- [ ] **LIVE-P1-C** — Oracle DB: update `live_channels` seed in `radd-hub/hub/db.py`:
+- [x] **LIVE-P1-C** — Oracle DB: update `live_channels` seed in `radd-hub/hub/db.py`:
   - Add `has_dvr` and `dvr_window_seconds` columns to `CREATE TABLE live_channels`
   - Update seed tuple for `geo-news`: set `has_dvr=1, dvr_window_seconds=3600`
   - All other 83 channels: `has_dvr=0, dvr_window_seconds=0`
   - Add ALTER TABLE migration in `init_db()` so existing Oracle DB gets the columns
 
-- [ ] **LIVE-P1-D** — Oracle API: update `/api/live/channels` response
+- [x] **LIVE-P1-D** — Oracle API: update `/api/live/channels` response
   (`radd-hub/hub/routes/live_channels.py`) to include `has_dvr` and
   `dvr_window_seconds` in the channel JSON. Flutter already deserialises
   unknown fields safely, but the new fields must be present for the app to use them.
 
-- [ ] **LIVE-P1-E** — Oracle deploy (`push_to_oracle.sh`) + API verify.
+- [x] **LIVE-P1-E** — Oracle deploy (`push_to_oracle.sh`) + API verify.
   CI check for Flutter (`build-apk.yml`) after Flutter files change.
 
 ---
@@ -212,33 +212,33 @@ Footer row:
 
 ### Tasks
 
-- [ ] **LIVE-P2-A** — New `_buildLivePortraitScaffold()` method that replaces the
+- [x] **LIVE-P2-A** — New `_buildLivePortraitScaffold()` method that replaces the
   full-height player scaffold for live content. Returns a `Column`:
   `[AppBar] + [AspectRatio video box] + [identity bar] + [Expanded switcher] + [footer]`
 
-- [ ] **LIVE-P2-B** — `_buildLiveVideoBox()`: `AspectRatio(16/9)` wrapping the
+- [x] **LIVE-P2-B** — `_buildLiveVideoBox()`: `AspectRatio(16/9)` wrapping the
   `Video` widget + the controls overlay stack. Handles gestures (tap, swipe for
   brightness/volume) and the `_showControls` auto-hide logic.
 
-- [ ] **LIVE-P2-C** — `_buildLiveControlsOverlay()`: gradient scrim + play/pause +
+- [x] **LIVE-P2-C** — `_buildLiveControlsOverlay()`: gradient scrim + play/pause +
   fullscreen button + DVR seek bar (gated on `hasDvr`). Does NOT include: speed,
   EQ, subtitles, A-B loop, episode nav — those are VOD-only.
 
-- [ ] **LIVE-P2-D** — `_buildLiveIdentityBar()`: logo + name + LIVE badge + subtitle.
+- [x] **LIVE-P2-D** — `_buildLiveIdentityBar()`: logo + name + LIVE badge + subtitle.
 
-- [ ] **LIVE-P2-E** — `_buildLiveChannelRow()`: horizontal `ListView.builder` of
+- [x] **LIVE-P2-E** — `_buildLiveChannelRow()`: horizontal `ListView.builder` of
   channel logo cards. Reads from `ref.watch(liveChannelProvider).channels`. Tapping
   a channel calls `_switchLiveChannel(ch)`.
 
-- [ ] **LIVE-P2-F** — `_switchLiveChannel(LiveChannel ch)`: stops current stream,
+- [x] **LIVE-P2-F** — `_switchLiveChannel(LiveChannel ch)`: stops current stream,
   updates `widget` args (via `Navigator.pushReplacementNamed`), records watch history.
   Reuse existing `_openChannelSwitcher → onSelect` logic.
 
-- [ ] **LIVE-P2-G** — Wire new scaffold into player: in `build()`, gate on `_isLive &&
+- [x] **LIVE-P2-G** — Wire new scaffold into player: in `build()`, gate on `_isLive &&
   isPortrait` to return `_buildLivePortraitScaffold()` instead of the standard
   `Scaffold` + `Stack`.
 
-- [ ] **LIVE-P2-H** — CI verify. No Oracle push needed.
+- [x] **LIVE-P2-H** — CI verify. No Oracle push needed.
 
 ---
 
@@ -271,27 +271,27 @@ Footer row:
 
 ### Tasks
 
-- [ ] **LIVE-P3-A** — `_buildLiveLandscapeTopBar()`: back button + logo + name +
+- [x] **LIVE-P3-A** — `_buildLiveLandscapeTopBar()`: back button + logo + name +
   LIVE badge + quality badge + settings. Auto-hides with `_showControls`.
 
-- [ ] **LIVE-P3-B** — `_buildLiveLandscapeBottomBar()`: channel list button, optional
+- [x] **LIVE-P3-B** — `_buildLiveLandscapeBottomBar()`: channel list button, optional
   back-10s (if DVR), play/pause, optional fwd-10s (if DVR), lock. Fades with controls.
 
-- [ ] **LIVE-P3-C** — Channel logo watermark: `Positioned` bottom-right, `Opacity(0.20)`,
+- [x] **LIVE-P3-C** — Channel logo watermark: `Positioned` bottom-right, `Opacity(0.20)`,
   `CachedNetworkImage` 32px, hidden in `_isImmersive`.
 
-- [ ] **LIVE-P3-D** — Landscape channel switcher: instead of `showModalBottomSheet`,
+- [x] **LIVE-P3-D** — Landscape channel switcher: instead of `showModalBottomSheet`,
   slide in a `Positioned` left panel (width 280px, full height, semi-transparent dark
   bg). Triggered by the `☰ Channels` button. Closes on tap-outside or channel select.
 
-- [ ] **LIVE-P3-E** — Swipe-to-switch gesture: `HorizontalDragEnd` on the video area
+- [x] **LIVE-P3-E** — Swipe-to-switch gesture: `HorizontalDragEnd` on the video area
   (velocity threshold > 500). Swipe left → next channel in same category; swipe right
   → previous. Show a channel-name toast for 1.5s after switching.
 
-- [ ] **LIVE-P3-F** — Wire new landscape controls into `_buildBottomArea()` /
+- [x] **LIVE-P3-F** — Wire new landscape controls into `_buildBottomArea()` /
   `_buildControlsOverlay()` behind `_isLive && isLandscape` gate.
 
-- [ ] **LIVE-P3-G** — CI verify.
+- [x] **LIVE-P3-G** — CI verify.
 
 ---
 
@@ -301,24 +301,24 @@ Footer row:
 
 ### Tasks
 
-- [ ] **LIVE-P4-A** — Dedicated live error widget `_buildLiveErrorOverlay()`:
+- [x] **LIVE-P4-A** — Dedicated live error widget `_buildLiveErrorOverlay()`:
   - Channel logo (64px) at top
   - Error icon + message (friendly, not raw exception text)
   - "Retry" button → calls `_openMedia(_currentFileId)` immediately
   - "Choose Another Channel" button → calls `_openChannelSwitcher()`
   - Subtle "Auto-retrying in Xs…" countdown label
 
-- [ ] **LIVE-P4-B** — Reconnecting state: when `_isLive && _buffering && _videoOpened`,
+- [x] **LIVE-P4-B** — Reconnecting state: when `_isLive && _buffering && _videoOpened`,
   show a "Reconnecting…" overlay (spinner + label) distinct from the error state.
   This is different from the initial loading spinner.
 
-- [ ] **LIVE-P4-C** — Error screen in portrait: shown in the video box area only,
+- [x] **LIVE-P4-C** — Error screen in portrait: shown in the video box area only,
   not full-screen. Below video, the identity bar and channel row remain visible.
 
-- [ ] **LIVE-P4-D** — Auto-retry for live: already planned in LIVE-P0-D (10s interval).
+- [x] **LIVE-P4-D** — Auto-retry for live: already planned in LIVE-P0-D (10s interval).
   Here: add visible countdown in the error overlay ("Retrying in 8s…").
 
-- [ ] **LIVE-P4-E** — CI verify.
+- [x] **LIVE-P4-E** — CI verify.
 
 ---
 

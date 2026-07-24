@@ -1688,7 +1688,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
             _RaddIconBtn(
               icon: Icons.settings_rounded,
               size: 18,
-              onTap: _openSettingsPanel,
+              onTap: _openLiveSettingsPanel,
             ),
           ],
         ),
@@ -1826,7 +1826,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                 ),
               ),
             ),
-            // Bottom row: channel list + lock
+            // Bottom row: channel list + settings + lock
             Positioned(
               bottom: 6, left: 6, right: 6,
               child: Row(
@@ -1837,6 +1837,11 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                     onTap: _openChannelSwitcher,
                   ),
                   const Spacer(),
+                  _RaddIconBtn(
+                    icon: Icons.settings_rounded,
+                    size: 18,
+                    onTap: _openLiveSettingsPanel,
+                  ),
                   _RaddIconBtn(
                     icon: Icons.lock_outline_rounded,
                     size: 18,
@@ -4271,6 +4276,227 @@ void _openPanel({
         },
       );
       _openPanel(panel: panel, title: 'Settings', widthFactor: 0.42, maxHeightFraction: 0.90);
+    }
+
+    // ── LIVE-P7-B: Slim settings panel for live TV ─────────────────────────
+    // Shows only live-relevant options: Quality (informational), Audio track
+    // (if multi-track), and Sleep Timer. Replaces the full VOD _openSettingsPanel
+    // for any settings icon tapped during live playback.
+    void _openLiveSettingsPanel() {
+      final hasMultiAudio = _realAudioTracks.length > 1;
+      showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (_) {
+          return Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C1C1E),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              border: Border(
+                top: BorderSide(color: Colors.white.withOpacity(0.08), width: 0.5),
+              ),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Drag handle
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 10),
+                    width: 36, height: 3,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  // Sheet title
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.settings_rounded, color: Colors.white54, size: 17),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Channel Settings',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.85),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    height: 0.5,
+                    color: const Color(0x1AFFFFFF),
+                    margin: const EdgeInsets.only(bottom: 4),
+                  ),
+
+                  // ── Quality ── informational row, no picker
+                  ListTile(
+                    leading: const Icon(Icons.high_quality_rounded,
+                        color: Colors.white54, size: 22),
+                    title: const Text('Quality',
+                        style: TextStyle(color: Colors.white, fontSize: 14)),
+                    subtitle: const Text('Auto (ABR)',
+                        style: TextStyle(color: Colors.white38, fontSize: 12)),
+                    trailing: const Icon(Icons.info_outline_rounded,
+                        color: Colors.white24, size: 16),
+                    dense: true,
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      _showInfoSnackbar(
+                          'Quality adjusts automatically based on your connection.');
+                    },
+                  ),
+
+                  // ── Audio track ── only if stream has multiple tracks
+                  if (hasMultiAudio)
+                    ListTile(
+                      leading: const Icon(Icons.headphones_rounded,
+                          color: Colors.white54, size: 22),
+                      title: const Text('Audio Track',
+                          style: TextStyle(color: Colors.white, fontSize: 14)),
+                      subtitle: Text(
+                        _selectedAudio?.title?.isNotEmpty == true
+                            ? _selectedAudio!.title!
+                            : _selectedAudio?.language?.isNotEmpty == true
+                                ? _selectedAudio!.language!
+                                : 'Default',
+                        style: const TextStyle(
+                            color: Colors.white38, fontSize: 12),
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded,
+                          color: Colors.white38, size: 18),
+                      dense: true,
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        _openAudioPanel();
+                      },
+                    ),
+
+                  // ── Sleep timer ──
+                  StatefulBuilder(
+                    builder: (ctx, localSet) => ListTile(
+                      leading: const Icon(Icons.bedtime_rounded,
+                          color: Colors.white54, size: 22),
+                      title: const Text('Sleep Timer',
+                          style: TextStyle(color: Colors.white, fontSize: 14)),
+                      subtitle: Text(
+                        _sleepTimerEnd != null
+                            ? '⏱ ${_fmtSleepRemaining()} remaining'
+                            : 'Off',
+                        style: TextStyle(
+                          color: _sleepTimerEnd != null
+                              ? _accentColor
+                              : Colors.white38,
+                          fontSize: 12,
+                        ),
+                      ),
+                      trailing: _sleepTimerEnd != null
+                          ? GestureDetector(
+                              onTap: () {
+                                Navigator.of(context).pop();
+                                _setSleepTimer(null);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color: Colors.red.withOpacity(0.3),
+                                      width: 0.8),
+                                ),
+                                child: const Text('Cancel',
+                                    style: TextStyle(
+                                        color: Colors.redAccent,
+                                        fontSize: 11)),
+                              ),
+                            )
+                          : const Icon(Icons.chevron_right_rounded,
+                              color: Colors.white38, size: 18),
+                      dense: true,
+                      onTap: _sleepTimerEnd != null
+                          ? null
+                          : () {
+                              Navigator.of(context).pop();
+                              _showLiveSleepTimerSheet();
+                            },
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    void _showLiveSleepTimerSheet() {
+      const options = [15, 30, 60, 90];
+      showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (_) => Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF1C1C1E),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 10),
+                  width: 36, height: 3,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                  child: Text(
+                    'Sleep Timer',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.85),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Container(
+                  height: 0.5,
+                  color: const Color(0x1AFFFFFF),
+                  margin: const EdgeInsets.only(bottom: 4),
+                ),
+                for (final mins in options)
+                  ListTile(
+                    leading: const Icon(Icons.bedtime_outlined,
+                        color: Colors.white54, size: 20),
+                    title: Text('$mins minutes',
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 14)),
+                    dense: true,
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      _setSleepTimer(mins);
+                    },
+                  ),
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+        ),
+      );
     }
 
   void _enterPiP() {
