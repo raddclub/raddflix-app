@@ -381,11 +381,11 @@ can offer a quality selector by loading a specific rendition playlist.
   playlists (e.g. `playlist_720p.m3u8`) alongside the ABR master. If yes, build a
   quality picker sheet. If no, show "Auto (ABR)" label only.
 
-- [ ] **LIVE-P7-B** — Live settings panel: replace the full VOD settings panel with a
+- [x] **LIVE-P7-B** — Live settings panel: replace the full VOD settings panel with a
   slim live-only panel containing: Quality (Auto/720p/480p if available), Audio track
   (if multi-audio stream), Sleep timer.
 
-- [ ] **LIVE-P7-C** — CI verify.
+- [x] **LIVE-P7-C** — CI verify.
 
 ---
 

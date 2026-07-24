@@ -5,6 +5,24 @@
 
 ---
 
+## Current State (2026-07-24 — LIVE-P1–P4 + P7-B done, all CI ✅, Oracle ✅ `a9497fb9`)
+
+**LIVE-P7-B — Slim live settings panel (commit `574db7d8`, CI ✅)**
+
+Replaced the full VOD settings panel for live-TV settings taps. New `_openLiveSettingsPanel()` in `_ps_ui_mixin.dart`:
+- **Quality** row: "Auto (ABR)" label, informational tap shows snackbar. No picker — rendition URLs can't be confirmed without Jazz SIM (P7-A deferred).
+- **Audio Track** row: visible only when `_realAudioTracks.length > 1`; tapping opens `_openAudioPanel()`.
+- **Sleep Timer** row: shows current remaining time or "Off"; tapping opens `_showLiveSleepTimerSheet()` (15 / 30 / 60 / 90 min options). Active timer shows a "Cancel" chip inline.
+- Portrait header settings icon wired to `_openLiveSettingsPanel`.
+- Portrait video-box controls overlay bottom row: settings icon added between channel-list and lock buttons.
+- VOD `_openSettingsPanel()` unchanged.
+
+LIVE_PLAYER_PLAN.md: P1–P4, P7-B, P7-C all checked ✅.
+
+**Remaining open:** LIVE-P6 (DVR URL audit — requires Jazz SIM to check all 84 channel paths for `playlist_dvr_timeshift` variant), LIVE-P7-A (rendition-URL research — same Jazz SIM dependency).
+
+---
+
 ## Current State (2026-07-24 — LIVE-P1 through P4 done, APK build in progress, Oracle ✅ deployed `a9497fb9`)
 
 **LIVE-P1–P4 — DVR model, portrait scaffold, landscape watermark+swipe, error UX.**

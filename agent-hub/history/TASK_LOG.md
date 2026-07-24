@@ -1624,3 +1624,30 @@ Both CI ✅ green (`build-apk.yml`). Oracle redeployed to `a9497fb9` ✅.
 ### Open (next session)
 - LIVE-P6: DVR URL audit — manually check all 84 channel paths for `playlist_dvr_timeshift` variant; update `has_dvr`/`dvr_window_seconds` seed data; Oracle redeploy.
 - LIVE-P7: Quality selector — check if tamashaweb exposes rendition-level playlists; slim live settings panel.
+
+---
+
+## LIVE-P7-B — Slim live settings panel (2026-07-24, commit `574db7d8`, CI ✅)
+
+**Scope:** `raddflix_flutter/lib/screens/player/_ps_ui_mixin.dart`, `LIVE_PLAYER_PLAN.md`.
+
+**What changed:**
+
+New method `_openLiveSettingsPanel()` — a `showModalBottomSheet` with three rows:
+1. **Quality** — "Auto (ABR)" label + info icon. Tap shows snackbar. Rendition-level playlists can't be verified without Jazz SIM, so picker is deferred (P7-A).
+2. **Audio Track** — visible only if `_realAudioTracks.length > 1`; opens `_openAudioPanel()`. Shows current track title/language as subtitle.
+3. **Sleep Timer** — shows remaining time or "Off". Tap opens `_showLiveSleepTimerSheet()` (15/30/60/90 min). Active timer shows inline "Cancel" chip that calls `_setSleepTimer(null)`.
+
+New helper method `_showLiveSleepTimerSheet()` — secondary bottom sheet with 15/30/60/90 min options.
+
+**Wire-ups:**
+- `_buildLivePortraitHeader()` settings icon: `_openSettingsPanel` → `_openLiveSettingsPanel`.
+- `_buildLiveVideoControlsOverlay()` bottom row: added settings icon button between channel-list (left) and lock (right).
+
+**Not changed:** `_openSettingsPanel()` (still used by all VOD paths and sidebar). `_buildLiveBottomArea()` / `_buildLivePortraitPanel()` (landscape controls bottom area — no settings icon there).
+
+**LIVE_PLAYER_PLAN.md:** P1–P4, P7-B, P7-C checkboxes all marked `[x]`. P7-A and P6 remain `[ ]` (Jazz SIM dependent).
+
+**Outstanding (Jazz SIM gated):**
+- LIVE-P6: Audit all 84 channel stream URLs for `playlist_dvr_timeshift` variant; update has_dvr seed; Oracle redeploy.
+- LIVE-P7-A: Check if tamashaweb CDN has rendition-level playlists (`playlist_720p.m3u8` etc.); build quality picker if available.
