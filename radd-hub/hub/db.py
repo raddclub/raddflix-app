@@ -723,7 +723,7 @@ def init_db() -> None:
         ("paigham-tv",   "Paigham TV",          "religious",     "🕌 Islamic",  "https://canvas.tamashaweb.com/jazzlive/uploads/channels/logo/1766040085640.webp",             "https://cdn22lhr.tamashaweb.com:8087/jazzauth/PaighamTV-abr/playlist.m3u8",                               "#00BFA5", 0,  80),
         # NEWS
         ("geo-news",     "Geo News",            "news",          "📰 News",     "https://canvas.tamashaweb.com/jazzlive/uploads/channels/logo/geo-news-live.webp",               "https://cdn07isb.tamashaweb.com:8087/jazzauth/vsat-geonews-abr/playlist_dvr_timeshift-0-3600.m3u8",        "#42A5F5", 1,  90),
-        ("ary-news",     "ARY News",            "news",          "📰 News",     "https://canvas.tamashaweb.com/jazzlive/uploads/channels/1684242189-logo.webp",               "https://cdn07isb.tamashaweb.com:8087/jazzauth/vsat-arynews-abr/playlist.m3u8",                            "#42A5F5", 0, 100),
+        ("ary-news",     "ARY News",            "news",          "📰 News",     "https://canvas.tamashaweb.com/jazzlive/uploads/channels/1684242189-logo.webp",               "https://cdn07isb.tamashaweb.com:8087/jazzauth/vsat-arynews-abr/playlist_dvr_timeshift-0-3600.m3u8",       "#42A5F5", 0, 100),
         ("hum-news",     "Hum News",            "news",          "📰 News",     "https://canvas.tamashaweb.com/jazzlive/uploads/channels/logo/HUM-News-Channel-logo.webp",               "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/humnews-abr/playlist.m3u8",                               "#42A5F5", 0, 110),
         ("express-news", "Express News",        "news",          "📰 News",     "https://canvas.tamashaweb.com/jazzlive/uploads/channels/logo/express-news-live.webp",           "https://cdn12isb.tamashaweb.com:8087/YlUHeDQb7a/expressnews-abr/playlist.m3u8",                           "#42A5F5", 0, 120),
         ("samaa-tv",     "Samaa TV",            "news",          "📰 News",     "https://canvas.tamashaweb.com/jazzlive/uploads/channels/logo/samaa-tv-live.webp",               "https://cdn05khi.tamashaweb.com:8087/jazzauth/samaaTV-abr/playlist.m3u8",                                 "#42A5F5", 0, 130),
@@ -755,7 +755,7 @@ def init_db() -> None:
         ("awaz-news",    "Awaz News",           "news",          "📰 News",     "https://cdn.imgbin.com/21/2/21/imgbin-pakistan-sindh-tv-television-channel-sindhi-awaz-television-network-others-RYD3vb8VyBJG0q6r9608S0Yjw.jpg", "https://cdn21lhr.tamashaweb.com:8087/jazzauth/120M/playlist.m3u8",                                       "#42A5F5", 0, 390),
         ("capital-tv",   "Capital TV",          "news",          "📰 News",     "https://upload.wikimedia.org/wikipedia/commons/0/04/Capital_Logo.jpg",         "https://cdn21lhr.tamashaweb.com:8087/jazzauth/111M/playlist.m3u8",                                       "#42A5F5", 0, 400),
         # ENTERTAINMENT
-        ("ary-digital",  "ARY Digital",         "entertainment", "🎭 Drama",    "https://canvas.tamashaweb.com/jazzlive/uploads/channels/logo/ary-digital-live-logo.webp",            "https://cdn07lhr.tamashaweb.com:8087/jazzauth/vsat-arydigital-abr/playlist.m3u8",                         "#AB47BC", 0, 410),
+        ("ary-digital",  "ARY Digital",         "entertainment", "🎭 Drama",    "https://canvas.tamashaweb.com/jazzlive/uploads/channels/logo/ary-digital-live-logo.webp",            "https://cdn07lhr.tamashaweb.com:8087/jazzauth/vsat-arydigital-abr/playlist_dvr_timeshift-0-3600.m3u8",    "#AB47BC", 0, 410),
         ("hum-tv",       "Hum TV",              "entertainment", "🎭 Drama",    "https://canvas.tamashaweb.com/jazzlive/uploads/channels/logo/1738840613135.webp",                 "https://cdn23lhr.tamashaweb.com:8087/jazzauth/humTV-abr/playlist.m3u8",                                   "#AB47BC", 0, 420),
         ("geo-ent",      "Geo Entertainment",   "entertainment", "🎭 Drama",    "https://canvas.tamashaweb.com/jazzlive/uploads/channels/logo/geo-entertainment-live.webp",      "https://cdn24lhr.tamashaweb.com:8087/jazzauth/GeoEntertainment-abr/playlist.m3u8",                        "#AB47BC", 0, 430),
         ("green-ent",    "Green Entertainment", "entertainment", "🎭 Drama",    "https://canvas.tamashaweb.com/jazzlive/uploads/channels/1702552123-logo.webp",    "https://cdn23lhr.tamashaweb.com:8087/jazzauth/Green_Entertainment-abr/playlist.m3u8",                     "#AB47BC", 0, 440),
@@ -838,8 +838,10 @@ def init_db() -> None:
     # set from the known stream URL parameter. Add more entries here as CDN
     # audits identify additional DVR-capable streams.
     _dvr_channels = {
-        # geo-news CDN playlist: playlist_dvr_timeshift-0-3600.m3u8 → 1-hour window
-        "geo-news": (1, 3600),
+        # Confirmed DVR via wifi audit 2026-07-24 — playlist_dvr_timeshift-0-3600.m3u8 returns HTTP 200 + #EXTM3U
+        "geo-news":    (1, 3600),  # cdn07isb vsat-geonews-abr
+        "ary-news":    (1, 3600),  # cdn07isb vsat-arynews-abr
+        "ary-digital": (1, 3600),  # cdn07lhr vsat-arydigital-abr
     }
     with _lock, _conn() as c:
         _dvr_ts = int(time.time())

@@ -352,17 +352,21 @@ Footer row:
 
 ### Tasks
 
-- [ ] **LIVE-P6-A** — Audit all 84 stream URLs manually for DVR capability:
+- [x] **LIVE-P6-A** — Audit all 84 stream URLs manually for DVR capability:
   Check URL pattern (`playlist_dvr_timeshift` → DVR, plain `playlist.m3u8` / `chunks.m3u8` → no DVR).
-  Current known DVR channels: **only Geo News** (`playlist_dvr_timeshift-0-3600.m3u8`).
+  **Result (2026-07-24 wifi audit):** 3 confirmed DVR channels:
+  - `geo-news` (known) — cdn07isb vsat-geonews-abr
+  - `ary-news` (NEW) — cdn07isb vsat-arynews-abr
+  - `ary-digital` (NEW) — cdn07lhr vsat-arydigital-abr
+  All 81 others returned HTTP 404 or 403 on the DVR variant → no DVR.
 
-- [ ] **LIVE-P6-B** — Add DVR URLs for other channels if available from tamashaweb:
-  Some channels may have DVR variants at `playlist_dvr_timeshift-0-3600.m3u8`.
-  Check by substituting the pattern into other channel paths (requires Jazz SIM).
-  Update `stream_url` in seed data if DVR variants are confirmed working.
+- [x] **LIVE-P6-B** — Add DVR URLs for other channels if available from tamashaweb:
+  `ary-news` and `ary-digital` stream_urls updated to `playlist_dvr_timeshift-0-3600.m3u8`
+  in `_live_seed`. Both confirmed HTTP 200 + valid #EXTM3U response over wifi.
 
-- [ ] **LIVE-P6-C** — Update `has_dvr` + `dvr_window_seconds` in seed data for all
-  confirmed DVR channels. Push to Oracle + redeploy.
+- [x] **LIVE-P6-C** — Update `has_dvr` + `dvr_window_seconds` in seed data for all
+  confirmed DVR channels. `_dvr_channels` now has geo-news + ary-news + ary-digital
+  all set to `(1, 3600)`. Oracle redeploy pending (P6-D).
 
 - [ ] **LIVE-P6-D** — CI verify + Oracle health check.
 
