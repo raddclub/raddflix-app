@@ -1651,3 +1651,30 @@ New helper method `_showLiveSleepTimerSheet()` — secondary bottom sheet with 1
 **Outstanding (Jazz SIM gated):**
 - LIVE-P6: Audit all 84 channel stream URLs for `playlist_dvr_timeshift` variant; update has_dvr seed; Oracle redeploy.
 - LIVE-P7-A: Check if tamashaweb CDN has rendition-level playlists (`playlist_720p.m3u8` etc.); build quality picker if available.
+
+---
+
+## LIVE-P6 — DVR URL audit (2026-07-24, commit `3b373164`)
+
+**Scope:** `radd-hub/hub/db.py`, `LIVE_PLAYER_PLAN.md`. Oracle deploy required.
+
+**Context:** LIVE-P6 was previously marked deferred (Jazz SIM needed). User confirmed tamashaweb CDN is accessible over regular wifi — no Jazz SIM gate on the DVR endpoint check. Audit unblocked.
+
+**Method:** Node.js parallel fetch of `playlist_dvr_timeshift-0-3600.m3u8` substituted into each of the 84 channel stream URL paths (replacing `playlist.m3u8` or `chunks.m3u8`). 10-channel batches, 8s timeout per request. Checked HTTP status + `#EXTM3U` in response body.
+
+**Results — 3 DVR confirmed:**
+| channel_id  | Name        | DVR URL |
+|-------------|-------------|---------|
+| geo-news    | Geo News    | cdn07isb vsat-geonews-abr/playlist_dvr_timeshift-0-3600.m3u8 (known) |
+| ary-news    | ARY News    | cdn07isb vsat-arynews-abr/playlist_dvr_timeshift-0-3600.m3u8 (NEW) |
+| ary-digital | ARY Digital | cdn07lhr vsat-arydigital-abr/playlist_dvr_timeshift-0-3600.m3u8 (NEW) |
+
+All 81 others: HTTP 404 (no DVR path exists) or 403 (CDN auth blocks DVR).
+
+**Changes:**
+- `_live_seed` stream_url for `ary-news` → DVR variant URL
+- `_live_seed` stream_url for `ary-digital` → DVR variant URL
+- `_dvr_channels` extended with `ary-news: (1, 3600)` and `ary-digital: (1, 3600)`
+- `LIVE_PLAYER_PLAN.md` P6-A/B/C checked ✅; P6-D pending Oracle deploy
+
+**Oracle deploy:** pending user confirmation (`push_to_oracle.sh` restarts raddflix_radd).

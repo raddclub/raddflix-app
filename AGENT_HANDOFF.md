@@ -5,21 +5,28 @@
 
 ---
 
-## Current State (2026-07-24 — LIVE-P1–P4 + P7-B done, all CI ✅, Oracle ✅ `a9497fb9`)
+## Current State (2026-07-24 — LIVE-P6 done `3b373164`, Oracle deploy pending)
 
-**LIVE-P7-B — Slim live settings panel (commit `574db7d8`, CI ✅)**
+**LIVE-P6 — DVR URL audit complete (commit `3b373164`)**
 
-Replaced the full VOD settings panel for live-TV settings taps. New `_openLiveSettingsPanel()` in `_ps_ui_mixin.dart`:
-- **Quality** row: "Auto (ABR)" label, informational tap shows snackbar. No picker — rendition URLs can't be confirmed without Jazz SIM (P7-A deferred).
-- **Audio Track** row: visible only when `_realAudioTracks.length > 1`; tapping opens `_openAudioPanel()`.
-- **Sleep Timer** row: shows current remaining time or "Off"; tapping opens `_showLiveSleepTimerSheet()` (15 / 30 / 60 / 90 min options). Active timer shows a "Cancel" chip inline.
-- Portrait header settings icon wired to `_openLiveSettingsPanel`.
-- Portrait video-box controls overlay bottom row: settings icon added between channel-list and lock buttons.
-- VOD `_openSettingsPanel()` unchanged.
+Full wifi audit of all 84 channel stream URLs. tamashaweb is accessible over wifi (not Jazz-SIM-gated).
 
-LIVE_PLAYER_PLAN.md: P1–P4, P7-B, P7-C all checked ✅.
+**Method:** parallel Node.js fetch of `playlist_dvr_timeshift-0-3600.m3u8` variant for every channel path. HTTP 200 + `#EXTM3U` body = DVR confirmed.
 
-**Remaining open:** LIVE-P6 (DVR URL audit — requires Jazz SIM to check all 84 channel paths for `playlist_dvr_timeshift` variant), LIVE-P7-A (rendition-URL research — same Jazz SIM dependency).
+**Results:**
+- ✅ **geo-news** — confirmed (was already known, unchanged)
+- ✅ **ary-news** — NEW: `cdn07isb vsat-arynews-abr/playlist_dvr_timeshift-0-3600.m3u8`
+- ✅ **ary-digital** — NEW: `cdn07lhr vsat-arydigital-abr/playlist_dvr_timeshift-0-3600.m3u8`
+- ❌ All other 81 channels — HTTP 404 or 403, no DVR
+
+**Changes in `radd-hub/hub/db.py`:**
+- `_live_seed` stream_url for `ary-news` updated to DVR variant
+- `_live_seed` stream_url for `ary-digital` updated to DVR variant
+- `_dvr_channels` now has all 3 confirmed DVR channels set to `(1, 3600)`
+
+**Oracle deploy needed** — `init_db()` DVR patch will set `has_dvr=1, dvr_window_seconds=3600` for ary-news + ary-digital on next restart. Awaiting user confirmation to run `push_to_oracle.sh`.
+
+**Previous state (LIVE-P7-B):** LIVE-P7-B — Slim live settings panel (`574db7d8`, CI ✅). P1–P4, P7-B, P7-C all checked ✅. LIVE-P7-A deferred (Jazz SIM needed for rendition-URL research).
 
 ---
 
