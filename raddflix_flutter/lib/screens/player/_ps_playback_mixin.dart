@@ -19,6 +19,7 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
   String _formatDuration(Duration d);
   void _setNativeOrientation(String mode);
   void _scheduleSavePrefs();
+  void _fetchLiveRenditions(); // defined in _PlayerUIMixin (LIVE-P7-A)
 
   // ── Cross-cluster fields (defined in _PlayerScreenState) ─────────────────
   double get _audioSync; set _audioSync(double v);
@@ -570,6 +571,7 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
       _videoOpened = true;
       await _player.open(Media(url));
       _scheduleHide();
+      _fetchLiveRenditions(); // LIVE-P7-A: populate quality picker (fire-and-forget)
       return;
     }
     // ─────────────────────────────────────────────────────────────────────────

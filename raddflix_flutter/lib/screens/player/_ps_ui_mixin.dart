@@ -222,6 +222,14 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
 
   String _layoutPreset = 'default'; // default | cinema | compact
 
+  // ── Live quality selector state (LIVE-P7-A) ──────────────────────────────
+  // _liveRenditions is populated by _fetchLiveRenditions() after each live
+  // channel opens. Empty = no renditions available (single-stream or blocked).
+  // _selectedRenditionIdx: -1 = Auto ABR (default), 0+ = specific rendition.
+  List<_LiveRendition> _liveRenditions = [];
+  int _selectedRenditionIdx = -1;
+  bool _liveRenditionsFetching = false;
+
   // Voice commands
   bool _voiceCommandsEnabled = false;
 
@@ -4278,6 +4286,203 @@ void _openPanel({
       _openPanel(panel: panel, title: 'Settings', widthFactor: 0.42, maxHeightFraction: 0.90);
     }
 
+    // ── LIVE-P7-A: Live quality selector helpers ────────────────────────────
+
+    // Fetches the master playlist for the current live channel and populates
+    // _liveRenditions. Called fire-and-forget after every live open.
+    // Resets _selectedRenditionIdx to -1 (Auto) on each new channel load.
+    Future<void> _fetchLiveRenditions() async {
+      final masterUrl = widget.streamUrl;
+      if (masterUrl == null || !_isLive) return;
+      if (_liveRenditionsFetching) return;
+      if (mounted) setState(() { _liveRenditionsFetching = true; });
+      try {
+        final client = HttpClient()
+          ..connectionTimeout = const Duration(seconds: 8);
+        final req = await client.getUrl(Uri.parse(masterUrl));
+        req.headers.set('User-Agent', 'RaddFlix/3.0');
+        final res = await req.close();
+        final body = await res.transform(utf8.decoder).join();
+        client.close();
+        if (res.statusCode != 200) {
+          if (mounted) setState(() { _liveRenditions = []; _liveRenditionsFetching = false; });
+          return;
+        }
+        final renditions = _parseLiveRenditions(masterUrl, body);
+        if (mounted) setState(() {
+          _liveRenditions = renditions;
+          _selectedRenditionIdx = -1; // reset to Auto on new channel
+          _liveRenditionsFetching = false;
+        });
+      } catch (_) {
+        if (mounted) setState(() { _liveRenditions = []; _liveRenditionsFetching = false; });
+      }
+    }
+
+    // Parses #EXT-X-STREAM-INF blocks from [body], resolves relative URLs
+    // against [masterUrl], and returns renditions sorted highest-bandwidth first.
+    List<_LiveRendition> _parseLiveRenditions(String masterUrl, String body) {
+      final baseUri = Uri.parse(masterUrl);
+      final basePath = baseUri.path.substring(0, baseUri.path.lastIndexOf('/') + 1);
+      final base = baseUri.replace(path: basePath, query: null, fragment: null);
+
+      final lines = body.split('\n');
+      final result = <_LiveRendition>[];
+      for (int i = 0; i < lines.length - 1; i++) {
+        final inf = lines[i].trim();
+        if (!inf.startsWith('#EXT-X-STREAM-INF:')) continue;
+        final urlLine = lines[i + 1].trim();
+        if (urlLine.isEmpty || urlLine.startsWith('#')) continue;
+
+        int bw = 0;
+        final bwM = RegExp(r'BANDWIDTH=(\d+)').firstMatch(inf);
+        if (bwM != null) bw = int.tryParse(bwM.group(1)!) ?? 0;
+
+        String res = _fmtBandwidth(bw);
+        final resM = RegExp(r'RESOLUTION=\d+x(\d+)').firstMatch(inf);
+        if (resM != null) {
+          final h = int.tryParse(resM.group(1)!) ?? 0;
+          res = h >= 1080 ? '1080p' : h >= 720 ? '720p' : h >= 480 ? '480p' : h >= 360 ? '360p' : '${h}p';
+        }
+
+        final resolved = urlLine.startsWith('http')
+            ? urlLine
+            : base.resolve(urlLine).toString();
+
+        result.add(_LiveRendition(bandwidth: bw, resolution: res, url: resolved));
+      }
+      result.sort((a, b) => b.bandwidth.compareTo(a.bandwidth));
+      return result;
+    }
+
+    // Re-fetches the master for a fresh nimblesessionid, then opens the
+    // rendition at [index] (-1 = Auto ABR = re-open the master itself).
+    Future<void> _switchLiveRendition(int index) async {
+      final masterUrl = widget.streamUrl;
+      if (masterUrl == null) return;
+
+      if (index == -1) {
+        // Auto — open master directly; media_kit/mpv handles ABR
+        if (mounted) setState(() => _selectedRenditionIdx = -1);
+        _videoOpened = true;
+        await _player.open(Media(masterUrl));
+        return;
+      }
+
+      // Re-fetch master to get a fresh nimblesessionid for the chosen rendition
+      try {
+        final client = HttpClient()
+          ..connectionTimeout = const Duration(seconds: 8);
+        final req = await client.getUrl(Uri.parse(masterUrl));
+        req.headers.set('User-Agent', 'RaddFlix/3.0');
+        final res = await req.close();
+        final body = await res.transform(utf8.decoder).join();
+        client.close();
+        if (res.statusCode != 200) {
+          _showInfoSnackbar('Could not fetch stream — try again.');
+          return;
+        }
+        final fresh = _parseLiveRenditions(masterUrl, body);
+        if (index >= fresh.length) {
+          _showInfoSnackbar('Quality not available for this channel.');
+          return;
+        }
+        if (mounted) setState(() {
+          _liveRenditions = fresh;
+          _selectedRenditionIdx = index;
+        });
+        _videoOpened = true;
+        await _player.open(Media(fresh[index].url));
+      } catch (_) {
+        _showInfoSnackbar('Could not switch quality — check your connection.');
+      }
+    }
+
+    // Opens the quality picker sheet (shown when _liveRenditions.length > 1).
+    void _openLiveQualitySheet() {
+      showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (_) {
+          return Container(
+            decoration: const BoxDecoration(
+              color: Color(0xFF1C1C1E),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 10),
+                    width: 36, height: 3,
+                    decoration: BoxDecoration(
+                        color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+                    child: Text(
+                      'Select Quality',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.85),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    height: 0.5,
+                    color: const Color(0x1AFFFFFF),
+                    margin: const EdgeInsets.only(bottom: 4),
+                  ),
+                  // Auto option
+                  ListTile(
+                    leading: const Icon(Icons.auto_awesome_rounded,
+                        color: Colors.white54, size: 20),
+                    title: const Text('Auto (ABR)',
+                        style: TextStyle(color: Colors.white, fontSize: 14)),
+                    subtitle: const Text('Adjusts to your connection',
+                        style: TextStyle(color: Colors.white38, fontSize: 12)),
+                    trailing: _selectedRenditionIdx == -1
+                        ? Icon(Icons.check_rounded, color: _accentColor, size: 18)
+                        : null,
+                    dense: true,
+                    onTap: () { Navigator.of(context).pop(); _switchLiveRendition(-1); },
+                  ),
+                  // Rendition rows
+                  for (int i = 0; i < _liveRenditions.length; i++) ...[
+                    Container(height: 0.5, color: const Color(0x1AFFFFFF),
+                        margin: const EdgeInsets.only(left: 56)),
+                    ListTile(
+                      leading: const Icon(Icons.hd_rounded,
+                          color: Colors.white54, size: 20),
+                      title: Text(_liveRenditions[i].resolution,
+                          style: const TextStyle(color: Colors.white, fontSize: 14)),
+                      subtitle: Text(_fmtBandwidth(_liveRenditions[i].bandwidth),
+                          style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                      trailing: _selectedRenditionIdx == i
+                          ? Icon(Icons.check_rounded, color: _accentColor, size: 18)
+                          : null,
+                      dense: true,
+                      onTap: () { Navigator.of(context).pop(); _switchLiveRendition(i); },
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    String _fmtBandwidth(int bps) {
+      if (bps >= 1000000) return '${(bps / 1000000).toStringAsFixed(1)} Mbps';
+      if (bps >= 1000) return '${(bps / 1000).toStringAsFixed(0)} Kbps';
+      return '$bps bps';
+    }
+
     // ── LIVE-P7-B: Slim settings panel for live TV ─────────────────────────
     // Shows only live-relevant options: Quality (informational), Audio track
     // (if multi-track), and Sleep Timer. Replaces the full VOD _openSettingsPanel
@@ -4335,23 +4540,47 @@ void _openPanel({
                     margin: const EdgeInsets.only(bottom: 4),
                   ),
 
-                  // ── Quality ── informational row, no picker
-                  ListTile(
-                    leading: const Icon(Icons.high_quality_rounded,
-                        color: Colors.white54, size: 22),
-                    title: const Text('Quality',
-                        style: TextStyle(color: Colors.white, fontSize: 14)),
-                    subtitle: const Text('Auto (ABR)',
-                        style: TextStyle(color: Colors.white38, fontSize: 12)),
-                    trailing: const Icon(Icons.info_outline_rounded,
-                        color: Colors.white24, size: 16),
-                    dense: true,
-                    onTap: () {
-                      Navigator.of(context).pop();
-                      _showInfoSnackbar(
-                          'Quality adjusts automatically based on your connection.');
-                    },
-                  ),
+                  // ── Quality ── real picker when renditions available, else informational
+                  if (_liveRenditions.length > 1)
+                    ListTile(
+                      leading: const Icon(Icons.high_quality_rounded,
+                          color: Colors.white54, size: 22),
+                      title: const Text('Quality',
+                          style: TextStyle(color: Colors.white, fontSize: 14)),
+                      subtitle: Text(
+                        _selectedRenditionIdx >= 0 && _selectedRenditionIdx < _liveRenditions.length
+                            ? _liveRenditions[_selectedRenditionIdx].resolution
+                            : 'Auto (ABR)',
+                        style: TextStyle(
+                          color: _selectedRenditionIdx >= 0 ? _accentColor : Colors.white38,
+                          fontSize: 12,
+                        ),
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded,
+                          color: Colors.white38, size: 18),
+                      dense: true,
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        _openLiveQualitySheet();
+                      },
+                    )
+                  else
+                    ListTile(
+                      leading: const Icon(Icons.high_quality_rounded,
+                          color: Colors.white54, size: 22),
+                      title: const Text('Quality',
+                          style: TextStyle(color: Colors.white, fontSize: 14)),
+                      subtitle: const Text('Auto (ABR)',
+                          style: TextStyle(color: Colors.white38, fontSize: 12)),
+                      trailing: const Icon(Icons.info_outline_rounded,
+                          color: Colors.white24, size: 16),
+                      dense: true,
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        _showInfoSnackbar(
+                            'Quality adjusts automatically based on your connection.');
+                      },
+                    ),
 
                   // ── Audio track ── only if stream has multiple tracks
                   if (hasMultiAudio)
@@ -4776,4 +5005,19 @@ class _LiveChannelSwitcherSheetState extends State<_LiveChannelSwitcherSheet> {
     if (h.length == 6) return Color(int.parse('FF$h', radix: 16));
     return const Color(0xFF1A1A2E);
   }
+}
+
+// ── LIVE-P7-A: Live rendition model ──────────────────────────────────────────
+// Represents one #EXT-X-STREAM-INF entry from a master HLS playlist.
+// [url] is already fully resolved (absolute). [bandwidth] is in bps.
+// [resolution] is a human label like "1080p", "720p", etc.
+class _LiveRendition {
+  final int bandwidth;
+  final String resolution;
+  final String url; // absolute, with fresh nimblesessionid
+  const _LiveRendition({
+    required this.bandwidth,
+    required this.resolution,
+    required this.url,
+  });
 }
