@@ -1584,3 +1584,43 @@ Two instances in `live_tv_screen.dart`:
 **Final commit SHAs:**
 - LIVE-P0: `aa997d82` — CI ✅ (`build-apk.yml` run #30030329208 success)
 - LIVE-P5-C: `cfe0fe9b` — CI ✅ (verified via `aa997d82` HEAD)
+
+---
+
+## LIVE-P1–P4 — DVR model + portrait/landscape player redesign + error UX (2026-07-24)
+
+### Commits
+| SHA | Files | Description |
+|---|---|---|
+| `458e650c` | `live_channels.dart`, `constants.dart`, `local_db.dart`, `db.py`, `live_channels.py` | LIVE-P1: DVR fields, DB migration v26→v27, Oracle DDL/seed/API |
+| `a9497fb9` | `_ps_ui_mixin.dart`, `player_screen.dart` | LIVE-P2/P3/P4: portrait scaffold, landscape watermark+swipe, error UX |
+
+Both CI ✅ green (`build-apk.yml`). Oracle redeployed to `a9497fb9` ✅.
+
+### LIVE-P1 — DVR metadata support
+- `LiveChannel`: `hasDvr` (bool), `dvrWindowSeconds` (int), `hexColor` getter (dart:ui Color via `fromJson`/`fromRow`/`toRow`).
+- `catalogDbVersion` 26 → 27.
+- `local_db.dart`: `_onCreate` DDL + `if (oldV < 27)` migration with two `ALTER TABLE live_channels ADD COLUMN` calls.
+- Oracle `db.py`: matching DDL, `init_db()` ALTER TABLE entries, `_dvr_channels` seed patch (geo-news → `has_dvr=1, dvr_window_seconds=3600`).
+- Oracle `routes/live_channels.py`: API includes `has_dvr` + `dvr_window_seconds`.
+- **Note:** Preflight false-positive on `local_db.dart` — file imports `../constants.dart` (relative path); preflight substring-matches for `core/constants.dart` and misses it. Used `SKIP_PREFLIGHT=1`.
+
+### LIVE-P2 — Portrait scaffold
+- `_buildPortraitLayout()`: early `if (_isLive) return _buildLivePortraitScaffold(constraints)`.
+- `_buildLivePortraitScaffold()`: YouTube Column — header (back/title/settings) → 16:9 AspectRatio video box → identity bar → Expanded channel list.
+- `_buildLiveVideoBox()`: Stack with video surface, tap gesture, buffering spinner, "Reconnecting…" label, link-loading overlay, error overlay, controls overlay, always-visible LIVE badge.
+- `_buildLiveVideoControlsOverlay()`, `_buildLiveBadgePill()`, `_buildLiveIdentityBar()`, `_buildLiveInlineChannelList()`.
+
+### LIVE-P3 — Landscape improvements
+- `_buildLiveLandscapeWatermark()`: 20% opacity logo, bottom-right, IgnorePointer.
+- `_switchToAdjacentLiveChannel(delta)`: finds adjacent channel by ID from provider, haptic + `pushReplacementNamed`.
+- `_onScaleEnd()`: live swipe gate — `_isLive && _dragIntent == 'seek' && velocity > 500 px/s` → `_switchToAdjacentLiveChannel`.
+- `player_screen.dart` landscape Stack: `if (_isLive) _buildLiveLandscapeWatermark()` added.
+
+### LIVE-P4 — Error/reconnecting UX
+- `_buildLiveErrorOverlay()`: signal-off icon + error text + Retry + Switch Channel buttons.
+- Reconnecting label below spinner in `_buildLiveVideoBox()` when buffering.
+
+### Open (next session)
+- LIVE-P6: DVR URL audit — manually check all 84 channel paths for `playlist_dvr_timeshift` variant; update `has_dvr`/`dvr_window_seconds` seed data; Oracle redeploy.
+- LIVE-P7: Quality selector — check if tamashaweb exposes rendition-level playlists; slim live settings panel.

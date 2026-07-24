@@ -5,6 +5,36 @@
 
 ---
 
+## Current State (2026-07-24 — LIVE-P1 through P4 done, APK build in progress, Oracle ✅ deployed `a9497fb9`)
+
+**LIVE-P1–P4 — DVR model, portrait scaffold, landscape watermark+swipe, error UX.**
+
+### LIVE-P1 — DVR metadata (commit `458e650c`, CI ✅)
+- `LiveChannel` model: added `hasDvr` (bool), `dvrWindowSeconds` (int), `hexColor` getter (dart:ui Color). Updated `fromJson`/`fromRow`/`toRow`.
+- `catalogDbVersion` bumped 26 → 27 in `constants.dart`.
+- `local_db.dart` DDL + `_migrate()` block: `if (oldV < 27)` adds `has_dvr` + `dvr_window_seconds` columns via `ALTER TABLE`.
+- Oracle `db.py`: DDL gains both columns; `init_db()` migration list has two `ALTER TABLE` entries; `_dvr_channels` patch sets geo-news to `(1, 3600)`.
+- Oracle `routes/live_channels.py`: API response includes `has_dvr` + `dvr_window_seconds`.
+- Oracle redeployed at `a9497fb9` ✅.
+
+### LIVE-P2 — Portrait scaffold (commit `a9497fb9`, CI ✅)
+`_buildPortraitLayout()` gains early `if (_isLive) return _buildLivePortraitScaffold(…)`.
+YouTube-style Column: SafeArea header (back/title/settings) → 16:9 AspectRatio video box → identity bar → Expanded inline channel list.
+
+### LIVE-P3 — Landscape watermark + swipe (commit `a9497fb9`, CI ✅)
+`_buildLiveLandscapeWatermark()`: channel logo, 20% opacity, bottom-right, always visible.
+`_switchToAdjacentLiveChannel(delta)` + `_onScaleEnd` swipe gate (>500 px/s horizontal → switch channel).
+
+### LIVE-P4 — Error/reconnecting UX (commit `a9497fb9`, CI ✅)
+`_buildLiveErrorOverlay()`: signal-off icon + error text + Retry + Switch Channel buttons.
+Reconnecting label below spinner in `_buildLiveVideoBox()`.
+
+**APK build:** `workflow_dispatch` triggered on HEAD `a9497fb9` — currently `in_progress`.
+
+**Next:** LIVE-P6 (DVR URL audit for all 84 channels) and LIVE-P7 (quality selector). See `LIVE_PLAYER_PLAN.md` for full task breakdown.
+
+---
+
 ## Current State (2026-07-23 — LIVE-P0 + LIVE-P5 done, APK ✅ CI green `aa997d82`, Oracle ✅ deployed `3c593e7d`)
 
 **LIVE-P0 — Critical live stream fix (all live TV was broken) + LIVE-P5 tab polish.**
