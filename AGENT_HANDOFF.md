@@ -5,9 +5,9 @@
 
 ---
 
-## Current State (2026-07-25 — PROFILE-AUDIT-1..8 done `73af7f9`, CI ⏳)
+## Current State (2026-07-25 — PROFILE-AUDIT-1..8 done `73af7f9`, CI ✅)
 
-**No open tasks.** All 8 PROFILE-AUDIT fixes shipped in commit `73af7f9` (CI in progress).
+**No open tasks.** All 8 PROFILE-AUDIT fixes shipped in commit `73af7f9` (CI ✅ green).
 
 | ID | Type | Fix |
 |---|---|---|
@@ -26,29 +26,6 @@
 All 9 profile screen audit findings implemented. See TASKS.md row `PROFILE-POLISH-2026-07-25` and TASK_LOG.md for detail. Nothing is pending.
 
 ---
-
-### Archived — Profile Screen Audit (originally pending, now done)
-
-Third-party review applied to home screen (`3fe2021`). Same audit run on `profile_screen.dart` — 9 issues found, **not yet implemented**. Next agent should implement these:
-
-#### Quick wins (same class as home screen polish):
-| # | Issue | Current | Fix |
-|---|---|---|---|
-| 1 | Greeting font too small | `fontSize: 13` above avatar | 13 → 15 |
-| 2 | Section gaps too tight | `SizedBox(height: 12)` between sections | 12 → 16px (`RaddSpace.md`) |
-| 3 | Divider indent off | `indent: 52` | → 54 (16px padding + 38px icon = 54) |
-
-#### Structural / bigger wins:
-| # | Issue | Detail |
-|---|---|---|
-| 4 | `_Section` card flat vs Settings | Profile uses `color: t.surface, border: t.border` — plain. Settings has glass card (`t.card`), 0.5px `cardBorder`, specular top-edge highlight, backdrop blur (σ12). Migrate `_Section` to match `_SettingsSection` style. |
-| 5 | Section header labels inconsistent | Profile: `─ GENERAL` (tiny dash). Settings: `● PLAYBACK` (5px colour-coded dot tinted to section colour). Profile should match. |
-| 6 | `_SectionTile` has no subtitle | All tiles show title only. `SettingsRow` in Settings screen shows a subtitle under every row. Add optional `subtitle` to `_SectionTile` + populate key rows. |
-| 7 | Stats card duplicates header | `_StatsCard` has its own hand-rolled dash+uppercase header — should reuse `_Section` wrapper. |
-| 8 | Stats numbers too small | Value `fontSize: 13` → 14, label `fontSize: 10` → 11. |
-| 9 | "Manage" button unstyled | `TextButton` on subscription card defaults to Material blue — should use `AppColors.primary`. |
-
-**Files to touch:** `raddflix_flutter/lib/screens/profile_screen.dart` only (all 9 issues are in this one file).
 
 ### UI-POLISH-2026-07-25 — Home screen polish pass (2026-07-25)
 Commit: `3fe2021` — 3 files changed. Based on third-party UI review (8.6/10 → targeted improvements).

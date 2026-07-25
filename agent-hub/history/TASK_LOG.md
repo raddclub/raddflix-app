@@ -1795,3 +1795,15 @@ Both paths route to `/player` with `content_type: 'network'`, `stream_url: <url>
 - **AUDIT-6 (UX):** Merged the single-tile "General" section (Settings) and the single-tile "Appearance" section (Theme) into one "General" card with a divider between the two tiles. One-item sections with full glass-card headers are visually heavy.
 - **AUDIT-7 (Code):** Removed `if (changed == true && mounted) setState(() {})` after both `EditProfileScreen` push calls (avatar tap + "Add your name" tap). `user` comes from `ref.watch(authProvider)` — Riverpod rebuilds the widget automatically; the bare `setState` was a no-op.
 - **AUDIT-8 (Code):** Added `const` to `SizedBox(height: RaddSpace.lg)` after the Account section and `SizedBox(height: RaddSpace.md)` after the My Content section — both `RaddSpace` values are static constants so the widgets should be `const`.
+
+---
+
+## Session 2026-07-25 — Verify last commit + cleanup (HANDOFF-CLEANUP-2026-07-25)
+
+**Verified:** commit `73af7f91` (PROFILE-AUDIT-1..8) — diff confirmed correct on GitHub, CI ✅ green on both `build-apk.yml` and `ci-tests.yml`. All 8 audit fixes are correctly implemented in `profile_screen.dart`. No issues found with the AUDIT-2 StatefulWidget conversion, AUDIT-6 section merge, or any of the other fixes.
+
+**Code fix (commit `802f8c34`):** `profile_screen.dart` — "Debug Logs" `_SectionTile` was the only tile in the Account section without a `subtitle`. Every other tile (Plan, Switch Profile, Manage Profiles, Vault, Downloads, Sign Out) had a subtitle. Added `subtitle: 'Internal diagnostic logs'` for consistency. CI pending.
+
+**Docs fix:** `AGENT_HANDOFF.md` — (1) top Current State header `CI ⏳` → `CI ✅`; (2) deleted the "Archived — Profile Screen Audit" section, which still described 9 profile screen items as "not yet implemented" even though all 9 were shipped in `ab235f4d` and `73af7f91`. Left in place, this would cause the next agent to re-do completed work. (3) Folded the "Completed This Session" section into the correct current-state summary.
+
+**10/10 plan status:** All actionable items ✅ done. Two items remain blocked: G4 (folder reorg — needs explicit user go-ahead) and K5 (const sweep — needs Flutter SDK / `dart fix --apply`).
