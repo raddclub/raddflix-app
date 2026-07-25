@@ -5,6 +5,12 @@
 
 ---
 
+## Current State (2026-07-25 — NET-STREAM-1 queued, LIVE-P7-A done, LIVE-P6 Oracle ✅)
+
+**Next task:** NET-STREAM-1 — direct network stream playback (m3u8, mp4, any direct URL). See TASKS.md for full spec. Ready to build.
+
+---
+
 ## Current State (2026-07-24 — LIVE-P7-A done `072a0b89`, CI ✅)
 
 ### LIVE-P7-A — Live quality selector (2026-07-24)
