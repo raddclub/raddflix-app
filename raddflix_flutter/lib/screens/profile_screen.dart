@@ -103,6 +103,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           limitGb = (quota['monthly_limit_gb'] as num?)?.toDouble() ?? limitGb;
         }
       } catch (_) { /* offline — use values from status */ }
+      // PROFILE-AUDIT-1: guard before setState — getQuota() above is async,
+      // widget may have been disposed while it was in flight.
+      if (!mounted) return;
       setState(() {
         _remotePlan    = status.plan;
         _remoteUsedGb  = usedGb;
@@ -203,8 +206,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ],
                     )),
                     const Spacer(),
-                    IconButton(onPressed: () => Navigator.of(context).pop(),
-                        icon: Icon(AppIcons.close, color: t.textMuted)),
+                    // PROFILE-AUDIT-4: close only valid when pushed as modal,
+                    // not when embedded in the HomeScreen tab IndexedStack.
+                    if (widget.showBottomNav)
+                      IconButton(onPressed: () => Navigator.of(context).pop(),
+                          icon: Icon(AppIcons.close, color: t.textMuted)),
                   ]),
                 ),
               ).animate().fadeIn(duration: 300.ms),
@@ -223,9 +229,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   // Avatar with double glow ring
                   GestureDetector(
                     onTap: user?.isGuest == true ? null : () async {
-                      final changed = await Navigator.of(context).push<bool>(
+                      // PROFILE-AUDIT-7: user comes from ref.watch(authProvider)
+                      // — Riverpod rebuilds automatically; bare setState is redundant.
+                      await Navigator.of(context).push<bool>(
                         MaterialPageRoute(builder: (_) => const EditProfileScreen()));
-                      if (changed == true && mounted) setState(() {});
                     },
                     child: Stack(alignment: Alignment.bottomRight, children: [
                       // Outer soft glow halo
@@ -318,10 +325,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       const SizedBox(height: 7),
                       GestureDetector(
                         onTap: () async {
-                          final changed = await Navigator.of(context).push<bool>(
+                          // PROFILE-AUDIT-7: Riverpod rebuilds on auth change automatically.
+                          await Navigator.of(context).push<bool>(
                             MaterialPageRoute(
                                 builder: (_) => const EditProfileScreen()));
-                          if (changed == true && mounted) setState(() {});
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(
@@ -429,7 +436,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Column(children: [
-                  // General
+                  // PROFILE-AUDIT-6: merged single-tile "General" + "Appearance"
+                  // into one card — one-item section was visually heavy.
                   _Section(title: 'General', dotColor: AppColors.primary, children: [
                     _SectionTile(
                       icon: AppIcons.settings,
@@ -440,10 +448,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         Navigator.of(context).pushNamed(AppRoutes.settings);
                       },
                     ),
-                  ]),
-                  const SizedBox(height: RaddSpace.md),
-                  // Appearance
-                  _Section(title: 'Appearance', dotColor: AppColors.primary, children: [
+                    _divider(),
                     _SectionTile(
                       icon: AppIcons.colorPalette,
                       label: 'Theme',
@@ -513,14 +518,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                   ]),
                   const SizedBox(height: RaddSpace.md),
-                  // Watchlist & History
-                  _Section(
-                    title: 'My Stats',
-                    dotColor: AppColors.primary,
-                    children: [_StatsCard()],
-                  ),
-                  const SizedBox(height: RaddSpace.md),
-
+                  // PROFILE-AUDIT-5: My Content before My Stats — stats summarise
+                  // activity so they belong after the content lists, not before.
                   _Section(title: 'My Content', dotColor: AppColors.primary, children: [
                     _SectionTile(
                       icon: AppIcons.bookmarkFill,
@@ -538,7 +537,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       onTap: () { DebugLogger.logTap('Profile', 'history'); Navigator.of(context).pushNamed(AppRoutes.history); },
                     ),
                   ]),
-                  SizedBox(height: RaddSpace.md),
+                  const SizedBox(height: RaddSpace.md),
+                  _Section(
+                    title: 'My Stats',
+                    dotColor: AppColors.primary,
+                    children: [const _StatsCard()],
+                  ),
+                  const SizedBox(height: RaddSpace.md),
                   // Device
                   _Section(title: 'Device', dotColor: AppColors.info, children: [
                     _SectionTile(
@@ -572,8 +577,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     _SectionTile(
                       icon: AppIcons.crown,
                       iconColor: AppColors.primary,
-                      label: 'Upgrade Plan',
-                      subtitle: 'Get more content and storage',
+                      // PROFILE-AUDIT-3: active subscribers see "Manage Plan".
+                      label: user?.hasActiveSubscription == true ? 'Manage Plan' : 'Upgrade Plan',
+                      subtitle: user?.hasActiveSubscription == true
+                          ? 'Adjust or renew your plan'
+                          : 'Get more content and storage',
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.subscription),
                     ),
                     _divider(),
@@ -656,7 +664,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       onTap: _loggingOut ? null : _logout,
                     ),
                   ]),
-                  SizedBox(height: RaddSpace.lg),
+                  const SizedBox(height: RaddSpace.lg), // PROFILE-AUDIT-8
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
@@ -773,8 +781,24 @@ class _Section extends ConsumerWidget {
 }
 
 // ── Stats Card ───────────────────────────────────────────────────────────────
-class _StatsCard extends StatelessWidget {
+// PROFILE-AUDIT-2: converted to StatefulWidget so _statsFuture is created
+// once in initState() — previously called as a StatelessWidget which
+// recreated the DB query on every parent rebuild, causing stats to flicker
+// back to the loading spinner whenever connectivity or tap-count changed.
+class _StatsCard extends StatefulWidget {
   const _StatsCard();
+  @override
+  State<_StatsCard> createState() => _StatsCardState();
+}
+
+class _StatsCardState extends State<_StatsCard> {
+  late final Future<Map<String, dynamic>> _statsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _statsFuture = LocalDb.getWatchStats();
+  }
 
   String _fmtTime(int ms) {
     final h = ms ~/ 3600000;
@@ -793,7 +817,7 @@ class _StatsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, dynamic>>(
-      future: LocalDb.getWatchStats(),
+      future: _statsFuture,
       builder: (context, snap) {
         final t        = RaddTheme.of(context);
         final data     = snap.data;
