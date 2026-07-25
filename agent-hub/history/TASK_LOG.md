@@ -1749,6 +1749,24 @@ Both paths route to `/player` with `content_type: 'network'`, `stream_url: <url>
 
 ---
 
+## PROFILE-POLISH-2026-07-25 — Profile screen audit (2026-07-25, commit `ab235f4d`, CI ✅)
+
+**Scope:** `raddflix_flutter/lib/screens/profile_screen.dart` only. 9 issues from third-party audit.
+
+**Changes:**
+- **Glass card sections** — `_Section` migrated StatelessWidget → ConsumerWidget. Reads `animConfigProvider`. Body is now `ClipRRect + RaddElevation.blurWrap(sigma: 12)` (canBlur-gated, fallback to flat card). Specular top-border via `Border(top: BorderSide(color: t.glassHigh, width: 1.0))`. Card uses `t.card`, `t.cardBorder`.
+- **Colour-coded dot headers** — horizontal 12 px dash replaced with 5 px `BoxShape.circle` dot. Optional `dotColor` param added to `_Section`. Per-section colours: General/Appearance/My Content/Account/My Stats = `AppColors.primary`; Player = `AppColors.warning`; Device = `AppColors.info`.
+- **Tile subtitles** — `_SectionTile` gains optional `subtitle: String?` param. `contentPadding.vertical` is 4 when subtitle present, 2 otherwise (can't be `const`). 12 key tiles now have subtitles: Settings, Theme, Reset Player Settings, Reset Watch Progress, My Watchlist, Watch History, Upgrade Plan, Switch Profile, Manage Profiles, Private Vault, Downloads, Sign Out.
+- **Stats card wrapped in section** — `_StatsCard` hand-rolled header and outer Container removed. Returns only `Padding(EdgeInsets.all(RaddSpace.md), child: FutureBuilder(...))`. Call site now: `_Section(title: 'My Stats', dotColor: AppColors.primary, children: [_StatsCard()])`. Moved `final t = RaddTheme.of(context)` inside FutureBuilder builder.
+- **Stat font sizes** — `_StatTile` value text 13→14px (both AnimatedBuilder frame and static Text branch). Label text 10→11px.
+- **Greeting font** — `_greetingTod` Text `fontSize: 13`→15.
+- **Divider indent** — `_divider()` `indent: 52`→54.
+- **Manage button colour** — `TextButton` child `TextStyle` gains `color: AppColors.primary`.
+- **Section gaps** — all `const SizedBox(height: 12)` → `const SizedBox(height: RaddSpace.md)` (16 px). Non-const Device gap also updated.
+- **Import** — `radd_elevation.dart` added to profile_screen imports.
+
+---
+
 ## UI-POLISH-2026-07-25 — Home screen polish pass (2026-07-25, commit `3fe2021`, CI ⏳)
 
 **Scope:** `home_screen.dart`, `bottom_nav.dart`, `simosa_card.dart`. Based on third-party UI review (scored 8.6/10, targeting 7 "strongly agree" improvements).

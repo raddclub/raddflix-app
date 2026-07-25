@@ -5,13 +5,18 @@
 
 ---
 
-## Current State (2026-07-25 — UI-POLISH done `3fe2021`, CI ✅)
+## Current State (2026-07-25 — PROFILE-POLISH done `ab235f4d`, CI ✅)
 
 **No open tasks.** All TASKS.md items ✅ DONE.
 
 ---
 
-### Pending Design Work — Profile Screen Audit (2026-07-25, not yet implemented)
+### Completed This Session — Profile Screen Audit (2026-07-25, commit `ab235f4d`, CI ✅)
+All 9 profile screen audit findings implemented. See TASKS.md row `PROFILE-POLISH-2026-07-25` and TASK_LOG.md for detail. Nothing is pending.
+
+---
+
+### Archived — Profile Screen Audit (originally pending, now done)
 
 Third-party review applied to home screen (`3fe2021`). Same audit run on `profile_screen.dart` — 9 issues found, **not yet implemented**. Next agent should implement these:
 
