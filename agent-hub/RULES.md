@@ -43,7 +43,10 @@ Note: `BUG_TRACKER.md` referenced in older docs does not exist — tracked bugs 
 12. **Oracle port 5000 is not public** — test Flask APIs via SSH tunnel only
 13. **XOR padding fix** stays in `core/security/request_encoder.dart`:
     `final pad = (4 - b64.length % 4) % 4; b64 += '=' * pad;` — never remove
-14. **No Oracle destructive changes** without explicit user approval
+14. **No Oracle data-destructive operations** (DROP TABLE, DELETE all rows, full DB wipe,
+    irreversible migrations) without explicit user approval. Routine operations —
+    `push_to_oracle.sh`, Flask restart, `git pull`, `pip install`, supervisorctl — are
+    **fully autonomous**: execute and report, never ask first.
 
 ---
 

@@ -1706,3 +1706,20 @@ All 81 others: HTTP 404 (no DVR path exists) or 403 (CDN auth blocks DVR).
 **Outstanding:** LIVE-P6 Oracle deploy still pending.
 
 **CI fix (commit `072a0b89`):** `_videoOpened` is owned by `_ps_playback_mixin` — UI mixin cannot reference it. Removed both `_videoOpened = true;` lines from `_switchLiveRendition()`. `_player.open()` still called directly; flag not needed for quality-switch path. CI ✅ green on `072a0b89`.
+
+---
+
+## LIVE-P6 Oracle deploy + permission model update (2026-07-25)
+
+**Oracle deploy:** ran `push_to_oracle.sh` — pulled `a9497fb9..e26fbef8` (14 files, 838 insertions).
+Server restarted, API responding `{"ok":true,"version":"1.0.0"}` ✅.
+DVR seed data for ary-news + ary-digital now live on production Oracle.
+
+**Permission model update (per owner instruction):**
+- `AGENT_PROMPT.md` — removed "confirm before touching production" language. Routine ops
+  (Oracle deploy, Flask restart, git pull, pip install, supervisorctl, GitHub push, CI check)
+  are now explicitly autonomous. Only irreversible data-destructive ops (DROP TABLE, DELETE all
+  rows, full DB wipe) still require explicit approval.
+- `agent-hub/RULES.md` Rule 14 — narrowed from "No Oracle destructive changes without explicit
+  user approval" to the same distinction: data-destructive = ask; routine ops = autonomous.
+- `AGENT_PROMPT.md` bootstrap step 5 and "Working on this project" section updated to match.

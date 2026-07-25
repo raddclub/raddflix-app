@@ -28,12 +28,11 @@ Commit: `97605ec` → `_ps_ui_mixin.dart`, `_ps_playback_mixin.dart`.
 
 **CI:** `072a0b89` — ✅ green (initial push `97605ec` failed: `_videoOpened` referenced from UI mixin — field lives in playback mixin only; removed both lines, fix committed immediately).
 
-**Open from this session:**
-- LIVE-P6 Oracle deploy still pending (DVR seed data for ary-news + ary-digital needs `push_to_oracle.sh`)
+**Open from this session:** nothing — LIVE-P6 Oracle deploy completed this session (see below).
 
 ---
 
-## Current State (2026-07-24 — LIVE-P6 done `3b373164`, Oracle deploy pending)
+## Current State (2026-07-24 — LIVE-P6 Oracle ✅ deployed `e26fbef8`)
 
 **LIVE-P6 — DVR URL audit complete (commit `3b373164`)**
 
