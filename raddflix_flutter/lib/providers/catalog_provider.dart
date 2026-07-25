@@ -219,7 +219,7 @@ class CatalogNotifier extends StateNotifier<CatalogState>
       // owned by PosterSyncNotifier, see poster_sync_provider.dart)
       _ref.read(posterSyncProvider.notifier).scheduleSync(movies, shows);
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: 'Could not load content. Please try again.');
     }
   }
 

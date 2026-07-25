@@ -209,11 +209,11 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
         await doDownload();
         succeeded = true;
       } catch (e2) {
-        state = state.copyWith(quotaError: e2.toString());
+        state = state.copyWith(quotaError: 'Download failed after connection error. Please try again.');
         rethrow;
       }
     } catch (e) {
-      state = state.copyWith(quotaError: e.toString());
+      state = state.copyWith(quotaError: 'Download failed. Please try again.');
       rethrow;
     } finally {
       _downloadStartMs.remove(fileId);

@@ -45,7 +45,7 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
       final plans = await SubscriptionApi.getPlans();
       state = state.copyWith(plans: plans, loading: false);
     } catch (e) {
-      state = state.copyWith(loading: false, error: e.toString());
+      state = state.copyWith(loading: false, error: 'Could not load subscription plans. Please try again.');
     }
   }
 
@@ -56,7 +56,7 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
       final status = await SubscriptionApi.getStatus();
       state = state.copyWith(status: status, loading: false);
     } catch (e) {
-      state = state.copyWith(error: e.toString(), loading: false);
+      state = state.copyWith(error: 'Could not load subscription status. Please try again.', loading: false);
     }
   }
 
@@ -81,7 +81,7 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
       state = state.copyWith(status: merged);
     } catch (e) {
       // BUG-M03 fix: surface error in state so UI can react (e.g. show retry button)
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: 'Could not refresh quota. Please try again.');
     }
   }
 
@@ -109,7 +109,7 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
       unawaited(loadStatus());
       return true;
     } catch (e) {
-      state = state.copyWith(loading: false, error: e.toString());
+      state = state.copyWith(loading: false, error: 'Subscription submission failed. Please try again.');
       return false;
     }
   }

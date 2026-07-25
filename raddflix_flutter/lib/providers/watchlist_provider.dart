@@ -47,7 +47,7 @@ class WatchlistNotifier extends StateNotifier<WatchlistState> {
       state = state.copyWith(items: items, ids: idSet, loading: false);
     } catch (e) {
       // M-11: surface load errors so caller / UI can react
-      state = state.copyWith(loading: false, error: e.toString());
+      state = state.copyWith(loading: false, error: 'Could not load watchlist. Please try again.');
     }
   }
 
