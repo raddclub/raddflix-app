@@ -5,6 +5,20 @@
 
 ---
 
+## Current State (2026-07-25 — UI-POLISH done `3fe2021`, CI ⏳)
+
+**No open tasks.** All TASKS.md items ✅ DONE (UI-POLISH CI in_progress).
+
+### UI-POLISH-2026-07-25 — Home screen polish pass (2026-07-25)
+Commit: `3fe2021` — 3 files changed. Based on third-party UI review (8.6/10 → targeted improvements).
+
+**What changed:**
+- `home_screen.dart` — avatar outer 46→40px, inner 40→34px (~15% smaller); greeting font 13→15px; category chip margin 8→10px + inactive border `textMuted.withOpacity(0.35)` width 1.2; `_ContentSection` adds `subtitle` field with section-specific copy ("Fresh this week", "No subscription needed", "Still airing", "What everyone's watching", "Just added") + section header restructured to Row→Expanded(Column) layout; "See all" → "See all →"; hero gradient starts at stop 0.25 (was 0.35), bottom color `0xFF0A0A1E` (midnight-indigo, heroIdentity) instead of near-black.
+- `bottom_nav.dart` — icon size 22→24px (+10%).
+- `simosa_card.dart` — banner Row `crossAxisAlignment` center→start; CTA Column `crossAxisAlignment.end` so Claim button aligns with "FREE 100 MB" badge row.
+
+---
+
 ## Current State (2026-07-25 — NET-STREAM-1 done `f08dcad1`, CI ⏳)
 
 **No open tasks.** All TASKS.md items ✅ DONE.

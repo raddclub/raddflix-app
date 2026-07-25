@@ -1746,3 +1746,18 @@ Both paths route to `/player` with `content_type: 'network'`, `stream_url: <url>
 - `MainActivity.kt` `isPendingUriNetworkUrl` method added to intent channel for future use.
 
 **CI:** triggered on `f08dcad1`, in_progress at time of push.
+
+---
+
+## UI-POLISH-2026-07-25 — Home screen polish pass (2026-07-25, commit `3fe2021`, CI ⏳)
+
+**Scope:** `home_screen.dart`, `bottom_nav.dart`, `simosa_card.dart`. Based on third-party UI review (scored 8.6/10, targeting 7 "strongly agree" improvements).
+
+**Changes:**
+- **Avatar size** — outer 46→40px, inner 40→34px (~15% reduction). Emoji 18→16px, initial text 16→14px. Header no longer feels crowded.
+- **Greeting prominence** — all TextSpan fontSize 13→15px. "Good evening, Rehan 👋" is now readable without squinting.
+- **Category chips** — right margin 8→10px (more breathing room between pills). Inactive border changed from `t.border` (invisible on dark bg) to `t.textMuted.withOpacity(0.35)` width 1.2 (clearly visible outline, better contrast).
+- **SimosaCard CTA alignment** — outer Row `crossAxisAlignment` center→start. CTA Column `crossAxisAlignment.end`. Claim button now sits at same vertical level as "FREE 100 MB" badge row, not floating at center of a variable-height left column.
+- **Section subtitles** — `_ContentSection` gains optional `subtitle` field. Header restructured: flat Row → Row(accent bar + Expanded(Column(title row + subtitle)) + See all). Accent bar height grows 20→34px when subtitle present. Five sections now have subtitles: "Fresh this week", "No subscription needed", "Still airing", "What everyone's watching", "Just added". "See all" → "See all →".
+- **Nav icon size** — 22→24px (+10%). Active scale 1.18× unchanged, so active icon = 28.3px.
+- **Hero gradient** — stops tightened (0.35→0.25, 0.7→0.6 for earlier fade onset). Bottom color changed from `0xF5000000` (near-black) to `0xFF0A0A1E` (heroIdentity midnight-indigo, added in THEME-V2-03) — adds Pakistani night-sky depth cue behind title text.
