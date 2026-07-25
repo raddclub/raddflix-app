@@ -5,22 +5,20 @@
 
 ---
 
-## Current State (2026-07-25 — Profile screen audit, 8 fixes IN PROGRESS)
+## Current State (2026-07-25 — PROFILE-AUDIT-1..8 done `73af7f9`, CI ⏳)
 
-**8 open tasks — all in `profile_screen.dart`.** Full details in TASKS.md rows `PROFILE-AUDIT-1` through `PROFILE-AUDIT-8`.
+**No open tasks.** All 8 PROFILE-AUDIT fixes shipped in commit `73af7f9` (CI in progress).
 
-| ID | Type | Summary |
+| ID | Type | Fix |
 |---|---|---|
-| PROFILE-AUDIT-1 | Bug | Missing `mounted` guard in `_loadExtras()` L106 → crash if user navigates during `getQuota()` |
-| PROFILE-AUDIT-2 | Bug | `_StatsCard` FutureBuilder recreates DB query on every parent rebuild → stats flicker |
-| PROFILE-AUDIT-3 | UX | "Upgrade Plan" tile always visible even for active subscribers |
-| PROFILE-AUDIT-4 | UX | Close (×) button rendered when screen is embedded as a tab (nothing to pop) |
-| PROFILE-AUDIT-5 | UX | "My Stats" section before "My Content" — wrong ordering |
-| PROFILE-AUDIT-6 | UX | "General" section is a full glass card for a single Settings tile |
-| PROFILE-AUDIT-7 | Code | Redundant `setState(() {})` after EditProfileScreen return (Riverpod already rebuilds) |
-| PROFILE-AUDIT-8 | Code | Non-const `SizedBox` at L541 and L659 |
-
-**File:** `raddflix_flutter/lib/screens/profile_screen.dart` (all 8 items)
+| PROFILE-AUDIT-1 | Bug | `mounted` guard added before `setState()` in `_loadExtras()` after `getQuota()` await |
+| PROFILE-AUDIT-2 | Bug | `_StatsCard` → `StatefulWidget`, DB future cached in `initState()` — no more rebuild flicker |
+| PROFILE-AUDIT-3 | UX | "Upgrade Plan" → "Manage Plan" label+subtitle for active subscribers |
+| PROFILE-AUDIT-4 | UX | Close (×) button hidden when `showBottomNav=false` (tab-embedded mode) |
+| PROFILE-AUDIT-5 | UX | Section order: My Content now before My Stats |
+| PROFILE-AUDIT-6 | UX | Merged single-tile General + Appearance into one "General" card |
+| PROFILE-AUDIT-7 | Code | Removed redundant `setState(() {})` after `EditProfileScreen` pop |
+| PROFILE-AUDIT-8 | Code | `const SizedBox(RaddSpace.lg/md)` — both were missing `const` |
 
 ---
 

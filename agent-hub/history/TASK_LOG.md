@@ -1779,3 +1779,19 @@ Both paths route to `/player` with `content_type: 'network'`, `stream_url: <url>
 - **Section subtitles** — `_ContentSection` gains optional `subtitle` field. Header restructured: flat Row → Row(accent bar + Expanded(Column(title row + subtitle)) + See all). Accent bar height grows 20→34px when subtitle present. Five sections now have subtitles: "Fresh this week", "No subscription needed", "Still airing", "What everyone's watching", "Just added". "See all" → "See all →".
 - **Nav icon size** — 22→24px (+10%). Active scale 1.18× unchanged, so active icon = 28.3px.
 - **Hero gradient** — stops tightened (0.35→0.25, 0.7→0.6 for earlier fade onset). Bottom color changed from `0xF5000000` (near-black) to `0xFF0A0A1E` (heroIdentity midnight-indigo, added in THEME-V2-03) — adds Pakistani night-sky depth cue behind title text.
+
+---
+
+## PROFILE-AUDIT-1..8 — Profile screen 8-fix batch (2026-07-25, commit `73af7f9`, CI ⏳)
+
+**Scope:** `raddflix_flutter/lib/screens/profile_screen.dart` only. 8 issues found by code audit.
+
+**Fixes:**
+- **AUDIT-1 (Bug):** Added `if (!mounted) return;` before `setState()` in `_loadExtras()` at the point after `getQuota()` is awaited. The prior guard at L93 only covered `getStatus()` — the widget could be disposed while `getQuota()` was in flight, causing a crash.
+- **AUDIT-2 (Bug):** Converted `_StatsCard` from `StatelessWidget` to `StatefulWidget`. `_statsFuture` is now created once in `initState()` instead of being passed directly as `future:` — previously every parent rebuild (connectivity change, version tap) fired a new `LocalDb.getWatchStats()` DB query and flickered stats back to the loading spinner.
+- **AUDIT-3 (UX):** "Upgrade Plan" tile now shows "Manage Plan" + "Adjust or renew your plan" for users where `hasActiveSubscription == true`. Non-subscribers still see the original copy.
+- **AUDIT-4 (UX):** Close (×) `IconButton` in the profile header is now wrapped in `if (widget.showBottomNav)` — when embedded in the HomeScreen `IndexedStack` (`showBottomNav=false`) there is nothing to pop back to, so the button was a dead tap.
+- **AUDIT-5 (UX):** Swapped "My Stats" and "My Content" sections. My Content (Watchlist, Watch History) now precedes My Stats — stats summarise activity and belong after the lists they describe.
+- **AUDIT-6 (UX):** Merged the single-tile "General" section (Settings) and the single-tile "Appearance" section (Theme) into one "General" card with a divider between the two tiles. One-item sections with full glass-card headers are visually heavy.
+- **AUDIT-7 (Code):** Removed `if (changed == true && mounted) setState(() {})` after both `EditProfileScreen` push calls (avatar tap + "Add your name" tap). `user` comes from `ref.watch(authProvider)` — Riverpod rebuilds the widget automatically; the bare `setState` was a no-op.
+- **AUDIT-8 (Code):** Added `const` to `SizedBox(height: RaddSpace.lg)` after the Account section and `SizedBox(height: RaddSpace.md)` after the My Content section — both `RaddSpace` values are static constants so the widgets should be `const`.
