@@ -63,6 +63,7 @@ The following are **already implemented**. Never re-plan or duplicate these:
 ### BB1 — RESUME UX: Replace Blocking Dialog with Auto-Resume Strip
 
 **Priority:** 🔴 High — triggered every time a user re-opens a video  
+**Completed:** ✅ DONE 2026-07-25 — `_restoreWatchPos` auto-seeks; `_ResumeStrip` widget (slide+fade, 4s auto-dismiss, Restart button) in `_ps_playback_mixin.dart:1408`  
 
 **Why the AlertDialog was there (original reason):**  
 `_restoreWatchPos` used `showDialog<bool>` to force an explicit user choice before playback starts. Reasoning: the decision must be made before seeking. This was safe but unfriendly.
@@ -93,6 +94,7 @@ A modal dialog on video open creates friction and anxiety. The user is excited t
 ### BB2 — TTS FIX: LANG_NOT_INSTALLED Root Cause + Better Error UI
 
 **Priority:** 🔴 Critical — feature is completely broken for non-English content  
+**Completed:** ✅ DONE 2026-07-25 — `subtitle_dubber.dart` has all 4 backend fixes (setEngine, getVoices check, locale variants loop, ApplicationDocuments preflight path); `_ps_audiolab_mixin.dart` `_showTtsInstallPrompt` upgraded to warm modal bottom sheet with "Open TTS Settings" + "Maybe Later"; `_launchTtsSettings()` tries `INSTALL_TTS_DATA` → `TTS_SETTINGS` → `SETTINGS` intent chain  
 
 **Root cause (verified by research):**  
 `tts.setLanguage('hi-IN')` returns `LANG_MISSING_DATA (-1)` even when Google TTS is installed, because:
@@ -180,6 +182,7 @@ PiP was added as an explicit gesture from the player HUD (settings sheet, title 
 ### BB5 — FAB THUMBNAIL FIX: Blank Poster in ResumeFab / MiniPlayerBar
 
 **Priority:** 🔴 High — blank card looks broken, first thing users see  
+**Completed:** ✅ DONE 2026-07-25 — keys aligned (`resume_poster_url` via `ResumeFab.kPosterUrl` const used in both write and read); `CachedNetworkImage` with `errorWidget` in both static and live bars; `_posterFallback()` shows `AppColors.card` + `AppIcons.movieFill` so blank looks intentional  
 
 **Why it's blank (suspected):**  
 `ResumeFab` and `MiniPlayerBar` read poster URL from SharedPreferences key `resume_poster` (or similar). `PlayerScreen._saveResumeFab()` writes the poster URL. A key name mismatch or URL not being passed through the route arguments chain means the field saves as empty string.

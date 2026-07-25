@@ -333,35 +333,138 @@ mixin _PlayerAudioLabMixin on ConsumerState<PlayerScreen> {
       _applyAllAf();
     }
 
+    // BB2: warm modal bottom sheet — replaces the cold SnackBar that buried
+    // the actionable fix in a small 8-second toast the user could easily miss.
     void _showTtsInstallPrompt(String langName) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '$langName TTS voice not installed. Tap Install to add it.',
-            style: const TextStyle(color: Colors.white),
-          ),
-          backgroundColor: const Color(0xFF2A2A2A),
-          duration: const Duration(seconds: 8),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          action: SnackBarAction(
-            label: 'Install',
-            textColor: Colors.amber,
-            onPressed: () {
-              try {
-                const AndroidIntent(
-                  action: 'com.android.settings.TTS_SETTINGS',
-                ).launch();
-              } catch (_) {
-                try {
-                  const AndroidIntent(
-                    action: 'android.settings.SETTINGS',
-                  ).launch();
-                } catch (_) {}
-              }
-            },
+      final locale = _dubActiveLang; // e.g. 'ur-PK' or 'hi-IN'
+      showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (ctx) => SafeArea(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C1C2E),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Handle bar
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 18),
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                // Icon + title row
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(9),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.record_voice_over_rounded,
+                        color: Colors.amber, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Voice pack not installed',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 12),
+                Text(
+                  '$langName ($locale) voice for AI Dub needs to be downloaded '
+                  'separately inside Google TTS settings. Takes ~30 MB.',
+                  style: const TextStyle(
+                      color: Colors.white70, fontSize: 13, height: 1.5),
+                ),
+                const SizedBox(height: 20),
+                // Primary: Open TTS Settings
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _launchTtsSettings();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(50),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      'Open TTS Settings',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 14),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Secondary: dismiss
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size.fromHeight(50),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text(
+                      'Maybe Later',
+                      style: TextStyle(color: Colors.white54, fontSize: 14),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+              ],
+            ),
           ),
         ),
       );
+    }
+
+    // BB2: try most-specific intent first (drops straight into voice-data
+    // install screen), then fall back to general TTS settings, then to the
+    // system settings root as a last resort.
+    void _launchTtsSettings() {
+      try {
+        const AndroidIntent(
+          action: 'android.speech.tts.action.INSTALL_TTS_DATA',
+        ).launch();
+      } catch (_) {
+        try {
+          const AndroidIntent(
+            action: 'com.android.settings.TTS_SETTINGS',
+          ).launch();
+        } catch (_) {
+          try {
+            const AndroidIntent(
+              action: 'android.settings.SETTINGS',
+            ).launch();
+          } catch (_) {}
+        }
+      }
     }
 }
