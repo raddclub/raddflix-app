@@ -1,10 +1,2 @@
 # Pending push log — auto-managed by auto_commit.sh
 # EMPTY — all changes are pushed.
-
-## PENDING — 2026-07-20 16:05:21
-message: theme redesign: add TASKS.md row + update HANDOFF + TASK_LOG
-files:
-  - agent-hub/TASKS.md
-  - AGENT_HANDOFF.md
-  - agent-hub/history/TASK_LOG.md
-  - agent-hub/UNPUSHED.txt
