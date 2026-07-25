@@ -83,6 +83,12 @@
                 <category android:name="android.intent.category.DEFAULT"/>
                 <data android:mimeType="video/webm"/>
             </intent-filter>
+            <!-- NET-STREAM-1: share sheet — receive URLs from browser / other apps -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="text/plain"/>
+            </intent-filter>
         </activity>
 
         <!-- Background audio playback foreground service.

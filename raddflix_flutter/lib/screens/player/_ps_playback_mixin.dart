@@ -576,6 +576,26 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
     }
     // ─────────────────────────────────────────────────────────────────────────
 
+    // ── Network stream early-exit — direct URL, no JazzDrive (NET-STREAM-1) ──
+    // Plays any direct http/https URL (m3u8, mp4, mkv, etc.) without going
+    // through JazzDrive resolution, quota tracking, or subscription gates.
+    // Called by: share-sheet intent (ACTION_SEND text/plain) and the
+    // "Play from URL" row in LocalMediaScreen.
+    if (widget.contentType == 'network') {
+      final url = widget.streamUrl;
+      if (url == null || url.isEmpty) {
+        if (mounted) setState(() { _streamError = 'No stream URL provided.'; _isLinkLoading = false; });
+        return;
+      }
+      if (mounted) setState(() { _streamError = null; _isLinkLoading = false; _ended = false; });
+      _videoOpened = true;
+      await _player.open(Media(url));
+      _scheduleHide();
+      _fetchLiveRenditions(); // picks up HLS renditions when URL is an m3u8 master
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     // ── Usage tracking setup ─────────────────────────────────────────────────
     // Read is_free flag passed by show_detail_screen in route args.
     // Local files (downloaded or user's own) never count toward quota.
@@ -730,6 +750,13 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
         return 'Jazz SIM required. Connect to Jazz mobile data to watch live TV.';
       }
       return 'Could not load channel. Check your connection and retry.';
+    }
+    // NET-STREAM-1: network URLs — no Jazz SIM context; give URL-specific hints.
+    if (widget.contentType == 'network') {
+      if (raw.contains('403') || raw.contains('Forbidden')) return 'Access denied. The stream URL may require authentication.';
+      if (raw.contains('404') || raw.contains('Not Found')) return 'Stream not found. Check the URL and try again.';
+      if (raw.contains('timeout') || raw.contains('SocketException')) return 'Connection timed out. Check your internet connection.';
+      return 'Could not play this URL. Make sure it is a valid direct stream link.';
     }
     if (raw.contains('Jazz') || raw.contains('SIM') || raw.contains('401')) {
       return 'Jazz SIM required to stream. Connect to Jazz mobile data.';

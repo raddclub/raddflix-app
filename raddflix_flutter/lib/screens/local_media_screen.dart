@@ -736,6 +736,13 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
 
   // ── Videos tab ─────────────────────────────────────────────────────────────
   Widget _buildVideosTab() {
+    return Column(children: [
+      _buildPlayFromUrlRow(),
+      Expanded(child: _buildVideosContent()),
+    ]);
+  }
+
+  Widget _buildVideosContent() {
     if (_permissionDenied) return _buildPermissionError();
     if (_loading) return _buildShimmer();
     if (_videoFolders.isEmpty) return _buildEmpty(isMusic: false);
@@ -745,6 +752,131 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
           ? _buildFilterEmpty()
           : _buildFolderContent()),
     ]);
+  }
+
+  // NET-STREAM-1: "Play from URL" entry point at the top of the Videos tab.
+  Widget _buildPlayFromUrlRow() {
+    final t = RaddTheme.of(context);
+    return InkWell(
+      onTap: _showPlayFromUrlDialog,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: t.surface,
+          borderRadius: RaddRadius.mdRadius,
+          border: Border.all(color: t.border),
+        ),
+        child: Row(children: [
+          Container(
+            width: 32, height: 32,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(AppIcons.link, size: 16, color: AppColors.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Play from URL',
+                  style: TextStyle(color: t.textPrimary,
+                      fontSize: 14, fontWeight: FontWeight.w600)),
+              Text('m3u8 · mp4 · mkv · any direct stream link',
+                  style: TextStyle(color: t.textMuted, fontSize: 11)),
+            ]),
+          ),
+          Icon(AppIcons.caretRight, size: 16, color: t.textMuted),
+        ]),
+      ),
+    );
+  }
+
+  void _showPlayFromUrlDialog() {
+    final t = RaddTheme.of(context);
+    final ctrl = TextEditingController();
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: t.card,
+        shape: RoundedRectangleBorder(borderRadius: RaddRadius.mdRadius),
+        title: Text('Play from URL',
+            style: TextStyle(color: t.textPrimary,
+                fontSize: 17, fontWeight: FontWeight.w700)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('Paste a direct stream link (m3u8, mp4, mkv, etc.)',
+              style: TextStyle(color: t.textMuted, fontSize: 13)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: ctrl,
+            autofocus: true,
+            keyboardType: TextInputType.url,
+            textInputAction: TextInputAction.go,
+            style: TextStyle(color: t.textPrimary, fontSize: 14),
+            decoration: InputDecoration(
+              hintText: 'https://example.com/stream.m3u8',
+              hintStyle: TextStyle(color: t.textMuted, fontSize: 13),
+              filled: true,
+              fillColor: t.surface,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: RaddRadius.smRadius,
+                borderSide: BorderSide(color: t.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: RaddRadius.smRadius,
+                borderSide: BorderSide(color: t.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: RaddRadius.smRadius,
+                borderSide: BorderSide(color: AppColors.primary, width: 1.5),
+              ),
+            ),
+            onSubmitted: (v) {
+              Navigator.of(ctx).pop();
+              _playNetworkUrl(v.trim());
+            },
+          ),
+        ]),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Cancel', style: TextStyle(color: t.textMuted)),
+          ),
+          TextButton(
+            onPressed: () {
+              final url = ctrl.text.trim();
+              Navigator.of(ctx).pop();
+              _playNetworkUrl(url);
+            },
+            child: Text('Play', style: TextStyle(
+                color: AppColors.primary, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _playNetworkUrl(String url) {
+    if (url.isEmpty) return;
+    // Prepend https:// if the user omitted the scheme
+    final resolved = (url.startsWith('http://') || url.startsWith('https://'))
+        ? url
+        : 'https://$url';
+    final title = (() {
+      try {
+        final segs = Uri.parse(resolved).pathSegments;
+        final last = segs.isNotEmpty ? segs.last : '';
+        return last.isNotEmpty ? Uri.decodeFull(last) : resolved;
+      } catch (_) { return resolved; }
+    })();
+    Navigator.of(context).pushNamed(AppRoutes.player, arguments: {
+      'file_id': 'net_${resolved.hashCode}',
+      'title': title,
+      'stream_url': resolved,
+      'content_type': 'network',
+      'is_free': true,
+    });
   }
 
   Widget _buildFolderContent() {

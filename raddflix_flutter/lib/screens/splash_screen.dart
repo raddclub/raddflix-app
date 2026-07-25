@@ -101,6 +101,32 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           Future.delayed(const Duration(milliseconds: 400), () {
             // H-02: widget may be disposed during the 400ms wait
             if (!mounted) return;
+            // Pop any stale player screen before pushing (cold-start edge case).
+            final navState = ref.read(navigatorKeyProvider).currentState;
+            navState?.popUntil((route) => route.settings.name != '/player');
+
+            // NET-STREAM-1: if the pending URI is a network URL (from share-sheet),
+            // play directly as contentType 'network'.
+            final bool isNetworkUrl = uri.startsWith('http://') || uri.startsWith('https://');
+            if (isNetworkUrl) {
+              final String urlTitle = (() {
+                try {
+                  final segs = Uri.parse(uri).pathSegments;
+                  final last = segs.isNotEmpty ? segs.last : '';
+                  return last.isNotEmpty ? Uri.decodeFull(last) : uri;
+                } catch (_) { return uri; }
+              })();
+              navState?.pushNamed('/player', arguments: {
+                'file_id': 'net_${uri.hashCode}',
+                'title': urlTitle,
+                'stream_url': uri,
+                'content_type': 'network',
+                'is_free': true,
+              });
+              return;
+            }
+
+            // Local file / content URI — existing behavior unchanged.
             // Prefer ContentResolver display name; fall back to fully-decoded URI segment.
             final String title = (resolvedTitle != null && resolvedTitle.isNotEmpty)
                 ? resolvedTitle
@@ -110,19 +136,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             // Normalise path: strip file:// prefix; content:// passed as-is for media_kit.
             final String localPath =
                 uri.startsWith('file://') ? uri.substring(7) : uri;
-            // Pop any stale player screen before pushing (cold-start edge case).
-            ref.read(navigatorKeyProvider).currentState
-              ?..popUntil((route) => route.settings.name != '/player')
-              ..pushNamed(
-                '/player',
-                arguments: {
-                  'file_id': '',
-                  'title': title,
-                  'local_path': localPath,
-                  'subtitle_path': subtitlePath,
-                  'content_type': 'movie',
-                },
-              );
+            navState?.pushNamed(
+              '/player',
+              arguments: {
+                'file_id': '',
+                'title': title,
+                'local_path': localPath,
+                'subtitle_path': subtitlePath,
+                'content_type': 'movie',
+              },
+            );
           });
         }
       } else if (next.status == AuthStatus.unauthenticated) {

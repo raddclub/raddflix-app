@@ -154,6 +154,12 @@ class MainActivity : FlutterActivity() {
                     result.success(pendingSubtitleUri)
                     pendingSubtitleUri = null
                 }
+                // NET-STREAM-1: returns whether the pending URI is a network URL
+                // so Flutter can decide between contentType 'movie' and 'network'.
+                "isPendingUriNetworkUrl" -> {
+                    val uri = pendingVideoUri ?: ""
+                    result.success(uri.startsWith("http://") || uri.startsWith("https://"))
+                }
                 "openVideoWith" -> {
                     val uri = call.argument<String>("uri") ?: ""
                     try {
@@ -172,6 +178,7 @@ class MainActivity : FlutterActivity() {
             }
         }
         extractVideoUri(intent)
+        extractSharedText(intent) // NET-STREAM-1: fall through to share-intent check
 
         // ── PiP + Background Playback Channel ────────────────────────────
         val pipCh = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PIP_CHANNEL)
@@ -624,6 +631,7 @@ class MainActivity : FlutterActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         extractVideoUri(intent)
+        extractSharedText(intent) // NET-STREAM-1: also handle text/plain share intents
         val uri = pendingVideoUri
         if (uri != null || pendingSubtitleUri != null) {
             val args = mapOf(
@@ -636,6 +644,19 @@ class MainActivity : FlutterActivity() {
             pendingVideoTitle  = null
             pendingSubtitleUri = null
         }
+    }
+
+    // NET-STREAM-1: extract a URL from a text/plain share intent (ACTION_SEND).
+    // Stores the first http/https URL found in the shared text into pendingVideoUri
+    // so the Flutter side can pick it up via getPendingVideoUri / onVideoUri.
+    private fun extractSharedText(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_SEND) return
+        if (!intent.type.orEmpty().startsWith("text/plain")) return
+        val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
+        val url = Regex("https?://\\S+").find(text)?.value?.trimEnd(',', '.', ')', ']') ?: text.trim()
+        if (url.isEmpty() || !url.startsWith("http")) return
+        pendingVideoUri   = url
+        pendingVideoTitle = ""
     }
 
     private fun extractVideoUri(intent: Intent?) {

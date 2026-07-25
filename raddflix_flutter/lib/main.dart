@@ -157,16 +157,6 @@ void main() async {
       final String? uri = args is Map ? args['uri'] as String? : args as String?;
       if (uri == null || uri.isEmpty) return;
 
-      // Resolve title: prefer ContentResolver name, fall back to URI last segment (fully decoded)
-      final String rawTitle = args is Map ? (args['title'] as String? ?? '') : '';
-      final String title = rawTitle.isNotEmpty
-          ? rawTitle
-          : Uri.decodeFull(uri.split('/').last);
-
-      // Normalise path: strip file:// prefix; pass content:// URIs as-is (media_kit handles them)
-      final String localPath =
-          uri.startsWith('file://') ? uri.replaceFirst('file://', '') : uri;
-
       final nav = container.read(navigatorKeyProvider).currentState;
       if (nav == null) return;
 
@@ -179,7 +169,35 @@ void main() async {
       // Use popUntil to discard any stacked player screens before pushing a new one,
       // so repeated "Open with" taps don't accumulate player screens.
       nav.popUntil((route) => route.settings.name != '/player');
-      // subtitle resolved by native (null if no sidecar found)
+
+      // NET-STREAM-1: if the URI is a network URL (from share-sheet ACTION_SEND),
+      // play directly as contentType 'network' — no JazzDrive, no quota gate.
+      final bool isNetworkUrl = uri.startsWith('http://') || uri.startsWith('https://');
+      if (isNetworkUrl) {
+        final String urlTitle = (() {
+          try {
+            final segs = Uri.parse(uri).pathSegments;
+            final last = segs.isNotEmpty ? segs.last : '';
+            return last.isNotEmpty ? Uri.decodeFull(last) : uri;
+          } catch (_) { return uri; }
+        })();
+        nav.pushNamed('/player', arguments: {
+          'file_id': 'net_${uri.hashCode}',
+          'title': urlTitle,
+          'stream_url': uri,
+          'content_type': 'network',
+          'is_free': true,
+        });
+        return;
+      }
+
+      // Local file / content URI — existing behavior unchanged.
+      final String rawTitle = args is Map ? (args['title'] as String? ?? '') : '';
+      final String title = rawTitle.isNotEmpty
+          ? rawTitle
+          : Uri.decodeFull(uri.split('/').last);
+      final String localPath =
+          uri.startsWith('file://') ? uri.replaceFirst('file://', '') : uri;
       final String? subtitlePath =
           args is Map ? (args['subtitle'] as String?) : null;
 
