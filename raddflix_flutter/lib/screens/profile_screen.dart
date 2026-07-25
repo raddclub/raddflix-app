@@ -650,6 +650,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         icon: AppIcons.bugReport,
                         iconColor: AppColors.orange,
                         label: 'Debug Logs',
+                        subtitle: 'Internal diagnostic logs',
                         onTap: () => Navigator.of(context).push(MaterialPageRoute(
                             builder: (_) => const DebugDiagnosticsScreen())),
                       ),
