@@ -57,7 +57,7 @@ class _SubtitleHunterSheetState extends State<SubtitleHunterSheet> {
       final results = await SubtitleHunter.findForVideo(widget.videoPath);
       if (mounted) setState(() { _results = results; _searching = false; });
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _searching = false; });
+      if (mounted) setState(() { _error = 'Subtitle search failed. Please try again.'; _searching = false; });
     }
   }
 
@@ -83,7 +83,7 @@ class _SubtitleHunterSheetState extends State<SubtitleHunterSheet> {
         await widget.onLoad(outPath);
       }
     } catch (e) {
-      if (mounted) setState(() { _downloadError = 'Download failed: ${e.toString()}'; _downloading = false; });
+      if (mounted) setState(() { _downloadError = 'Download failed. Check the URL and try again.'; _downloading = false; });
     }
   }
 
