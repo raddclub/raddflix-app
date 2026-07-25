@@ -4364,7 +4364,6 @@ void _openPanel({
       if (index == -1) {
         // Auto — open master directly; media_kit/mpv handles ABR
         if (mounted) setState(() => _selectedRenditionIdx = -1);
-        _videoOpened = true;
         await _player.open(Media(masterUrl));
         return;
       }
@@ -4391,7 +4390,6 @@ void _openPanel({
           _liveRenditions = fresh;
           _selectedRenditionIdx = index;
         });
-        _videoOpened = true;
         await _player.open(Media(fresh[index].url));
       } catch (_) {
         _showInfoSnackbar('Could not switch quality — check your connection.');
