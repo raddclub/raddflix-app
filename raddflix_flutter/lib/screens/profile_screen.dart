@@ -5,6 +5,7 @@ import '../core/design/app_icons.dart';
 import '../core/theme/radd_theme.dart';
 import '../design_system/spacing/radd_space.dart';
 import '../design_system/radius/radd_radius.dart';
+import '../design_system/elevation/radd_elevation.dart';
 import '../widgets/theme_picker_sheet.dart'; // UX4-05
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -216,7 +217,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 child: Column(children: [
                   // A8: greeting cached in initState — no DateTime.now() in build()
                   Text(_greetingTod, style: TextStyle(
-                      color: t.textMuted, fontSize: 13, fontWeight: FontWeight.w500,
+                      color: t.textMuted, fontSize: 15, fontWeight: FontWeight.w500,
                       letterSpacing: 0.2)).animate().fadeIn(duration: 400.ms),
                   const SizedBox(height: 18),
                   // Avatar with double glow ring
@@ -397,7 +398,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ])),
                         TextButton(
                           onPressed: () { DebugLogger.logTap('Profile', 'subscription'); Navigator.of(context).pushNamed(AppRoutes.subscription); },
-                          child: Text('Manage', style: TextStyle(fontSize: 12))),
+                          child: Text('Manage', style: TextStyle(color: AppColors.primary, fontSize: 12))),
                       ]),
                       // DA-1: animated arc ring (replaces flat LinearProgressIndicator)
                       if (_remoteLimitGb > 0) ...[
@@ -429,32 +430,35 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Column(children: [
                   // General
-                  _Section(title: 'General', children: [
+                  _Section(title: 'General', dotColor: AppColors.primary, children: [
                     _SectionTile(
                       icon: AppIcons.settings,
                       label: 'Settings',
+                      subtitle: 'App settings and preferences',
                       onTap: () {
                         DebugLogger.logTap('Profile', 'settings');
                         Navigator.of(context).pushNamed(AppRoutes.settings);
                       },
                     ),
                   ]),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: RaddSpace.md),
                   // Appearance
-                  _Section(title: 'Appearance', children: [
+                  _Section(title: 'Appearance', dotColor: AppColors.primary, children: [
                     _SectionTile(
                       icon: AppIcons.colorPalette,
                       label: 'Theme',
+                      subtitle: 'Customise app colour theme',
                       trailing: ThemePickerTrailing(), // UX4-05
                       onTap: () => showThemePickerSheet(context), // UX4-05
                     ),
                   ]),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: RaddSpace.md),
                   // Player — expose reset actions for troubleshooting prefs/DB issues
-                  _Section(title: 'Player', children: [
+                  _Section(title: 'Player', dotColor: AppColors.warning, children: [
                     _SectionTile(
                       icon: AppIcons.equalizer,
                       label: 'Reset Player Settings',
+                      subtitle: 'Restore default playback preferences',
                       onTap: () async {
                         final ok = await showDialog<bool>(context: context,
                             builder: (_) => AlertDialog(
@@ -483,6 +487,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     _SectionTile(
                       icon: AppIcons.history,
                       label: 'Reset Watch Progress',
+                      subtitle: 'Clear all resume positions',
                       onTap: () async {
                         final ok = await showDialog<bool>(context: context,
                             builder: (_) => AlertDialog(
@@ -507,17 +512,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       },
                     ),
                   ]),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: RaddSpace.md),
                   // Watchlist & History
-                  // ── Watch Stats card ───────────────────────────────────────────
-                  _StatsCard(),
-                  const SizedBox(height: 12),
+                  _Section(
+                    title: 'My Stats',
+                    dotColor: AppColors.primary,
+                    children: [_StatsCard()],
+                  ),
+                  const SizedBox(height: RaddSpace.md),
 
-                  _Section(title: 'My Content', children: [
+                  _Section(title: 'My Content', dotColor: AppColors.primary, children: [
                     _SectionTile(
                       icon: AppIcons.bookmarkFill,
                       iconColor: AppColors.primary,
                       label: 'My Watchlist',
+                      subtitle: 'Saved content to watch later',
                       onTap: () { DebugLogger.logTap('Profile', 'watchlist'); Navigator.of(context).pushNamed(AppRoutes.watchlist); },
                     ),
                     _divider(),
@@ -525,12 +534,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       icon: AppIcons.history,
                       iconColor: AppColors.success,
                       label: 'Watch History',
+                      subtitle: 'Recently watched content',
                       onTap: () { DebugLogger.logTap('Profile', 'history'); Navigator.of(context).pushNamed(AppRoutes.history); },
                     ),
                   ]),
-                  SizedBox(height: 12),
+                  SizedBox(height: RaddSpace.md),
                   // Device
-                  _Section(title: 'Device', children: [
+                  _Section(title: 'Device', dotColor: AppColors.info, children: [
                     _SectionTile(
                       icon: AppIcons.device,
                       label: 'Device',
@@ -556,13 +566,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       ),
                     ),
                   ]),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: RaddSpace.md),
                   // Account
-                  _Section(title: 'Account', children: [
+                  _Section(title: 'Account', dotColor: AppColors.primary, children: [
                     _SectionTile(
                       icon: AppIcons.crown,
                       iconColor: AppColors.primary,
                       label: 'Upgrade Plan',
+                      subtitle: 'Get more content and storage',
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.subscription),
                     ),
                     _divider(),
@@ -570,6 +581,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       icon: AppIcons.users,
                       iconColor: AppColors.info,
                       label: 'Switch Profile',
+                      subtitle: 'Change active viewer profile',
                       trailing: activeProfile != null
                           ? Text(activeProfile.name, style: TextStyle(
                               color: t.textMuted, fontSize: 13, fontWeight: FontWeight.w500))
@@ -581,6 +593,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       icon: AppIcons.manageAccount,
                       iconColor: const Color(0xFF14B8A6),
                       label: 'Manage Profiles',
+                      subtitle: 'Add, edit or remove profiles',
                       onTap: () => Navigator.of(context).pushNamed(AppRoutes.addProfile),
                     ),
                     if (!isKidsProfile) ...[
@@ -589,6 +602,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         icon: AppIcons.lock,
                         iconColor: AppColors.simosaAccent,
                         label: 'Private Vault',
+                        subtitle: 'PIN-protected private folder',
                         trailing: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
@@ -618,6 +632,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     _SectionTile(
                       icon: AppIcons.downloads,
                       label: 'Downloads',
+                      subtitle: 'Manage offline content',
                       onTap: () { DebugLogger.logTap('Profile', 'downloads'); Navigator.of(context).pushNamed(AppRoutes.downloads); },
                     ),
                     // L1: Debug Logs hidden in production for non-admin users
@@ -636,6 +651,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       icon: AppIcons.logout,
                       iconColor: AppColors.error,
                       label: 'Sign Out',
+                      subtitle: 'Sign out of your account',
                       labelColor: AppColors.error,
                       onTap: _loggingOut ? null : _logout,
                     ),
@@ -683,7 +699,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _divider() => const Divider(height: 1, indent: 52);
+  Widget _divider() => const Divider(height: 1, indent: 54);
 
 
   String _fmt(String iso) {
@@ -696,28 +712,62 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 }
 
 
-class _Section extends StatelessWidget {
+class _Section extends ConsumerWidget {
   final String title;
   final List<Widget> children;
-  const _Section({required this.title, required this.children});
+  final Color? dotColor;
+  const _Section({required this.title, required this.children, this.dotColor});
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = RaddTheme.of(context);
+    final animConfig = ref.watch(animConfigProvider);
+    final dot = dotColor ?? AppColors.primary;
+
+    final cardDecoration = BoxDecoration(
+      color: animConfig.canBlur ? t.card.withOpacity(0.80) : t.card,
+      borderRadius: RaddRadius.mdRadius,
+      border: Border.all(color: t.cardBorder.withOpacity(0.85), width: 0.5),
+    );
+
+    final specularDecoration = BoxDecoration(
+      borderRadius: RaddRadius.mdRadius,
+      border: Border(top: BorderSide(color: t.glassHigh, width: 1.0)),
+    );
+
+    Widget cardContent = DecoratedBox(
+      decoration: cardDecoration,
+      child: Stack(children: [
+        Positioned.fill(child: DecoratedBox(decoration: specularDecoration)),
+        Column(children: children),
+      ]),
+    );
+
+    if (animConfig.canBlur) {
+      cardContent = ClipRRect(
+        borderRadius: RaddRadius.mdRadius,
+        child: RaddElevation.blurWrap(sigma: 12, child: cardContent),
+      );
+    }
+
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Padding(padding: const EdgeInsets.only(left: 4, bottom: 8),
-        child: Row(children: [
-          Container(width: 12, height: 1.5,
-              margin: const EdgeInsets.only(right: 6),
-              color: AppColors.primary.withOpacity(0.6)),
+      Padding(
+        padding: const EdgeInsets.only(left: 4, bottom: 8),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Container(
+            width: 5, height: 5,
+            decoration: BoxDecoration(
+              color: dot.withOpacity(0.8),
+              shape: BoxShape.circle,
+            ),
+          ),
+          SizedBox(width: RaddSpace.sm),
           Text(title.toUpperCase(), style: TextStyle(
-              color: t.textMuted, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
-        ])),
-      Container(
-        decoration: BoxDecoration(color: t.surface,
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            border: Border.all(color: t.border)),
-        child: Column(children: children),
+              color: t.textMuted, fontSize: 10, fontWeight: FontWeight.w800,
+              letterSpacing: 1.2)),
+        ]),
       ),
+      cardContent,
     ]);
   }
 }
@@ -742,78 +792,62 @@ class _StatsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = RaddTheme.of(context);
     return FutureBuilder<Map<String, dynamic>>(
       future: LocalDb.getWatchStats(),
       builder: (context, snap) {
+        final t        = RaddTheme.of(context);
         final data     = snap.data;
         final totalMs  = (data?['total_ms']  as int?) ?? 0;
         final completed= (data?['completed'] as int?) ?? 0;
         final dlCount  = (data?['dl_count']  as int?) ?? 0;
         final dlBytes  = (data?['dl_bytes']  as int?) ?? 0;
         final topGenre = data?['top_genre']  as String?;
-        return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 8),
-            child: Row(children: [
-              Container(width: 12, height: 1.5, margin: const EdgeInsets.only(right: 6),
-                  color: AppColors.primary.withOpacity(0.6)),
-              Text('MY STATS', style: TextStyle(color: t.textMuted, fontSize: 10,
-                  fontWeight: FontWeight.w800, letterSpacing: 1.2)),
-            ]),
-          ),
-          Container(
-            padding: EdgeInsets.all(RaddSpace.md),
-            decoration: BoxDecoration(
-              color: t.surface,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              border: Border.all(color: t.border),
-            ),
-            child: snap.connectionState == ConnectionState.waiting
-                ? Center(child: SizedBox(height: 40, child: CircularProgressIndicator(
-                    strokeWidth: 1.5,
-                    valueColor: AlwaysStoppedAnimation(AppColors.primary))))
-                : Column(children: [
-                    Row(children: [
-                      _StatTile(
-                        icon: AppIcons.clock,
-                        iconColor: AppColors.primary,
-                        label: 'Watch Time',
-                        value: totalMs > 0 ? _fmtTime(totalMs) : '—',
-                        countTarget: totalMs > 0 ? totalMs : null,
-                        countFormatter: _fmtTime,
-                      ),
-                      _StatDivider(),
-                      _StatTile(
-                        icon: AppIcons.successIcon,
-                        iconColor: AppColors.success,
-                        label: 'Completed',
-                        value: completed > 0 ? '$completed' : '—',
-                        countTarget: completed > 0 ? completed : null,
-                        countFormatter: (v) => '$v',
-                      ),
-                    ]),
-                    Divider(height: 1, color: t.border),
-                    Row(children: [
-                      _StatTile(
-                        icon: AppIcons.downloadAction,
-                        iconColor: AppColors.info,
-                        label: 'Downloads',
-                        value: dlCount > 0 ? '$dlCount (${_fmtBytes(dlBytes)})' : '—',
-                        countTarget: dlCount > 0 ? dlCount : null,
-                        countFormatter: (v) => '$v (${_fmtBytes(dlBytes)})',
-                      ),
-                      _StatDivider(),
-                      _StatTile(
-                        icon: AppIcons.trending,
-                        iconColor: AppColors.warning,
-                        label: 'Top Genre',
-                        value: topGenre ?? '—',
-                      ),
-                    ]),
+        return Padding(
+          padding: EdgeInsets.all(RaddSpace.md),
+          child: snap.connectionState == ConnectionState.waiting
+              ? Center(child: SizedBox(height: 40, child: CircularProgressIndicator(
+                  strokeWidth: 1.5,
+                  valueColor: AlwaysStoppedAnimation(AppColors.primary))))
+              : Column(children: [
+                  Row(children: [
+                    _StatTile(
+                      icon: AppIcons.clock,
+                      iconColor: AppColors.primary,
+                      label: 'Watch Time',
+                      value: totalMs > 0 ? _fmtTime(totalMs) : '—',
+                      countTarget: totalMs > 0 ? totalMs : null,
+                      countFormatter: _fmtTime,
+                    ),
+                    _StatDivider(),
+                    _StatTile(
+                      icon: AppIcons.successIcon,
+                      iconColor: AppColors.success,
+                      label: 'Completed',
+                      value: completed > 0 ? '$completed' : '—',
+                      countTarget: completed > 0 ? completed : null,
+                      countFormatter: (v) => '$v',
+                    ),
                   ]),
-          ),
-        ]);
+                  Divider(height: 1, color: t.border),
+                  Row(children: [
+                    _StatTile(
+                      icon: AppIcons.downloadAction,
+                      iconColor: AppColors.info,
+                      label: 'Downloads',
+                      value: dlCount > 0 ? '$dlCount (${_fmtBytes(dlBytes)})' : '—',
+                      countTarget: dlCount > 0 ? dlCount : null,
+                      countFormatter: (v) => '$v (${_fmtBytes(dlBytes)})',
+                    ),
+                    _StatDivider(),
+                    _StatTile(
+                      icon: AppIcons.trending,
+                      iconColor: AppColors.warning,
+                      label: 'Top Genre',
+                      value: topGenre ?? '—',
+                    ),
+                  ]),
+                ]),
+        );
       },
     );
   }
@@ -895,16 +929,16 @@ class _StatTileState extends ConsumerState<_StatTile>
                       animation: _tween!,
                       builder: (_, __) => Text(
                           widget.countFormatter!(_tween!.value.round()),
-                          style: TextStyle(color: t.textPrimary, fontSize: 13,
+                          style: TextStyle(color: t.textPrimary, fontSize: 14,
                               fontWeight: FontWeight.w700),
                           maxLines: 1, overflow: TextOverflow.ellipsis),
                     )
                   : Text(widget.value,
-                      style: TextStyle(color: t.textPrimary, fontSize: 13,
+                      style: TextStyle(color: t.textPrimary, fontSize: 14,
                           fontWeight: FontWeight.w700),
                       maxLines: 1, overflow: TextOverflow.ellipsis),
               Text(widget.label,
-                  style: TextStyle(color: t.textMuted, fontSize: 10)),
+                  style: TextStyle(color: t.textMuted, fontSize: 11)),
             ],
           )),
         ]),
@@ -925,16 +959,17 @@ class _SectionTile extends StatelessWidget {
   final IconData icon;
   final Color? iconColor;
   final String label;
+  final String? subtitle;
   final Color? labelColor;
   final Widget? trailing;
   final VoidCallback? onTap;
   const _SectionTile({required this.icon, this.iconColor, required this.label,
-      this.labelColor, this.trailing, this.onTap});
+      this.subtitle, this.labelColor, this.trailing, this.onTap});
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: subtitle != null ? 4 : 2),
       leading: Container(width: 38, height: 38,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
@@ -944,6 +979,9 @@ class _SectionTile extends StatelessWidget {
         child: Icon(icon, size: 18, color: iconColor ?? t.textMuted)),
       title: Text(label, style: TextStyle(
           color: labelColor ?? t.textPrimary, fontSize: 14, fontWeight: FontWeight.w500)),
+      subtitle: subtitle != null
+          ? Text(subtitle!, style: TextStyle(color: t.textMuted, fontSize: 11))
+          : null,
       trailing: trailing ?? (onTap != null
           ? Icon(AppIcons.caretRight, color: t.textMuted, size: 20)
           : null),
