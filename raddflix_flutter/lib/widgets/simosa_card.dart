@@ -120,7 +120,7 @@ class _SimosaCardState extends State<SimosaCard>
           child: Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // ── Jazz/SimoSA icon ────────────────────────────────
                 _JazzBadgeIcon(streak: _streak),
@@ -188,6 +188,7 @@ class _SimosaCardState extends State<SimosaCard>
                 // ── CTA + dismiss ───────────────────────────────────
                 Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     if (!_claimedToday)
                       ScaleTransition(

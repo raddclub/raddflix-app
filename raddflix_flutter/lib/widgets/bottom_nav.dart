@@ -217,7 +217,7 @@ class _NavButton extends StatelessWidget {
                   isActive ? item.iconFill() : item.icon(),
                   key:   ValueKey('icon_${item.label}_$isActive'),
                   color: isActive ? AppColors.primary : t.textMuted,
-                  size:  22,
+                  size:  24,
                 ),
               ),
             ),

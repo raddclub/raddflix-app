@@ -322,7 +322,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               child: Stack(alignment: Alignment.center, children: [
                 // Outer glow ring
                 Container(
-                  width: 46, height: 46,
+                  width: 40, height: 40,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
@@ -330,7 +330,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                   ),
                 ),
                 Container(
-                  width: 40, height: 40,
+                  width: 34, height: 34,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: LinearGradient(
@@ -344,10 +344,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                   ),
                   child: Center(child: (user.avatarEmoji.isNotEmpty)
                       ? Text(user.avatarEmoji,
-                          style: const TextStyle(fontSize: 18))
+                          style: const TextStyle(fontSize: 16))
                       : Text(user.avatarInitial,
                           style: const TextStyle(color: Colors.white,
-                              fontWeight: FontWeight.w800, fontSize: 16))),
+                              fontWeight: FontWeight.w800, fontSize: 14))),
                 ),
               ]),
             ),
@@ -383,17 +383,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               final tod = _greetingTod;
               return RichText(text: TextSpan(children: [
                 TextSpan(text: tod,
-                    style: TextStyle(color: t.textMuted, fontSize: 13,
+                    style: TextStyle(color: t.textMuted, fontSize: 15,
                         fontWeight: FontWeight.w500)),
                 if (firstName != null) ...[
                   TextSpan(text: ', ',
-                      style: TextStyle(color: t.textMuted, fontSize: 13)),
+                      style: TextStyle(color: t.textMuted, fontSize: 15)),
                   TextSpan(text: firstName,
-                      style: TextStyle(color: t.textPrimary, fontSize: 13,
+                      style: TextStyle(color: t.textPrimary, fontSize: 15,
                           fontWeight: FontWeight.w700)),
                 ],
                 TextSpan(text: ' 👋',
-                    style: const TextStyle(fontSize: 13)),
+                    style: const TextStyle(fontSize: 15)),
               ]));
             }),
           ).animate().fadeIn(duration: 500.ms),
@@ -476,6 +476,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         if (catalog.shows.any((s) => (s.newEpisodeCount ?? 0) > 0))
           SliverToBoxAdapter(child: _ContentSection(
             title: 'New Episodes',
+            subtitle: 'Fresh this week',
             titleIcon: AppIcons.newReleases,
             items: catalog.shows.where((s) => (s.newEpisodeCount ?? 0) > 0).toList(),
           ).animate().fadeIn(duration: 400.ms)),
@@ -484,6 +485,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         if (catalog.freeContent.isNotEmpty)
           SliverToBoxAdapter(child: _ContentSection(
             title: 'Free to Watch',
+            subtitle: 'No subscription needed',
             titleIcon: AppIcons.playCircle,
             items: catalog.freeContent,
           ).animate().fadeIn(duration: 400.ms)),
@@ -492,6 +494,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         if (catalog.ongoingShows.isNotEmpty)
           SliverToBoxAdapter(child: _ContentSection(
             title: 'Ongoing Shows',
+            subtitle: 'Still airing',
             titleIcon: AppIcons.liveTv,
             items: catalog.ongoingShows,
           ).animate().fadeIn(duration: 400.ms)),
@@ -500,6 +503,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
         if (catalog.trending.isNotEmpty)
           SliverToBoxAdapter(child: _ContentSection(
             title: 'Trending Now',
+            subtitle: "What everyone's watching",
             items: catalog.trending,
           ).animate().fadeIn(duration: 400.ms)),
 
@@ -521,6 +525,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
           if (catalog.newlyAdded.isNotEmpty)
             SliverToBoxAdapter(child: _ContentSection(
               title: 'New Arrivals',
+              subtitle: 'Just added',
               titleIcon: AppIcons.newReleases,
               items: catalog.newlyAdded,
             ).animate().fadeIn(duration: 400.ms)),
@@ -850,13 +855,13 @@ class _HeroCardState extends ConsumerState<_HeroCard>
             // Task 3.5: prefer local cached poster file; fallback to network URL
             // Phase 42: Hero tag matches show_detail_screen banner for smooth morph
             Hero(tag: 'poster_${item.id}', child: _buildPosterImage()),
-            // Cinematic gradient overlay — bottom 70% fade
+            // Cinematic gradient overlay — stronger bottom fade with Pakistani night-sky depth
             Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                  stops: [0.0, 0.35, 0.7, 1.0],
-                  colors: [Colors.transparent, Colors.transparent, Color(0xCC000000), Color(0xF5000000)],
+                  stops: [0.0, 0.25, 0.6, 1.0],
+                  colors: [Colors.transparent, Colors.transparent, Color(0xDD000000), Color(0xFF0A0A1E)],
                 ),
               ),
             ),
@@ -1059,12 +1064,13 @@ class _UpdateDialog extends StatelessWidget {
 // ── Content Section ───────────────────────────────────────────────────────────
 class _ContentSection extends StatelessWidget {
   final String title;
+  final String? subtitle;
   final IconData? titleIcon;
   final int? count;
   final List<CatalogItem> items;
   final bool showProgress;
   final void Function(CatalogItem)? onRemove;
-  const _ContentSection({required this.title, this.titleIcon, this.count, required this.items,
+  const _ContentSection({required this.title, this.subtitle, this.titleIcon, this.count, required this.items,
     this.showProgress = false, this.onRemove});
 
   @override
@@ -1073,11 +1079,11 @@ class _ContentSection extends StatelessWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-        child: Row(children: [
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           // Red accent bar — glowing pill with brand shadow
           Container(
-            width: 3, height: 20,
-            margin: const EdgeInsets.only(right: 10),
+            width: 3, height: subtitle != null ? 34 : 20,
+            margin: const EdgeInsets.only(right: 10, top: 1),
             decoration: BoxDecoration(
               gradient: AppColors.primaryGradient,
               borderRadius: BorderRadius.circular(2),
@@ -1090,26 +1096,36 @@ class _ContentSection extends StatelessWidget {
               ],
             ),
           ),
-          if (titleIcon != null) ...[
-            Icon(titleIcon!, color: AppColors.primary, size: 17),
-            const SizedBox(width: 6),
-          ],
-          Text(title, style: TextStyle(color: t.textPrimary,
-              fontSize: 17, fontWeight: FontWeight.w800, letterSpacing: -0.4)),
-          if (count != null) ...[
-            const SizedBox(width: RaddSpace.sm),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(AppRadius.round),
-                border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Row(children: [
+              if (titleIcon != null) ...[
+                Icon(titleIcon!, color: AppColors.primary, size: 17),
+                const SizedBox(width: 6),
+              ],
+              Expanded(child: Text(title, style: TextStyle(color: t.textPrimary,
+                  fontSize: 17, fontWeight: FontWeight.w800, letterSpacing: -0.4))),
+              if (count != null) ...[
+                const SizedBox(width: RaddSpace.sm),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(AppRadius.round),
+                    border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+                  ),
+                  child: Text(count.toString(),
+                      style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700)),
+                ),
+              ],
+            ]),
+            if (subtitle != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 3),
+                child: Text(subtitle!, style: TextStyle(
+                    color: t.textMuted, fontSize: 11, fontWeight: FontWeight.w400, letterSpacing: 0.1)),
               ),
-              child: Text(count.toString(),
-                  style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700)),
-            ),
-          ],
-          const Spacer(),
+          ])),
+          const SizedBox(width: 8),
           GestureDetector(
             onTap: () {
               String? filter;
@@ -1130,7 +1146,7 @@ class _ContentSection extends StatelessWidget {
                   bottom: BorderSide(color: AppColors.primary.withOpacity(0.06), width: 0.5),
                 ),
               ),
-              child: const Text('See all', style: TextStyle(
+              child: const Text('See all →', style: TextStyle(
                   color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600)),
             ),
           ),
@@ -1270,7 +1286,7 @@ class _CategoryChip extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: RaddMotion.tuneDuration,
-        margin: const EdgeInsets.only(right: 8),
+        margin: const EdgeInsets.only(right: 10),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
         decoration: BoxDecoration(
           gradient: isSelected
@@ -1279,7 +1295,7 @@ class _CategoryChip extends StatelessWidget {
           color: isSelected ? null : t.surface,
           borderRadius: BorderRadius.circular(AppRadius.round),
           border: Border.all(
-            color: isSelected ? Colors.transparent : t.border, width: 1),
+            color: isSelected ? Colors.transparent : t.textMuted.withOpacity(0.35), width: 1.2),
           boxShadow: isSelected
               ? [BoxShadow(color: AppColors.primary.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))]
               : null,
