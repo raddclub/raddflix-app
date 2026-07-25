@@ -5,9 +5,9 @@
 
 ---
 
-## Current State (2026-07-25 — UI-POLISH done `3fe2021`, CI ⏳)
+## Current State (2026-07-25 — UI-POLISH done `3fe2021`, CI ✅)
 
-**No open tasks.** All TASKS.md items ✅ DONE (UI-POLISH CI in_progress).
+**No open tasks.** All TASKS.md items ✅ DONE.
 
 ### UI-POLISH-2026-07-25 — Home screen polish pass (2026-07-25)
 Commit: `3fe2021` — 3 files changed. Based on third-party UI review (8.6/10 → targeted improvements).

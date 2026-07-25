@@ -1745,7 +1745,7 @@ Both paths route to `/player` with `content_type: 'network'`, `stream_url: <url>
 - `splash_screen.dart` cold-start handler: same network/local branch; refactored `navState` out of cascade.
 - `MainActivity.kt` `isPendingUriNetworkUrl` method added to intent channel for future use.
 
-**CI:** triggered on `f08dcad1`, in_progress at time of push.
+**CI:** `f08dcad1` ✅ success.
 
 ---
 
