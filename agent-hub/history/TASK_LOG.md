@@ -1723,3 +1723,26 @@ DVR seed data for ary-news + ary-digital now live on production Oracle.
 - `agent-hub/RULES.md` Rule 14 — narrowed from "No Oracle destructive changes without explicit
   user approval" to the same distinction: data-destructive = ask; routine ops = autonomous.
 - `AGENT_PROMPT.md` bootstrap step 5 and "Working on this project" section updated to match.
+
+---
+
+## NET-STREAM-1 — Direct network stream playback (2026-07-25, commit `f08dcad1`, CI ⏳)
+
+**Scope:** `_ps_playback_mixin.dart`, `AndroidManifest.xml`, `MainActivity.kt`, `main.dart`, `splash_screen.dart`, `local_media_screen.dart`.
+
+**Entry points (per owner spec):**
+1. Share sheet — `ACTION_SEND text/plain` intent-filter + `extractSharedText()` in MainActivity extracts first `https?://` URL from shared text → stored in `pendingVideoUri`.
+2. Local Media screen — "Play from URL" row pinned above the Videos tab content (visible in all states: loading, permission denied, empty, populated). Taps open a themed `AlertDialog` with a URL `TextField`; scheme auto-prepended if absent.
+
+Both paths route to `/player` with `content_type: 'network'`, `stream_url: <url>`, `is_free: true`.
+
+**Player changes:**
+- `_openMedia()`: new `contentType == 'network'` early-exit after the live-TV block — calls `_player.open(Media(url))` directly, skips JazzDrive/quota/subscription gates, then calls `_fetchLiveRenditions()` fire-and-forget (HLS quality picker activates automatically for m3u8 masters).
+- `_friendlyError()`: 'network' block before Jazz-SIM checks — 403/404/timeout/generic messages without false "Jazz SIM required" text.
+
+**Intent routing (warm + cold start):**
+- `main.dart` warm-start `onVideoUri` handler: `uri.startsWith('http')` → push with `content_type: 'network'`; else existing local-file path unchanged.
+- `splash_screen.dart` cold-start handler: same network/local branch; refactored `navState` out of cascade.
+- `MainActivity.kt` `isPendingUriNetworkUrl` method added to intent channel for future use.
+
+**CI:** triggered on `f08dcad1`, in_progress at time of push.

@@ -5,6 +5,33 @@
 
 ---
 
+## Current State (2026-07-25 — NET-STREAM-1 done `f08dcad1`, CI ⏳)
+
+**No open tasks.** All TASKS.md items ✅ DONE.
+
+---
+
+## Current State (2026-07-25 — NET-STREAM-1 built, CI pending)
+
+### NET-STREAM-1 — Direct network stream playback (2026-07-25)
+Commit: `f08dcad1` — 6 files changed, 261 insertions, 24 deletions. CI in progress.
+
+**What changed:**
+
+**`_ps_playback_mixin.dart`** — new `contentType == 'network'` early-exit branch in `_openMedia()`, inserted between the live-TV block and the usage-tracking block. Opens `widget.streamUrl` directly via `_player.open(Media(url))` — no JazzDrive resolution, no subscription gate, no quota tracking. Calls `_fetchLiveRenditions()` fire-and-forget so HLS masters get the quality picker automatically. `_friendlyError()` extended with a 'network' block (403/404/timeout/generic) before the Jazz-SIM checks, preventing false "Jazz SIM required" messages on network errors.
+
+**`AndroidManifest.xml`** — new `ACTION_SEND / text/plain` intent-filter on the MainActivity activity. Registers RaddFlix in Android's share sheet for URLs shared from Chrome, WhatsApp, and any app that shares plain text.
+
+**`MainActivity.kt`** — new `extractSharedText()` method: matches `ACTION_SEND`, extracts first `http(s)://` URL from `EXTRA_TEXT` (strips trailing `,./)]`), stores in `pendingVideoUri`. Called from both `configureFlutterEngine()` (cold-start) and `onNewIntent()` (warm-start). Added `isPendingUriNetworkUrl` method to the intent channel for future use.
+
+**`main.dart`** — warm-start `onVideoUri` handler updated: if `uri` starts with `http://` or `https://`, pushes `/player` with `content_type: 'network'` + `stream_url: uri` instead of `content_type: 'movie'` + `local_path: uri`. Derives title from last URL path segment. Existing local-file path unchanged.
+
+**`splash_screen.dart`** — cold-start pending-URI handler updated with the same network/local branch. `navState` refactored out of the cascade to avoid repeating the ref read for both branches.
+
+**`local_media_screen.dart`** — `_buildVideosTab()` restructured: always renders `_buildPlayFromUrlRow()` at the top (visible even when permission denied, loading, or empty), then delegates to new `_buildVideosContent()` for the tab body. `_buildPlayFromUrlRow()`: `InkWell` + themed Container row with `AppIcons.link`, title/subtitle text, `AppIcons.caretRight`. `_showPlayFromUrlDialog()`: `AlertDialog` with themed `TextField`, Cancel + Play buttons, `onSubmitted` for keyboard-done. `_playNetworkUrl()`: auto-prepends `https://` if scheme absent, derives title from URL path segment, pushes `/player` with `content_type: 'network'`.
+
+---
+
 ## Current State (2026-07-25 — NET-STREAM-1 queued, LIVE-P7-A done, LIVE-P6 Oracle ✅)
 
 **Next task:** NET-STREAM-1 — direct network stream playback (m3u8, mp4, any direct URL). See TASKS.md for full spec. Ready to build.
