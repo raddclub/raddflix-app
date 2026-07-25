@@ -1807,3 +1807,26 @@ Both paths route to `/player` with `content_type: 'network'`, `stream_url: <url>
 **Docs fix:** `AGENT_HANDOFF.md` — (1) top Current State header `CI ⏳` → `CI ✅`; (2) deleted the "Archived — Profile Screen Audit" section, which still described 9 profile screen items as "not yet implemented" even though all 9 were shipped in `ab235f4d` and `73af7f91`. Left in place, this would cause the next agent to re-do completed work. (3) Folded the "Completed This Session" section into the correct current-state summary.
 
 **10/10 plan status:** All actionable items ✅ done. Two items remain blocked: G4 (folder reorg — needs explicit user go-ahead) and K5 (const sweep — needs Flutter SDK / `dart fix --apply`).
+
+---
+
+## Session 2026-07-25 — Code audit + APK workflow_dispatch (AUDIT-2026-07-25)
+
+**Bootstrap:** Fresh Replit session. Verified GITHUB_TOKEN + ORACLE_SSH_KEY present in Configurations (code check, not trust). Cloned repo, read all 8 canonical docs. UNPUSHED.txt was empty — no recovery needed.
+
+**CI state at session start:** `build-apk.yml` ✅ success on `e38ae614` ("fix: replace raw e.toString() in subtitle search/download errors"). `ci-tests.yml` last run 2026-07-02 ✅ (not re-triggered — no test/pubspec/workflow changes in recent commits).
+
+**Audit:** Ran 4 parallel exploration subagents covering: NET-STREAM-1 implementation (`_ps_playback_mixin.dart`, `MainActivity.kt`, `AndroidManifest.xml`, `main.dart`, `splash_screen.dart`, `local_media_screen.dart`), subscription/plan screens (`subscription_screen.dart`, `plan_expired_screen.dart`, `tid_status_screen.dart`, `quota_full_screen.dart`), recent profile/widget changes (`profile_screen.dart`, `bottom_nav.dart`, `simosa_card.dart`, all providers), and broad codebase (`home_screen.dart`, `settings_screen.dart`, `downloads_screen.dart`, `live_tv_screen.dart`, `login_screen.dart`, `register_screen.dart`).
+
+**Confirmed bugs found (5 — documented as OPEN tasks in TASKS.md):**
+- `register_screen.dart` `_guest()` catch block: `setState()` without `mounted` guard
+- `tid_status_screen.dart` `_poll()`: `setState()` at L108/L116 after `ApiClient.get()` await with no mounted guard
+- `_ps_audiolab_mixin.dart`: `'Dub error: $e'` raw exception shown in user-facing snackbar (Phase L item)
+- `main.dart` + `splash_screen.dart` + `local_media_screen.dart`: URL title extraction includes query params
+- `local_media_screen.dart`: No URL validity check before pushing to player
+
+**Verified OK:** `profile_screen.dart` all 8 PROFILE-AUDIT fixes confirmed correct. `subscription_screen.dart` mounted guards already in place. `login_screen.dart` mounted guards already correct. `bottom_nav.dart` 24px icon confirmed. `simosa_card.dart` CTA alignment confirmed.
+
+**APK build:** Triggered fresh `workflow_dispatch` build on `e38ae614` via GitHub Actions API (in progress at session close). Last push-triggered CI on same SHA was already ✅ green.
+
+**Docs updated:** `AGENT_HANDOFF.md` top section, `TASKS.md` (6 new rows), `TASK_LOG.md` (this entry). No code changes this session.
