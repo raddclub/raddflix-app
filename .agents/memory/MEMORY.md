@@ -1,3 +1,1 @@
-- [Preflight false positive — relative imports](preflight-relative-import.md) — preflight substring-matches `core/constants.dart`; relative path `../constants.dart` is invisible to it. Use SKIP_PREFLIGHT=1 and note why.
-- [Live mixin cross-cluster rule](live-mixin-cross-cluster.md) — `_isLive` getter lives in `_ps_ui_mixin.dart`; code in `_ps_playback_mixin.dart` must inline `widget.contentType == 'live'` — NOT use `_isLive`.
-- [LIVE-P6/P7-A blocked](live-p6-p7a-jazz-sim.md) — DVR URL audit (P6) and rendition-URL research (P7-A) require Jazz SIM to reach tamashaweb CDN — cannot be done from Replit.
+- [Network contentType routing](network-contenttype-routing.md) — http/https URIs from intents must be detected in Dart and routed as `content_type: 'network'`, not `movie`.
