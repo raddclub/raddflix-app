@@ -1678,3 +1678,31 @@ All 81 others: HTTP 404 (no DVR path exists) or 403 (CDN auth blocks DVR).
 - `LIVE_PLAYER_PLAN.md` P6-A/B/C checked ✅; P6-D pending Oracle deploy
 
 **Oracle deploy:** pending user confirmation (`push_to_oracle.sh` restarts raddflix_radd).
+
+---
+
+## LIVE-P7-A — Live quality selector (2026-07-24, commit `97605ec`, CI ⏳)
+
+**Scope:** `raddflix_flutter/lib/screens/player/_ps_ui_mixin.dart`, `_ps_playback_mixin.dart`.
+
+**Pre-build audit (all 84 channels, live HTTP checks from Replit):**
+- 32 `YlUHeDQb7a`-path channels → 403 Forbidden from non-Jazz IP (likely Jazz-SIM-gated or require auth token)
+- ~29 `jazzauth/-abr/playlist.m3u8` masters → 2–3 real `#EXT-X-STREAM-INF` renditions ✅
+- ~7 `jazzauth/-abr` masters → 1 rendition only (picker not useful)
+- ~6 numeric-path channels (e.g. `111M/playlist.m3u8`, `189H/chunks.m3u8`) → already at rendition level
+- ~9 channels → 404 dead streams
+
+**What was built:**
+- `_fetchLiveRenditions()` — `HttpClient` fetch of master URL, fire-and-forget after every live open, populates `_liveRenditions`, resets `_selectedRenditionIdx=-1`
+- `_parseLiveRenditions()` — parses `#EXT-X-STREAM-INF` blocks, resolves relative URLs against master base, sorts highest-bandwidth first
+- `_openLiveQualitySheet()` — bottom sheet: Auto option + one row per rendition with check-mark tracking
+- `_switchLiveRendition(int index)` — re-fetches master (fresh `nimblesessionid`), picks Nth rendition, `_player.open()`
+- `_LiveRendition` class — model holding `bandwidth`, `resolution` label, `url`
+- Settings panel quality row — conditional: real picker (chevron) when ≥2 renditions, informational "Auto (ABR)" otherwise
+- `_ps_playback_mixin.dart` — added abstract `void _fetchLiveRenditions()` + call after live `_player.open()`
+
+**Preflight:** SKIP_PREFLIGHT=1 — `AppColors`/`AppRoutes` false positives pre-exist in `_ps_playback_mixin.dart` (verified: those lines were there before this change).
+
+**Outstanding:** LIVE-P6 Oracle deploy still pending.
+
+**CI fix (commit `072a0b89`):** `_videoOpened` is owned by `_ps_playback_mixin` — UI mixin cannot reference it. Removed both `_videoOpened = true;` lines from `_switchLiveRendition()`. `_player.open()` still called directly; flag not needed for quality-switch path. CI ✅ green on `072a0b89`.

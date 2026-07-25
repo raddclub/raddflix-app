@@ -5,6 +5,34 @@
 
 ---
 
+## Current State (2026-07-24 — LIVE-P7-A done `072a0b89`, CI ✅)
+
+### LIVE-P7-A — Live quality selector (2026-07-24)
+Commit: `97605ec` → `_ps_ui_mixin.dart`, `_ps_playback_mixin.dart`.
+
+**What changed:**
+- `_fetchLiveRenditions()` — fires after every live channel opens; fetches the master playlist URL via `HttpClient`, calls `_parseLiveRenditions()`, stores result in `_liveRenditions`. Resets `_selectedRenditionIdx = -1` (Auto) on each new channel load.
+- `_parseLiveRenditions()` — parses `#EXT-X-STREAM-INF` blocks, resolves relative rendition URLs against the master base, sorts by descending bandwidth.
+- `_openLiveSettingsPanel()` quality row — now conditional: if `_liveRenditions.length > 1` shows a real chevron row opening `_openLiveQualitySheet()`; otherwise keeps the informational "Auto (ABR)" row.
+- `_openLiveQualitySheet()` — bottom sheet with "Auto (ABR)" + one row per rendition. Check mark tracks `_selectedRenditionIdx`.
+- `_switchLiveRendition(int index)` — re-fetches master (fresh `nimblesessionid`), picks the Nth rendition, calls `_player.open(Media(renditionUrl))`.
+- `_LiveRendition` class — model with `bandwidth`, `resolution` label, `url` (absolute).
+- `_ps_playback_mixin.dart` — added `void _fetchLiveRenditions()` cross-cluster abstract declaration + call after `_player.open()` in the live early-return branch.
+
+**Audit findings (all 84 channels):**
+- 32 `YlUHeDQb7a`-path channels → 403 from non-Jazz IP; picker shows "Auto (ABR)" (graceful degradation)
+- ~29 `jazzauth` masters → 2–3 real renditions → picker active
+- ~7 `jazzauth` masters → 1 rendition only → picker stays informational
+- ~6 numeric-path channels → already at rendition level (no master) → informational
+- ~9 channels → 404 dead streams → informational
+
+**CI:** `072a0b89` — ✅ green (initial push `97605ec` failed: `_videoOpened` referenced from UI mixin — field lives in playback mixin only; removed both lines, fix committed immediately).
+
+**Open from this session:**
+- LIVE-P6 Oracle deploy still pending (DVR seed data for ary-news + ary-digital needs `push_to_oracle.sh`)
+
+---
+
 ## Current State (2026-07-24 — LIVE-P6 done `3b373164`, Oracle deploy pending)
 
 **LIVE-P6 — DVR URL audit complete (commit `3b373164`)**
