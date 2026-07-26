@@ -5,17 +5,17 @@
 
 ---
 
-## Current State (2026-07-26 — BUG-SUB-STYLE-FIXES done `9b3b9a8b`, CI ✅)
+## Current State (2026-07-26 — Comprehensive Flutter audit complete; 17 new tasks opened)
 
-**No open tasks.** Two subtitle regression bugs fixed and pushed in commit `9b3b9a8b`. Audio lab chain verified correct (no code change needed — see investigation entry in TASKS.md).
+**17 open tasks** from a full-codebase audit (226 files, ~81K lines, 8 parallel subagents). No code changes this session — audit only. See TASK_LOG.md for full findings.
 
-| ID | Fix summary | Commit |
+| Priority | Task IDs | Area |
 |---|---|---|
-| BUG-SUB-STYLE-FIXES (1/2) | `_ps_subtitle_mixin.dart` `onSubPropertyChanged`: dropped the 9-prop whitelist for `sub-ass-override='force'`; now set unconditionally for ALL non-internal MPV sub-* props. Previously `sub-align-x`, `sub-align-y`, `sub-margin-x`, `sub-ass-scale-with-window` were missing → position tab changes had no effect on embedded ASS subs. | `9b3b9a8b` |
-| BUG-SUB-STYLE-FIXES (2/2) | `_ps_panels_subtitle.dart` `_saveSubPrefs()`: added `await prefs.setDouble('pref_sub_margin', _subBottomMargin)`. Bottom margin slider was restored on `_loadSubPrefs()` but the write path was absent — the value was only saved via the debounced `_scheduleSavePrefs()` in the parent, not by `_saveSubPrefs()` itself. | `9b3b9a8b` |
-| AUDIO-LAB-INVESTIGATION | Full static trace of audio lab code path (panel → `_applyLabAf` → `onLabAfChanged` → `_currentLabAf` → `_applyAllAf` → `_np.setProperty('af',…)`). Chain is complete and correct. Lab state and `_currentLabAf` are correctly restored from SharedPrefs at startup in `player_screen.dart` lines 481–545 + 500 ms deferred `_applyAllAf()`. All prior known bugs (A1–A6, BUG-AUDIO-SILENT-01, Lab EQ coupling) confirmed fixed. No actionable regression found. | — (no code change) |
+| 🔴 CRITICAL | SEC-01, SEC-02, SEC-03, BUG-FREE-EP-02 | HTTP plaintext, debug screen exposure, auth bypass, revenue bug |
+| 🔴 HIGH | SEC-04, SEC-05, BUG-DOWNLOAD-SIZE, BUG-CATALOG-LISTENER, BUG-EPISODE-SORT, BUG-BINGE-TIMER, BUG-TIMELINE-SYNC | Security + functional bugs |
+| 🟡 MEDIUM | BUG-XOR-CLOCK, BUG-LOCAL-MEDIA-IO, BUG-DB-DELETE-RISK, BUG-PROFILE-PIN, BUG-PLAYER-AUTODISPOSE, BUG-VOICE-STUB | Logic / data integrity / UX |
 
-**Previous session 2026-07-25:** All 5 audit bugs fixed in commit `4a3d53d6` (CI ✅).
+**Previous session 2026-07-26 (docs cleanup):** `ca365a5f` — stale files deleted, wrong info corrected.
 
 **10/10 plan:** All actionable items ✅ done. Two remain blocked: G4 (folder reorg — needs user go-ahead) and K5 (const sweep — needs Flutter SDK).
 

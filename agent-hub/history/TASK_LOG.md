@@ -1956,3 +1956,130 @@ Fix: added `await prefs.setDouble('pref_sub_margin', _subBottomMargin)` to `_sav
 **No code changes. No CI trigger needed.**
 
 **Docs updated:** `TASKS.md`, `TASK_LOG.md` (this entry).
+
+---
+
+## Session 2026-07-26 — Comprehensive Flutter App Audit (AUDIT-FLUTTER-2026-07-26)
+
+**Bootstrap:** Fresh Replit session. GITHUB_TOKEN + ORACLE_SSH_KEY verified present in Configurations. Cloned repo, read all canonical docs. No open tasks at start.
+
+**Task:** Full audit of the RaddFlix Flutter app — 226 Dart files, ~81,000 lines. 8 parallel subagents dispatched covering: security layer, API/networking, player logic, player widgets, all screens, providers, services/DB, and shared widgets.
+
+**Totals across all 8 audit areas:** 5 CRITICAL · 12 HIGH · 27 MEDIUM · 9 LOW
+
+---
+
+### CRITICAL Findings
+
+**[SEC-01] Production API served over plain HTTP (`http://92.4.95.252`)**
+All auth tokens, passwords, and content URLs are transmitted in cleartext. A passive observer on any network segment can capture credentials. MITM is trivial. The remote_config.dart endpoint uses the same HTTP URL — an attacker who intercepts that config fetch can redirect ALL subsequent API traffic to a malicious server and harvest every user credential.
+Files: `constants.dart` (kBaseUrl), `remote_config.dart` (fetchBackground URL)
+Fix: Obtain a domain + TLS certificate. Update both files to HTTPS. Verify certificate pinning path.
+
+**[SEC-02] Debug Diagnostics screen exposed to all users**
+The diagnostics screen (live logs, JazzDrive playback timelines, internal server call traces) is reachable via a "secret" 5-tap gesture on the version text in the home/profile screen. This is NOT gated on `kDebugMode` or any admin flag — every end-user can reach it.
+File: `debug_diagnostics_screen.dart`
+Fix: Wrap the gesture in `if (kDebugMode)` or add an `is_admin` server-side flag to the user model.
+
+**[SEC-03] Auth server error silently navigates to Home as guest**
+When the login or registration API returns a server error, the error is not propagated to the UI. The catch block allows navigation to proceed as if success, landing the user on Home in guest mode. This bypasses the intended Members Only access gate.
+Files: `login_screen.dart`, `register_screen.dart`
+Fix: Ensure the auth flow throws (or sets an error state) on any non-success server response before any navigation is attempted.
+
+**[BUG-FREE-EP-02] `_isFree` revenue bug — re-verify in mixin-split layout**
+Previously documented as unfixed at player_screen.dart ~L1099–1105. The `_isFree` flag was confirmed to remain `true` across content transitions in an earlier audit. Phase J split the monolithic player into 8 mixin files — the bug location needs to be confirmed in the new layout and fixed if still present. Premium content may be served free to non-paying users.
+File: `screens/player/player_screen.dart` (and relevant playback mixin)
+Fix: Ensure `_isFree` is explicitly reset / re-evaluated on every content load, not carried over from prior state.
+
+**[SCREENS] Auth logic bypasses Members Only gate on server error** (same as SEC-03 above — listed twice for clarity)
+
+---
+
+### HIGH Findings
+
+**[SEC-04] Vault PINs hashed with static salt (SHA-256 + `raddflix_vault_salt_`)**
+Static salt means every user who sets the same PIN has the same hash. If the flutter_secure_storage backend is ever compromised, a single precomputed rainbow table cracks all vault PINs simultaneously.
+File: `vault_service.dart:87`
+Fix: Generate a per-vault random salt at PIN-creation time, store salt alongside hash, use PBKDF2 (100K+ iterations) or Argon2.
+
+**[SEC-05] APK signature check effectively disabled**
+`app_guard.dart:47` checks against `RADDFLIX_CERT_SHA256_PLACEHOLDER`. Since no real fingerprint is set, the tamper check always passes for any APK — repackaged/cracked builds are undetected.
+Fix: Extract the SHA-256 of the release signing certificate and replace the placeholder.
+
+**[BUG-DOWNLOAD-SIZE] Download service deletes nearly-complete files on 2% size mismatch**
+`download_service.dart:175` checks `fileSize < expectedTotal * 0.99`. On servers that don't report accurate Content-Length, or on 3G connections where the final byte range comes slightly short, a valid completed download is deleted and marked failed.
+Fix: Implement HTTP Range resume instead of full-file delete on size mismatch.
+
+**[BUG-CATALOG-LISTENER] CatalogNotifier leaks Connectivity stream subscription**
+`catalog_provider.dart:121` sets up a new `Connectivity().onConnectivityChanged` listener on every `initialize()` call without cancelling the previous one. Multiple concurrent sync operations and unbounded memory growth result.
+Fix: Store the subscription in `_connectivitySub`, cancel it before re-assigning, cancel in `dispose()`.
+
+**[BUG-EPISODE-SORT] Episode list sort order bleeds into player "next episode" argument**
+`show_detail_screen.dart`: toggling the display sort (asc/desc) passes the sorted order to the Player as the episode sequence. Players "next" and "previous" buttons then navigate in the UI sort order, not the natural episode order — user ends up watching episodes backwards after toggling sort.
+Fix: Player always receives episodes in absolute ascending order. UI sort is a view-only transform.
+
+**[BUG-BINGE-TIMER] BingeGuardController timer leak**
+`binge_guard_controller.dart:25`: The periodic timer started by `onPlay()` is only stopped by `onPause()` or `dispose()`. If the widget is removed from the tree during playback without going through the pause path (e.g., OS kill, route pop during buffer), the timer keeps firing callbacks on a dead context.
+Fix: Confirm PlayerScreen.dispose() always calls `_bingeGuard.dispose()` before any `await`.
+
+**[BUG-TIMELINE-SYNC] PlaybackTimeline writes synchronously on main thread**
+`playback_timeline.dart:50`: `_append()` and `_record()` use `writeAsStringSync`. On budget MediaTek devices (the primary target), synchronous storage I/O during player startup causes measurable UI jank/frame drops at the exact moment the video begins playing.
+Fix: Switch to `IOSink` or isolate-based async writes.
+
+**[SUBSCR-COLDSTART] Subscription status not re-verified on cold start**
+`splash_screen.dart`: Auth check restores cached user state but does not re-hit the subscription endpoint. Users who renewed their plan on the web or via another device see a stale "Premium Locked" error until they manually force-refresh.
+Fix: Fire a background subscription re-check on every cold start; update cached plan status from the response.
+
+**[DOWNLOADS-PROVIDER] Full DB reload after every download completion**
+`downloads_provider.dart:151`: The `finally` block in `startDownload` always calls `loadDownloads()` — a full disk+DB read — after every single download (success or fail). On large download libraries this is unnecessary I/O on the hot path.
+Fix: Update state for the specific `fileId` in memory; only reload from DB on next app launch.
+
+**[XOR-SEED] Hardcoded XOR seed in APK (`raddflix_xor_v1`)**
+Any decompiled APK immediately reveals the obfuscation seed, making the XOR layer trivially reversible. Additionally, since JSON structure is predictable, a known-plaintext attack recovers the session key without the seed.
+Note: The XOR layer is obfuscation, not encryption. If HTTPS is in place (SEC-01 fix), the XOR layer has lower security value. Decide whether to keep it as-is or upgrade to AES-GCM.
+File: `request_encoder.dart:30`
+
+---
+
+### MEDIUM Findings (summary — full detail in each task row)
+
+| ID | Description |
+|---|---|
+| BUG-XOR-CLOCK | XOR key derived from UTC hour — device clock skew ≥1h breaks all API calls |
+| BUG-LOCAL-MEDIA-IO | `queryAllVideos` fires 10,000+ parallel File.exists() checks on large libraries |
+| BUG-DB-DELETE-RISK | `_openDb` deletes entire DB on any key error, not just "not a database" |
+| BUG-PROFILE-PIN | Profile PINs stored as plaintext in SQLite — bypassed on rooted devices |
+| BUG-PLAYER-AUTODISPOSE | `playback_service` disposes player on completion, breaking auto-play queue |
+| BUG-VOICE-STUB | Voice Commands wired in UI but non-functional (requestPermission always false) |
+| — | Unauthenticated tamper-report endpoint vulnerable to spam/DoS |
+| — | `cast_rail.dart` FutureBuilder inside build() — future recreated every parent rebuild |
+| — | `mini_player_bar.dart` uses `ProviderScope.containerOf` — unstable during unmounting |
+| — | A-B loop has no one-shot trigger flag — may fire multiple seeks at point B |
+| — | Watch party room code generated from DateTime — collision risk |
+| — | Seek bar CustomPaint lacks Semantics — screen readers cannot navigate timeline |
+| — | Particle overlay runs 60fps sin() calculations even when hidden |
+| — | Subscription polling page has no manual Refresh button (5s auto-only) |
+| — | Downloads "Add to Vault" ignores storage permission revocation |
+| — | auth_provider guest token race may overwrite logged-in user's tokens |
+| — | CatalogNotifier: 5–7 sequential SQLite queries on startup (should be Future.wait) |
+
+---
+
+### LOW Findings (summary)
+
+- Frida port scanning sequential (6 × 250ms = 1.5s startup delay) — parallelize
+- XOR decode fail-open returns raw encrypted body downstream
+- 400ms hardcoded delay for cold-start intent push (race on low-end devices)
+- Actor filmography has no "Show More" — excessive scroll on prolific actors
+- Debug log file rotates to temp dir accessible by other apps (use app documents dir)
+- Log rotation keeps only 1 backup copy
+- `thumb_service` reads bytes for every cache hit (use Image.file + framework caching)
+- `connectivity_sync_service` stop() rarely called
+
+---
+
+**New tasks added to TASKS.md:** AUDIT-FLUTTER-2026-07-26, SEC-01 through SEC-05, BUG-FREE-EP-02, BUG-DOWNLOAD-SIZE, BUG-CATALOG-LISTENER, BUG-EPISODE-SORT, BUG-BINGE-TIMER, BUG-TIMELINE-SYNC, BUG-XOR-CLOCK, BUG-LOCAL-MEDIA-IO, BUG-DB-DELETE-RISK, BUG-PROFILE-PIN, BUG-PLAYER-AUTODISPOSE, BUG-VOICE-STUB.
+
+**No code changes. No CI trigger needed.**
+
+**Docs updated:** `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry).
