@@ -1848,3 +1848,55 @@ Both paths route to `/player` with `content_type: 'network'`, `stream_url: <url>
 **SKIP_PREFLIGHT=1 used for this commit:** `_ps_audiolab_mixin.dart` contains a pre-existing `AppColors.primary` at L409 (pre-dates this session) which tripped the preflight's AppColors/import check — the file has no `core/constants.dart` import but the code worked before and my edit only changed a string literal. Noted in commit message.
 
 **All 5 TASKS.md rows marked ✅ DONE. AGENT_HANDOFF.md updated.**
+
+---
+
+## Session 2026-07-26 — Subtitle regression fixes + Audio Lab investigation
+
+**Bootstrap:** Fresh Replit session. Verified GITHUB_TOKEN + ORACLE_SSH_KEY present in Configurations. Cloned repo (already present), read all canonical docs. UNPUSHED.txt was empty — no recovery needed.
+
+**CI state at session start:** `build-apk.yml` ✅ success on `4a3d53d6`. No open tasks in TASKS.md.
+
+---
+
+### BUG-SUB-STYLE-FIXES — Subtitle styling regressions (commit `9b3b9a8b`, CI ⏳)
+
+**Files changed:** `_ps_subtitle_mixin.dart`, `_ps_panels_subtitle.dart`
+
+**Bug 1 — `onSubPropertyChanged` guard incomplete (`_ps_subtitle_mixin.dart`)**
+
+The `sub-ass-override='force'` guard before `_np.setProperty(prop, val)` inside `_openSubtitlePanel()`'s `onSubPropertyChanged` callback was a whitelist of 9 properties:
+`sub-font-size`, `sub-font`, `sub-bold`, `sub-color`, `sub-back-color`, `sub-scale`, `sub-opacity`, `sub-outline-size`, `sub-shadow-offset`.
+
+Missing from the list: `sub-align-x`, `sub-align-y`, `sub-margin-x`, `sub-ass-scale-with-window`.
+
+Effect: every change from the Position tab (horizontal alignment, vertical position, edge padding, fit-to-video) was dispatched to MPV WITHOUT setting `sub-ass-override='force'` first. For embedded ASS subtitle tracks (and SRT-converted-to-ASS), MPV's own baked-in style block would win and the user's position changes appeared to have no effect.
+
+Fix: removed the per-prop if-block entirely; unconditionally set `sub-ass-override='force'` for every real MPV property dispatched through `onSubPropertyChanged`. `_sub_margin_main` (internal signal) is still handled separately and correctly.
+
+**Bug 2 — `_saveSubPrefs()` missing `pref_sub_margin` write (`_ps_panels_subtitle.dart`)**
+
+`_loadSubPrefs()` already read `pref_sub_margin` (line 146) and restored the bottom margin slider on panel reopen — that READ fix was done in a prior session. But `_saveSubPrefs()` never wrote `pref_sub_margin`. The value was only saved via the parent's debounced `_scheduleSavePrefs()` → `_savePrefs()` path (player_screen.dart line 639), which fires 300 ms after any change. If the panel was closed or the user navigated away before the debounce fired, the updated margin was silently lost.
+
+Fix: added `await prefs.setDouble('pref_sub_margin', _subBottomMargin)` to `_saveSubPrefs()`, ensuring the write happens immediately on every slider interaction regardless of debounce timing.
+
+**Commit:** `9b3b9a8b` — pushed via `auto_commit.sh` (GitHub Trees API). `SKIP_PREFLIGHT=1` used because `_ps_panels_subtitle.dart` is a `part of '../player_screen.dart'` file with no own imports; the preflight script's import-presence check does not follow Dart's part/part-of relationship and incorrectly flagged `RaddRadius`, `RaddSpace`, `AppColors`.
+
+---
+
+### AUDIO-LAB-INVESTIGATION — No code change needed
+
+**Symptom reported:** Audio Lab filters (Vocal Remover, Dialogue Boost, etc.) reported as having no audible effect.
+
+**Code trace performed:**
+1. Panel toggle → `setState(() => _labVocal = v); _applyLabAf()` (`_ps_panels_audio.dart`)
+2. `_applyLabAf()` builds filter string → `widget.onLabAfChanged(afStr)` + `widget.onLabStateChanged(...)`
+3. `onLabAfChanged` in `_ps_ui_mixin.dart`: `_currentLabAf = afStr; _applyAllAf()`
+4. `_applyAllAf()` in `_ps_audiolab_mixin.dart`: `_buildMergedAfString()` → `_np.setProperty('af', filterStr)`
+5. Startup restore in `player_screen.dart` lines 481–545: all lab booleans loaded from SharedPrefs, `_currentLabAf` rebuilt from booleans, `_applyAllAf()` called after 500 ms delay.
+
+**Conclusion:** Chain is complete and correct. Prior concern (session summary) was based on a grep of `_ps_playback_mixin.dart` that returned no audiolab terms — correctly explained by the fact that prefs restoration lives in `player_screen.dart`, not the playback mixin. All previously known audio lab bugs (A1–A6, BUG-AUDIO-SILENT-01, Lab EQ coupling) are confirmed fixed in current HEAD. Prior AUDIO-PANEL-SAVE audit also confirmed all Lab callbacks correct. No actionable regression found; no code change made.
+
+---
+
+**Docs updated:** `AGENT_HANDOFF.md` top section replaced, `TASKS.md` (BUG-SUB-STYLE-FIXES → ✅ DONE; AUDIO-LAB-INVESTIGATION row added), `TASK_LOG.md` (this entry).

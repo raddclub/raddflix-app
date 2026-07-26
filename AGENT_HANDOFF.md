@@ -5,17 +5,17 @@
 
 ---
 
-## Current State (2026-07-25 — All 5 audit bugs fixed, commit `4a3d53d6`, CI pending)
+## Current State (2026-07-26 — BUG-SUB-STYLE-FIXES done `9b3b9a8b`, CI ⏳)
 
-**No open tasks.** All 5 bugs found in the audit session have been fixed and pushed in commit `4a3d53d6`. CI build triggered automatically on push.
+**No open tasks.** Two subtitle regression bugs fixed and pushed in commit `9b3b9a8b`. Audio lab chain verified correct (no code change needed — see investigation entry in TASKS.md).
 
 | ID | Fix summary | Commit |
 |---|---|---|
-| BUG-REGISTER-GUEST | `register_screen.dart`: added `if (!mounted) return;` before the 3 unguarded `setState()` calls in `_register()` (×2) and `_guest()` catch blocks | `4a3d53d6` |
-| BUG-TID-MOUNTED | `tid_status_screen.dart` `_poll()`: added `if (!mounted) return;` before the `approved` and `rejected` `setState()` calls after the `ApiClient.get()` await | `4a3d53d6` |
-| BUG-AUDIOLAB-RAW-ERR | `_ps_audiolab_mixin.dart`: `'Dub error: $e'` → `'Audio dubbing error — please try again'` | `4a3d53d6` |
-| BUG-NET-URL-TITLE | `main.dart`, `splash_screen.dart`, `local_media_screen.dart`: `.split('?').first` before `Uri.parse` strips query params from filename extraction | `4a3d53d6` |
-| BUG-NET-NO-VALIDATION | `local_media_screen.dart` `_playNetworkUrl()`: `Uri.tryParse` + scheme/host check; invalid input shows SnackBar instead of reaching player | `4a3d53d6` |
+| BUG-SUB-STYLE-FIXES (1/2) | `_ps_subtitle_mixin.dart` `onSubPropertyChanged`: dropped the 9-prop whitelist for `sub-ass-override='force'`; now set unconditionally for ALL non-internal MPV sub-* props. Previously `sub-align-x`, `sub-align-y`, `sub-margin-x`, `sub-ass-scale-with-window` were missing → position tab changes had no effect on embedded ASS subs. | `9b3b9a8b` |
+| BUG-SUB-STYLE-FIXES (2/2) | `_ps_panels_subtitle.dart` `_saveSubPrefs()`: added `await prefs.setDouble('pref_sub_margin', _subBottomMargin)`. Bottom margin slider was restored on `_loadSubPrefs()` but the write path was absent — the value was only saved via the debounced `_scheduleSavePrefs()` in the parent, not by `_saveSubPrefs()` itself. | `9b3b9a8b` |
+| AUDIO-LAB-INVESTIGATION | Full static trace of audio lab code path (panel → `_applyLabAf` → `onLabAfChanged` → `_currentLabAf` → `_applyAllAf` → `_np.setProperty('af',…)`). Chain is complete and correct. Lab state and `_currentLabAf` are correctly restored from SharedPrefs at startup in `player_screen.dart` lines 481–545 + 500 ms deferred `_applyAllAf()`. All prior known bugs (A1–A6, BUG-AUDIO-SILENT-01, Lab EQ coupling) confirmed fixed. No actionable regression found. | — (no code change) |
+
+**Previous session 2026-07-25:** All 5 audit bugs fixed in commit `4a3d53d6` (CI ✅).
 
 **10/10 plan:** All actionable items ✅ done. Two remain blocked: G4 (folder reorg — needs user go-ahead) and K5 (const sweep — needs Flutter SDK).
 
