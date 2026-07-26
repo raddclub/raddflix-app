@@ -205,6 +205,10 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     await prefs.setInt('pref_sub_align_x',      _subAlignX);
     await prefs.setInt('pref_sub_align_y',      _subAlignY);
     await prefs.setDouble('pref_sub_edge_pad',  _subEdgePadding);
+    // BUG-SUB-02 fix: persist the bottom margin slider so it doesn't reset to
+    // 100 px every time the panel reopens. _loadSubPrefs reads this key to
+    // restore _subBottomMargin; _saveSubPrefs must write it for that to work.
+    await prefs.setDouble('pref_sub_margin',    _subBottomMargin);
     await prefs.setBool('pref_sub_fit',         _subFitToVideo);
     // IDEA-06: write to PlayerPrefs namespace so SubtitleOverlay (which reads
     // PlayerPrefs.load()) picks up the change without a restart.

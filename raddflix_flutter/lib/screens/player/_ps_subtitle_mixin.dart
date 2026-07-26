@@ -150,13 +150,12 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
             try {
               // Force ASS style override FIRST so that the property change below
               // immediately takes effect on ASS-format subs (embedded or SRT→ASS).
-              if (prop == 'sub-font-size'    || prop == 'sub-font'          ||
-                  prop == 'sub-bold'        || prop == 'sub-color'        ||
-                  prop == 'sub-back-color'  || prop == 'sub-scale'        ||
-                  prop == 'sub-opacity'     || prop == 'sub-outline-size' ||
-                  prop == 'sub-shadow-offset') {
-                _np.setProperty('sub-ass-override', 'force');
-              }
+              // BUG-SUB-01 fix: apply 'force' unconditionally for ALL real MPV
+              // sub-* properties. The previous per-prop whitelist was missing
+              // sub-align-x, sub-align-y, sub-margin-x, and sub-ass-scale-with-window,
+              // which meant position/alignment changes from the Position tab were
+              // silently overridden by the embedded subtitle's own ASS style block.
+              _np.setProperty('sub-ass-override', 'force');
               _np.setProperty(prop, val);
             } catch (_) {}
           }
