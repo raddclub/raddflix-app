@@ -166,10 +166,15 @@ class PlaybackService extends ChangeNotifier with WidgetsBindingObserver {
         buffering = v;
         notifyListeners();
       }),
-      // Content finished while minimized — end the session, don't leave a
-      // dead player behind the mini bar.
+      // Content finished while minimized.
+      // BUG-PLAYER-AUTODISPOSE fix: if more episodes remain, keep the session
+      // alive so the user can re-open PlayerScreen which handles auto-advance
+      // (fetching the next stream URL etc.). Only stop when the queue is empty.
       player.stream.completed.listen((v) {
-        if (v) stop();
+        if (v) {
+          final hasNext = episodes != null && episodeIndex < (episodes!.length - 1);
+          if (!hasNext) stop();
+        }
       }),
     ]);
     notifyListeners();
