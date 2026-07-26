@@ -1,3 +1,4 @@
+- [Infrastructure constraints & known limitations](infrastructure-constraints.md) — no TLS/domain yet; XOR obfuscation intentional; APK sig check placeholder; voice stub; _isFree bug location; vault PIN migration needed
 - [RaddFlix project overview](raddflix-overview.md) — Pakistani streaming app; Oracle Flask backend; Jazz SIM zero-rated; hub at 92.4.95.252
 - [Oracle & GitHub access patterns](oracle-github-access.md) — SSH key from ORACLE_SSH_KEY env; Trees API only for GitHub; never git shell
 - [jazzdrive.py Android client](jazzdrive-android-client.md) — headers, device fingerprint, OAuth credentials, suspension protection patterns
