@@ -5,17 +5,17 @@
 
 ---
 
-## Current State (2026-07-25 — Audit session, 5 bugs documented, APK build dispatched)
+## Current State (2026-07-25 — All 5 audit bugs fixed, commit `4a3d53d6`, CI pending)
 
-**5 open bug tasks** (see TASKS.md). Session ran a full parallel code audit across NET-STREAM-1 implementation, subscription screens, login/register, player audiolab mixin, and broad codebase. No code changes this session. Fresh APK `workflow_dispatch` build triggered on `e38ae614` (in progress at time of doc update).
+**No open tasks.** All 5 bugs found in the audit session have been fixed and pushed in commit `4a3d53d6`. CI build triggered automatically on push.
 
-| ID | Severity | File | Issue |
-|---|---|---|---|
-| BUG-REGISTER-GUEST | Bug | `register_screen.dart` | `_guest()` catch block calls `setState()` without `mounted` guard |
-| BUG-TID-MOUNTED | Bug | `tid_status_screen.dart` | `_poll()` calls `setState()` at L108/L116 after async gap, no mounted guard |
-| BUG-AUDIOLAB-RAW-ERR | Bug (Phase L) | `_ps_audiolab_mixin.dart` | `'Dub error: $e'` raw exception shown to user via snackbar |
-| BUG-NET-URL-TITLE | UX | `main.dart`, `splash_screen.dart`, `local_media_screen.dart` | URL title extraction keeps query params (`video.mp4?token=abc`) |
-| BUG-NET-NO-VALIDATION | UX | `local_media_screen.dart` | No URL validity check before pushing to player — non-URL text reaches player |
+| ID | Fix summary | Commit |
+|---|---|---|
+| BUG-REGISTER-GUEST | `register_screen.dart`: added `if (!mounted) return;` before the 3 unguarded `setState()` calls in `_register()` (×2) and `_guest()` catch blocks | `4a3d53d6` |
+| BUG-TID-MOUNTED | `tid_status_screen.dart` `_poll()`: added `if (!mounted) return;` before the `approved` and `rejected` `setState()` calls after the `ApiClient.get()` await | `4a3d53d6` |
+| BUG-AUDIOLAB-RAW-ERR | `_ps_audiolab_mixin.dart`: `'Dub error: $e'` → `'Audio dubbing error — please try again'` | `4a3d53d6` |
+| BUG-NET-URL-TITLE | `main.dart`, `splash_screen.dart`, `local_media_screen.dart`: `.split('?').first` before `Uri.parse` strips query params from filename extraction | `4a3d53d6` |
+| BUG-NET-NO-VALIDATION | `local_media_screen.dart` `_playNetworkUrl()`: `Uri.tryParse` + scheme/host check; invalid input shows SnackBar instead of reaching player | `4a3d53d6` |
 
 **10/10 plan:** All actionable items ✅ done. Two remain blocked: G4 (folder reorg — needs user go-ahead) and K5 (const sweep — needs Flutter SDK).
 
