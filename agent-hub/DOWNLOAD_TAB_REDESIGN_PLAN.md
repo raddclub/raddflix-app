@@ -6,7 +6,7 @@
 **Author:** Agent (deep research session)
 **Supersedes:** `agent-hub/LIBRARY_REDESIGN_PLAN.md` (the "merge Local + Downloads into one
 Library screen with a mode switcher" idea is **dropped** per explicit product decision below —
-do not resurrect it. Move that file to `agent-hub/archive/` when this plan starts implementation.)
+do not resurrect it. That file has been deleted.)
 
 ---
 
@@ -286,7 +286,7 @@ than a persistent selection affordance, since swipe now covers the single-item c
 | `widgets/download/download_storage_strip.dart` | **New** — extracted storage bar |
 | `widgets/download/active_download_ticker.dart` | **New** — live progress ticker |
 | `providers/downloads_provider.dart` | Add per-item speed/ETA fields if not already exposed |
-| `agent-hub/LIBRARY_REDESIGN_PLAN.md` | Move to `agent-hub/archive/` when this plan starts (superseded) |
+| `agent-hub/LIBRARY_REDESIGN_PLAN.md` | Deleted (superseded) |
 | `AGENT_HANDOFF.md` | Update after implementation |
 | `agent-hub/history/TASK_LOG.md` | Update after implementation |
 | `agent-hub/TASKS.md` | Row added for DOWNLOAD-TAB-V2 (this plan) |
