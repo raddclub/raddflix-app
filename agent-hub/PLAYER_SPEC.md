@@ -1,6 +1,11 @@
 # RaddFlix Player — Full Feature Specification
-> Last Updated: 2026-06-17 | Source: player_screen.dart (7087 lines), player_prefs.dart (1158 lines)
-> This document is the single truth for the video player. Read before touching any player file.
+> Last Updated: 2026-06-17 | **⚠️ Architecture stale — needs re-audit**
+> Phase J split the monolithic `player_screen.dart` into 8 part/mixin files under
+> `raddflix_flutter/lib/screens/player/`. The parent file is now ~1734 lines; the full
+> player lives across `player_screen.dart` + `_ps_playback_mixin.dart`, `_ps_ui_mixin.dart`,
+> `_ps_subtitle_mixin.dart`, `_ps_audiolab_mixin.dart`, `_ps_panels_audio.dart`,
+> `_ps_panels_sidebar.dart`, `_ps_panels_subtitle.dart`. Feature list below remains accurate;
+> file/line references and the architecture tree are pre-split and should not be trusted.
 
 ---
 

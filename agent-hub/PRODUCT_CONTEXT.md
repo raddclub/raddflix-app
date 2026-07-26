@@ -1,7 +1,7 @@
 # RaddFlix — Full Product Context
 > **Any AI agent reading this: this is your reincarnation document.**
 > Read this file completely before touching any code. It contains every decision ever made.
-> After this, read MASTER_TASKLIST.md to see what's done and what needs doing.
+> After this, read `agent-hub/TASKS.md` to see what's done and what needs doing.
 
 ---
 

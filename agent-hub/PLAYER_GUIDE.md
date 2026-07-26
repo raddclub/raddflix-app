@@ -1,5 +1,7 @@
 # Player Screen Architecture Guide
-> player_screen.dart — 7033 lines | Updated: 2026-06-22
+> Updated: 2026-06-22 | **⚠️ Stale — player was split in Phase J.**
+> `player_screen.dart` is now ~1734 lines. Full player lives across 8 part files in
+> `raddflix_flutter/lib/screens/player/` — see that directory for current structure.
 
 ---
 
