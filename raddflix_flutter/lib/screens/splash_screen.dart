@@ -111,7 +111,10 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             if (isNetworkUrl) {
               final String urlTitle = (() {
                 try {
-                  final segs = Uri.parse(uri).pathSegments;
+                  // BUG-NET-URL-TITLE: strip query string before extracting the filename
+                  // so that "video.mp4?token=abc" becomes "video.mp4", not "video.mp4?token=abc".
+                  final clean = uri.split('?').first;
+                  final segs = Uri.parse(clean).pathSegments;
                   final last = segs.isNotEmpty ? segs.last : '';
                   return last.isNotEmpty ? Uri.decodeFull(last) : uri;
                 } catch (_) { return uri; }

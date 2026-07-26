@@ -278,7 +278,7 @@ mixin _PlayerAudioLabMixin on ConsumerState<PlayerScreen> {
       _applyDubMode(lang);
     } catch (e) {
       if (mounted) setState(() { _dubGenerating = false; });
-      _showInfoSnackbar('Dub error: $e');
+      _showInfoSnackbar('Audio dubbing error — please try again');
     }
   }
 

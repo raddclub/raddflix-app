@@ -105,6 +105,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
       if (match != null) {
         final s = (match as Map<String, dynamic>)['status'] as String? ?? '';
         if (s == 'approved') {
+          if (!mounted) return;
           setState(() {
             _status = _TidStatus.approved;
             _approvedPlan = match['plan'] as String?;
@@ -113,6 +114,7 @@ class _TidStatusScreenState extends State<TidStatusScreen>
           _countdownTimer?.cancel();
           return;
         } else if (s == 'rejected') {
+          if (!mounted) return;
           setState(() => _status = _TidStatus.rejected);
           _timer?.cancel();
           _countdownTimer?.cancel();

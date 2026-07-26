@@ -88,6 +88,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.sendTimeout ||
           e.type == DioExceptionType.receiveTimeout;
+      if (!mounted) return;
       setState(() {
         _error = _isNetErr
             ? 'Cannot connect. Check your internet connection.'
@@ -95,6 +96,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         _loading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() { _error = AuthErrors.register(e.toString()); _loading = false; });
     }
   }
@@ -105,6 +107,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       await ref.read(authProvider.notifier).continueAsGuest();
       if (mounted) await navigateAfterAuth(context, ref);
     } catch (e) {
+      if (!mounted) return;
       setState(() { _error = 'Cannot connect. Check your internet.'; _loading = false; });
     }
   }

@@ -863,9 +863,29 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
     final resolved = (url.startsWith('http://') || url.startsWith('https://'))
         ? url
         : 'https://$url';
+
+    // BUG-NET-NO-VALIDATION: validate the resolved URL before navigating —
+    // non-URL clipboard text would otherwise reach the player and show a
+    // generic opaque error with no explanation.
+    final parsedUri = Uri.tryParse(resolved);
+    if (parsedUri == null ||
+        (parsedUri.scheme != 'http' && parsedUri.scheme != 'https') ||
+        parsedUri.host.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('"${url.length > 60 ? '${url.substring(0, 60)}…' : url}" '
+            'is not a valid URL. Paste a direct link starting with http:// or https://'),
+        backgroundColor: AppColors.error,
+        duration: const Duration(seconds: 4),
+      ));
+      return;
+    }
+
+    // BUG-NET-URL-TITLE: strip query string before extracting the filename
+    // so that "video.mp4?token=abc" becomes "video.mp4", not "video.mp4?token=abc".
     final title = (() {
       try {
-        final segs = Uri.parse(resolved).pathSegments;
+        final clean = resolved.split('?').first;
+        final segs = Uri.parse(clean).pathSegments;
         final last = segs.isNotEmpty ? segs.last : '';
         return last.isNotEmpty ? Uri.decodeFull(last) : resolved;
       } catch (_) { return resolved; }
