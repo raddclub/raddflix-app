@@ -1001,12 +1001,41 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
           onChanged: (v) => _update(_p.copyWith(dndOnCinematic: v)),
         ),
         const Divider(color: Colors.white10, height: 1),
-        // ── Phase J1: Voice Commands ───────────────────────────────────────────
-        _QsToggleRow(
-          label: 'Voice Commands',
-          sublabel: '"skip 2 minutes" · "louder" · "speed 1.5" · "subtitles off"',
-          value: _p.voiceCommandsEnabled,
-          onChanged: (v) => _update(_p.copyWith(voiceCommandsEnabled: v)),
+        // ── Phase J1: Voice Commands (stub — STT package not yet integrated) ─────
+        // BUG-VOICE-STUB fix: requestPermission() always returns false and start()
+        // is a no-op. Show a disabled "Coming soon" row so users aren't misled.
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(children: [
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(children: [
+                  const Text('Voice Commands',
+                      style: TextStyle(color: Colors.white38, fontSize: 13)),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.white10,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: const Text('Coming soon',
+                        style: TextStyle(color: Colors.white38, fontSize: 10)),
+                  ),
+                ]),
+                const Text('"skip 2 minutes" · "louder" · "speed 1.5" · "subtitles off"',
+                    style: TextStyle(color: Colors.white24, fontSize: 11)),
+              ],
+            )),
+            Switch(
+              value: false,
+              onChanged: null, // disabled until STT package is integrated
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              activeColor: AppColors.primary,
+            ),
+          ]),
         ),
         const Divider(color: Colors.white10, height: 1),
         // ── Phase J4: Motor Impairment Mode ────────────────────────────────────
