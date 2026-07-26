@@ -5,40 +5,31 @@
 
 ---
 
-## Current State (2026-07-26 — Bug-fix pass: 5 DONE, 3 OPEN, 2 blocked infra, 1 server-side)
+## Current State (2026-07-26 — Docs cleanup + 2 more bugs fixed)
 
-From the 17-task audit backlog (2026-07-26), **all directly-fixable Flutter code bugs are now resolved**. Status summary:
+All directly-fixable Flutter and server bugs from the 2026-07-26 audit backlog are now resolved or correctly categorised.
 
 | Status | Count | Task IDs |
 |---|---|---|
 | ✅ DONE (confirmed already fixed in prior sessions) | 7 | SEC-02, SEC-03, BUG-FREE-EP-02, BUG-DOWNLOAD-SIZE, BUG-CATALOG-LISTENER, BUG-EPISODE-SORT, BUG-BINGE-TIMER |
-| ✅ DONE (fixed this session) | 5 | BUG-TIMELINE-SYNC, BUG-DB-DELETE-RISK, BUG-VOICE-STUB, BUG-PLAYER-AUTODISPOSE, BUG-PROFILE-PIN |
-| 🔴 OPEN — needs user action | 2 | SEC-01 (HTTP→HTTPS: domain + cert), SEC-05 (APK sig: release cert fingerprint) |
-| 🔴 OPEN — needs server-side fix | 1 | BUG-XOR-CLOCK (accept prev/next UTC hour keys in `radd-hub/hub/`) |
-| 🔴 OPEN — complex migration | 1 | SEC-04 (vault PIN static salt → PBKDF2; existing vault PINs would break) |
-| 🔴 OPEN — not yet inspected in depth | 1 | BUG-LOCAL-MEDIA-IO (`queryAllVideos` parallel subtitle scan — fix or confirm already addressed) |
+| ✅ DONE (fixed previous session) | 5 | BUG-TIMELINE-SYNC, BUG-DB-DELETE-RISK, BUG-VOICE-STUB, BUG-PLAYER-AUTODISPOSE, BUG-PROFILE-PIN |
+| ✅ DONE (fixed this session) | 2 | BUG-LOCAL-MEDIA-IO (`3b23881`), BUG-XOR-CLOCK (already in `request_encoding.py` — verified, no code change needed) |
+| ⛔ BLOCKED — external dependency | 3 | SEC-01 (needs domain + TLS cert), SEC-05 (needs release keystore SHA-256), SEC-04 (vault PIN migration — breaks existing PINs) |
 
-### What Needs User Input Next
+### Blocked tasks (no agent can fix these without external input)
 
-1. **SEC-01 (CRITICAL):** Production API is plain HTTP. To fix: set up a domain + TLS cert on the Oracle VPS, then update `constants.dart` `kBaseUrl` to `https://`. Also update `remote_config.dart` which uses the same HTTP URL.
-2. **SEC-05 (HIGH):** APK tamper-detection uses a placeholder cert fingerprint (`RADDFLIX_CERT_SHA256_PLACEHOLDER`) in `app_guard.dart:47`. Provide the actual SHA-256 of the release signing keystore cert.
-3. **SEC-04 (HIGH):** Vault PIN uses static salt + SHA-256 in `vault_service.dart:_hashPin()`. Upgrading to PBKDF2 requires migrating existing stored vault PINs — users would need to re-enter their vault PIN once. Confirm whether to proceed.
-4. **BUG-XOR-CLOCK (MEDIUM):** XOR session key is derived from UTC hour only. To fix on server: accept the previous/next hour's key within a tolerance window in `radd-hub/hub/`. This is a server-side change.
+- **SEC-01:** Plain HTTP API. Needs a registered domain + cert provisioned on Oracle. Until then `kBaseUrl` stays HTTP — do NOT flip to HTTPS prematurely.
+- **SEC-05:** APK tamper-detection placeholder (`RADDFLIX_CERT_SHA256_PLACEHOLDER`). Needs `keytool -printcert -jarfile app-release.apk` run against the release build to extract the real SHA-256.
+- **SEC-04:** Vault PIN SHA-256 static salt. Fix (PBKDF2 + per-user random salt) requires a one-time migration that breaks existing vault PINs — all users would need to re-enter their vault PIN.
 
 ### This Session's Commits
 
 | SHA | Description |
 |---|---|
-| `00038afa` | TASKS.md: mark already-fixed bugs DONE; mark 5 working bugs IN PROGRESS |
-| `4697dc2e` | BUG-TIMELINE-SYNC: `writeAsStringSync` → `writeAsString(...).ignore()` |
-| `a096c99b` | BUG-DB-DELETE-RISK: check error message before deleting DB |
-| `81182f0f` | BUG-VOICE-STUB: disable Voice Commands toggle with "Coming soon" label |
-| `51db4546` | BUG-PLAYER-AUTODISPOSE: skip `stop()` when next episode exists |
-| `478a5ecb` | BUG-PROFILE-PIN: SHA-256 hash + migration layer for profile PINs |
+| `3b23881` | BUG-LOCAL-MEDIA-IO: batch subtitle checks (20 at a time) to avoid I/O storm |
+| (docs only) | TASKS.md, infrastructure-constraints.md, AGENT_HANDOFF.md cleanup |
 
-**Previous session 2026-07-26 (docs cleanup):** `ca365a5f`
-
-**10/10 plan:** All actionable items ✅ done. Two remain blocked: G4 (folder reorg — needs user go-ahead) and K5 (const sweep — needs Flutter SDK).
+**Oracle:** Deployed to latest after doc commits.
 
 ---
 

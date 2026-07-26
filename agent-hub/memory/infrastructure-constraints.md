@@ -27,10 +27,10 @@ description: Hard facts about the production stack that every agent must know be
 - The seed is hardcoded intentionally; moving it to a native string is a future improvement, not an urgent bug.
 - Once HTTPS is in place (SEC-01), the XOR layer's security value is largely moot. Do not propose removing it without confirming with the user — it may serve as a simple API gating mechanism.
 
-## XOR Key Clock Sensitivity — Known fragility
-- The XOR session key rotates by UTC hour. Device clock skew ≥1 hour breaks all API calls.
-- This is a known design fragility (BUG-XOR-CLOCK in TASKS.md). The server currently does not accept a ±1h window.
-- Do not "fix" the client-side key derivation without a coordinated server-side change — they must stay in sync.
+## XOR Key Clock Sensitivity — Fixed server-side
+- The XOR session key rotates by UTC hour.
+- Already handled: `request_encoding.py` `_candidate_keys()` returns keys for offsets 0, −1, and +1. `decode_request()` tries all three. `XorWsgiMiddleware` (mounted in `app.py`) tries 0 and −1; if both fail the raw body falls through to `decode_request()` which also tries +1. Net effect: ±1h device clock skew is tolerated.
+- Do not change client-side key derivation without a coordinated server-side change — they must stay in sync.
 
 ## Oracle VPS — No auto-deploy, no public port 5000
 - Flask runs on port 5000, **localhost only** — not public. All API access from the app goes through the nginx/Flask stack on 92.4.95.252:80 (HTTP).
@@ -52,18 +52,10 @@ description: Hard facts about the production stack that every agent must know be
 - Vault PINs are hashed as `SHA-256("raddflix_vault_salt_" + pin)` with a static hardcoded salt.
 - SEC-04 in TASKS.md. The fix (per-user random salt + PBKDF2) requires a one-time migration of existing hashes — coordinate with the user before implementing, since existing vaults will need re-PINning.
 
-## Profile PINs — Stored plaintext in SQLite
-- Profile switch PINs are stored as raw plaintext in the local SQLite DB (not in flutter_secure_storage).
-- BUG-PROFILE-PIN in TASKS.md. Fix requires a DB migration to store hashes — existing PINs are lost in migration; users must re-set them.
-
 ## Unauthenticated Tamper-Report Endpoint
 - `/api/security/tamper-report` on the Flask server accepts unauthenticated POST requests by design.
 - It is intentionally open so tampered APKs (which would not have valid auth tokens) can still phone home.
 - Rate limiting has not been implemented on the server side. Noted as a known DoS vector.
-
-## Debug Diagnostics Screen — Exposed to all users (known, to be fixed)
-- The 5-tap-on-version-text gesture opens a full diagnostics screen in all builds, including production.
-- SEC-02 in TASKS.md. This IS a bug — not a deliberate choice — and should be gated behind `kDebugMode`. Has not been fixed yet.
 
 ## `_isFree` Revenue Bug — Unverified in mixin-split layout
 - Previously confirmed that the `_isFree` flag is not reset on content transition (player_screen.dart ~L1099–1105).
