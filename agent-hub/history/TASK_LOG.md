@@ -1930,3 +1930,29 @@ Fix: added `await prefs.setDouble('pref_sub_margin', _subBottomMargin)` to `_sav
 **No code changes. No CI trigger needed.**
 
 **Docs updated:** `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry).
+
+---
+
+## Session 2026-07-26 — Docs cleanup pass 2 (`ca365a5f`)
+
+**Task:** DOC-CLEANUP-2026-07-26-P2 — deeper audit of all folders and files for wrong info.
+
+**What was deleted:**
+
+| File | Reason |
+|---|---|
+| `.agents/memory/live-p6-p7a-jazz-sim.md` | Completely wrong: claimed tamashaweb CDN requires Jazz mobile SIM and P6/P7-A were blocked. CDN is confirmed globally accessible (2026-07-24). P6 and P7-A are both done. |
+| `jazzdrive_research/HANDOFF.md` | Stale one-off handoff from 2026-06-15. Wrong workflow rules: said "No git pull on Oracle" but `push_to_oracle.sh` explicitly does `git pull --ff-only`. Showed an outdated SCP-patch workflow superseded by `push_to_github.sh` + `push_to_oracle.sh`. |
+
+**What was fixed:**
+
+| File | Change |
+|---|---|
+| `agent-hub/PRODUCT_CONTEXT.md` | Line 4: "read MASTER_TASKLIST.md" → "read `agent-hub/TASKS.md`" (MASTER_TASKLIST.md no longer exists) |
+| `agent-hub/TEN_POINT_PLAN.md` | Updated date 2026-07-11 → 2026-07-26; added status note: 139/141 items complete, G4 and K5 permanently blocked |
+| `agent-hub/PLAYER_SPEC.md` | Header said "player_screen.dart (7087/4521 lines)" — Phase J split the monolithic player into 8 part/mixin files; parent is now ~1734 lines. Added stale warning and current structure note. |
+| `agent-hub/PLAYER_GUIDE.md` | Header said "7033 lines" — same Phase J issue. Added stale warning. |
+
+**No code changes. No CI trigger needed.**
+
+**Docs updated:** `TASKS.md`, `TASK_LOG.md` (this entry).
