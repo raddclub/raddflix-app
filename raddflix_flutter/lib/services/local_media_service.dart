@@ -52,11 +52,19 @@ import 'dart:io';
         final prefs = await SharedPreferences.getInstance();
         final seen = prefs.getStringList(_seenKey) ?? [];
 
-        // await not allowed inside .map() — resolve all subtitle paths first
+        // await not allowed inside .map() — resolve all subtitle paths first.
+        // Process in batches of 20 to avoid a parallel I/O storm on large libraries
+        // (1000+ videos × 10 extension checks = 10,000+ simultaneous File.exists()
+        // calls was freezing the UI event loop on budget MediaTek devices).
         final maps = raw.map((item) => Map<String, dynamic>.from(item as Map)).toList();
-        final subtitlePaths = await Future.wait(
-          maps.map((m) => _findSubtitlePath(m['file_path'] as String? ?? '')),
-        );
+        final subtitlePaths = <String?>[];
+        for (int i = 0; i < maps.length; i += 20) {
+          final end = (i + 20).clamp(0, maps.length);
+          final batch = await Future.wait(
+            maps.sublist(i, end).map((m) => _findSubtitlePath(m['file_path'] as String? ?? '')),
+          );
+          subtitlePaths.addAll(batch);
+        }
         final videos = <LocalVideo>[];
         for (int i = 0; i < maps.length; i++) {
           final m = maps[i];
