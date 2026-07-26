@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:sqflite_sqlcipher/sqflite.dart';
 import 'package:path/path.dart' as p;
@@ -55,11 +56,20 @@ class LocalDb {
         onCreate: _createAll,
         onUpgrade: _migrate,
       );
-    } catch (_) {
+    } catch (e) {
+      // BUG-DB-DELETE-RISK fix: only delete the DB when SQLCipher explicitly
+      // rejects it as an unencrypted file. Any other error (transient Keystore
+      // hardware fault, I/O error, OOM) must propagate — deleting on an
+      // unrelated failure would silently wipe all history, downloads, and data.
+      //
       // Pre-launch migration path: if an unencrypted DB file already exists
       // (plain sqflite from development), SQLCipher rejects it with
       // "file is not a database". Delete it and start fresh encrypted.
       // After public launch this branch is unreachable (all installs start encrypted).
+      final errMsg = e.toString().toLowerCase();
+      if (!errMsg.contains('not a database') && !errMsg.contains('file is not a database')) {
+        rethrow;
+      }
       try { await File(path).delete(); } catch (_) {}
       return openDatabase(
         path,
@@ -1882,6 +1892,16 @@ class LocalDb {
     return db.query('profiles', orderBy: 'sort_order ASC, id ASC');
   }
 
+  /// BUG-PROFILE-PIN: hash profile PINs with SHA-256 before storage so
+  /// plaintext PINs are never written to SQLite. Uses a static salt —
+  /// identical approach to VaultService._hashPin (raddflix_vault_salt_…).
+  /// Migration: stored values that are 64-char hex are already hashed;
+  /// shorter values are legacy plaintext (handled by ProfileNotifier.selectProfile).
+  static String hashProfilePin(String pin) {
+    final bytes = utf8.encode('raddflix_profile_pin_$pin');
+    return sha256.convert(bytes).toString();
+  }
+
   static Future<int> createProfile({
     required String name,
     String avatarColor = '#8B002D',
@@ -1899,7 +1919,7 @@ class LocalDb {
       'avatar_emoji': avatarEmoji,
       'is_kids':      isKids ? 1 : 0,
       'max_rating':   isKids ? 'pg' : maxRating,
-      'pin':          pin,
+      'pin':          pin != null ? hashProfilePin(pin) : null,
       'sort_order':   sortOrder,
       'created_at':   DateTime.now().millisecondsSinceEpoch,
     });
@@ -1925,7 +1945,7 @@ class LocalDb {
     if (clearPin) {
       values['pin'] = null;
     } else if (pin != null) {
-      values['pin'] = pin;
+      values['pin'] = hashProfilePin(pin); // BUG-PROFILE-PIN: always store hashed
     }
     if (values.isEmpty) return;
     await db.update('profiles', values, where: 'id = ?', whereArgs: [id]);
