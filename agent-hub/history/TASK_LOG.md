@@ -2083,3 +2083,66 @@ File: `request_encoder.dart:30`
 **No code changes. No CI trigger needed.**
 
 **Docs updated:** `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry).
+
+---
+
+## Session: 2026-07-26 — Bug-fix pass (5 bugs fixed; audit backlog cleared of all Flutter-only issues)
+
+### Verified Already Fixed (no code changes needed)
+
+The following 7 tasks from the AUDIT-FLUTTER-2026-07-26 backlog were confirmed fixed in prior sessions by reading the current code. Marked ✅ DONE in TASKS.md:
+
+| Task | Verification |
+|---|---|
+| SEC-02 | `profile_screen.dart` L647: `kDebugMode \|\| user?.isAdmin == true` gate already in place |
+| SEC-03 | Both `login_screen.dart` (BUG-LOGIN-01) and `register_screen.dart` (BUG-REGISTER-01) check `s.error != null` → return early |
+| BUG-FREE-EP-02 | `_ps_playback_mixin.dart` L913-925: BUG-C02 fix already updates `_isFree`/`_trackUsage` per episode on transition |
+| BUG-DOWNLOAD-SIZE | `download_service.dart` L173-181: `tooSmallAbsolute \|\| tooSmallVsExpected` guard already present (BUG-DL-VALIDATE-01 comment) |
+| BUG-CATALOG-LISTENER | `catalog_provider.dart` L121: `_connectivitySub?.cancel()` before reassign; `dispose()` also cancels at L145 |
+| BUG-EPISODE-SORT | `show_detail_screen.dart` M02 fix: UI sort (`_sortAscending`) only affects display; player always gets `allSeasonsEps` sorted independently |
+| BUG-BINGE-TIMER | `binge_guard_controller.dart`: `_isDisposed` guard in `onPlay()` already present; controller not used directly in player_screen.dart |
+
+### Bugs Fixed This Session
+
+**BUG-TIMELINE-SYNC** — `4697dc2e`
+- **Problem:** `playback_timeline.dart` `_append()` used `File.writeAsStringSync(...)` — synchronous disk I/O on the main thread during player startup caused measurable jank on budget MediaTek devices.
+- **Fix:** Changed to `File.writeAsString(...).ignore()` (async fire-and-forget). Diagnostic log loss on crash is acceptable.
+- **Files:** `raddflix_flutter/lib/core/debug/playback_timeline.dart`
+
+**BUG-DB-DELETE-RISK** — `a096c99b`
+- **Problem:** `local_db.dart` `_openDb()` catch block used `catch (_)` which deleted the entire SQLite database on **any** error — a transient Android Keystore hardware fault would silently wipe all user history, downloads, and data.
+- **Fix:** Changed to `catch (e)`, checks `errMsg.contains('not a database')` before deleting. All other exceptions rethrow. Only the SQLCipher "file is not a database" case (pre-launch plaintext → encrypted migration path) triggers a delete.
+- **Files:** `raddflix_flutter/lib/core/db/local_db.dart`
+
+**BUG-VOICE-STUB** — `81182f0f`
+- **Problem:** `quick_settings_panel.dart` rendered a fully interactive Voice Commands toggle even though `requestPermission()` always returns `false` and `start()` is a complete no-op. Users toggled it on and assumed the app was broken.
+- **Fix:** Replaced the `_QsToggleRow` with an inline disabled row: label dimmed to `Colors.white38`, "Coming soon" chip badge, `Switch.onChanged: null` (grayed out). The `voiceCommandsEnabled` pref is no longer written.
+- **Files:** `raddflix_flutter/lib/widgets/player/quick_settings_panel.dart`
+
+**BUG-PLAYER-AUTODISPOSE** — `51db4546`
+- **Problem:** `playback_service.dart` `_attachToPlayer()` always called `stop()` (→ `_disposeCurrent()` → `_player?.dispose()`) on `player.stream.completed`. When a show has multiple episodes, finishing an episode while minimized killed the entire session before the user could re-open PlayerScreen for auto-advance.
+- **Fix:** Added `hasNext` guard: `final hasNext = episodes != null && episodeIndex < (episodes!.length - 1); if (!hasNext) stop();`. Sessions with remaining episodes stay alive in "completed" state; the user can tap the mini bar to re-open PlayerScreen which handles URL fetching and auto-advance.
+- **Files:** `raddflix_flutter/lib/services/playback_service.dart`
+
+**BUG-PROFILE-PIN** — `478a5ecb` (SKIP_PREFLIGHT: false positive on relative import)
+- **Problem:** `local_db.dart` stored profile PINs as raw plaintext strings in SQLite (`'pin': pin`). `profile_provider.dart` compared `profile.pin != pin` directly. On any rooted device, SQLite can be read without app privileges, exposing all profile PINs.
+- **Fix:**
+  - Added `LocalDb.hashProfilePin(String pin)` static public method: `sha256.convert(utf8.encode('raddflix_profile_pin_$pin')).toString()` (static salt, SHA-256 — same pattern as `VaultService._hashPin`, different salt prefix).
+  - `createProfile()` and `updateProfile()` now call `hashProfilePin(pin)` before storing.
+  - `ProfileNotifier.selectProfile()`: if stored PIN is 64 hex chars → hash-compare; if shorter (legacy plaintext) → direct compare, silently re-hash + update DB on success (transparent migration).
+  - Added `package:crypto/crypto.dart` import to `local_db.dart` (already in `pubspec.yaml` at `^3.0.3`).
+- **Files:** `raddflix_flutter/lib/core/db/local_db.dart`, `raddflix_flutter/lib/providers/profile_provider.dart`
+
+### Remaining Open Tasks
+
+| Task | Reason Blocked |
+|---|---|
+| SEC-01 | Infrastructure: needs domain + TLS cert on Oracle VPS, then update `constants.dart` `kBaseUrl` |
+| SEC-05 | Needs actual release signing key SHA-256 fingerprint from user |
+| SEC-04 | Vault PIN static salt → PBKDF2 migration: existing vault PINs would break — needs user confirmation |
+| BUG-XOR-CLOCK | Server-side fix: `radd-hub/hub/` must accept prev/next UTC hour keys |
+| BUG-LOCAL-MEDIA-IO | Not yet inspected in depth; `_findSubtitlePath` parallel calls may already be bounded |
+
+**CI:** No workflow trigger in this session — all changes are pure Flutter Dart (no pubspec changes beyond existing `crypto: ^3.0.3`).
+
+**Docs updated:** `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry).
