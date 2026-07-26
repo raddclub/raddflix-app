@@ -1900,3 +1900,33 @@ Fix: added `await prefs.setDouble('pref_sub_margin', _subBottomMargin)` to `_sav
 ---
 
 **Docs updated:** `AGENT_HANDOFF.md` top section replaced, `TASKS.md` (BUG-SUB-STYLE-FIXES → ✅ DONE; AUDIO-LAB-INVESTIGATION row added), `TASK_LOG.md` (this entry).
+
+---
+
+## Session 2026-07-26 — Docs cleanup (`66e6b1f4`)
+
+**Bootstrap:** Fresh Replit session. Verified GITHUB_TOKEN + ORACLE_SSH_KEY present in Configurations. Cloned repo, read all canonical docs. UNPUSHED.txt empty — no recovery needed. CI on `9b3b9a8b` confirmed ✅ success.
+
+**Task:** DOC-CLEANUP-2026-07-26 — clean up all old docs and wrong info.
+
+**What was removed:**
+
+| File | Reason |
+|---|---|
+| `AGENT_PROMPT_AUDIO_LAB.md` | Old per-session prompt; never a canonical doc |
+| `AUDIO_LAB_BUGFIX_PLAN.md` | All audio lab bugs confirmed fixed (A1–A6, BUG-AUDIO-SILENT-01) |
+| `PLAYER_UX_BB_PLAN.md` | All BB tasks (BB1–BB8, BB10) done |
+| `LIBRARY_REDESIGN_PLAN.md` | Explicitly marked SUPERSEDED in the file itself |
+| `reports/2026-07-04-audit-and-plan.md` | Old dated one-off audit report |
+| `tasks/DA-2-watch-integrity-smc.md` | DA-2 completed (`f64615c1`) |
+| `LIVE_PLAYER_PLAN.md` | At repo root (wrong location); all P0–P7 phases done |
+
+**What was updated:**
+
+- `AGENT_HANDOFF.md`: trimmed from 2022 lines → 37 lines. Kept only the current state table. All historical "Previous State" / "Current State" sections dropped — that detail already lives in `TASK_LOG.md`. Also fixed CI status ⏳→✅ for `9b3b9a8b`.
+- `agent-hub/TASKS.md`: fixed CI ⏳→✅ on BUG-SUB-STYLE-FIXES row; added DOC-CLEANUP row.
+- `agent-hub/DOWNLOAD_TAB_REDESIGN_PLAN.md`: removed two references to `agent-hub/archive/` (that directory doesn't exist per rules); replaced with "deleted".
+
+**No code changes. No CI trigger needed.**
+
+**Docs updated:** `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry).
