@@ -2146,3 +2146,30 @@ The following 7 tasks from the AUDIT-FLUTTER-2026-07-26 backlog were confirmed f
 **CI:** No workflow trigger in this session — all changes are pure Flutter Dart (no pubspec changes beyond existing `crypto: ^3.0.3`).
 
 **Docs updated:** `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry).
+
+---
+
+## Session: 2026-07-26 — Docs cleanup + BUG-LOCAL-MEDIA-IO fix
+
+### Verified Already Fixed (no code changes needed)
+
+**BUG-XOR-CLOCK:** `request_encoding.py` already contains `_candidate_keys()` returning offsets 0, −1, +1, and `decode_request()` iterates all three. `XorWsgiMiddleware` is mounted in `app.py`. ±1h device clock skew is fully tolerated. Marked ✅ DONE in TASKS.md.
+
+### Bug Fixed This Session
+
+**BUG-LOCAL-MEDIA-IO** — `3b23881`
+- **Problem:** `queryAllVideos()` used `Future.wait()` to fire `_findSubtitlePath()` for every video simultaneously — on a 1,000+ video library this is 10,000+ parallel `File.exists()` calls, overwhelming the mobile file system and stalling the Dart event loop.
+- **Fix:** Replaced the single `Future.wait()` with a batched loop processing 20 videos at a time. Subtitle detection still runs async (no UI thread blocking) and per-video accuracy is unchanged; concurrency is bounded.
+- **Files:** `raddflix_flutter/lib/services/local_media_service.dart`
+
+### Docs Cleaned Up
+
+- **TASKS.md:** SEC-01, SEC-04, SEC-05 changed from `🔴 OPEN` to `⛔ BLOCKED` with reason (external dependency — domain/keystore/migration decision). BUG-XOR-CLOCK and BUG-LOCAL-MEDIA-IO marked ✅ DONE.
+- **infrastructure-constraints.md:** Removed stale "Profile PINs — Stored plaintext" section (fixed in prior session BUG-PROFILE-PIN `478a5ecb`). Removed "Debug Diagnostics Screen — Exposed to all users" section (fixed in SEC-02, confirmed in profile_screen.dart L647/682). Updated "XOR Key Clock Sensitivity" to document the existing server-side fix.
+- **AGENT_HANDOFF.md:** Rewritten to reflect current state: all directly-fixable bugs resolved; 3 blocked tasks documented with specific unblock conditions.
+
+### Oracle
+
+Deployed to GitHub main HEAD after all commits.
+
+**Docs updated:** `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry).
