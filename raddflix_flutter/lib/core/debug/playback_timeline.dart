@@ -201,8 +201,10 @@ import 'dart:io';
 
     static void _append(String line) {
       if (_filePath == null) return;
-      try { File(_filePath!).writeAsStringSync('$line\n', mode: FileMode.append); }
-      catch (_) {}
+      // BUG-TIMELINE-SYNC fix: async fire-and-forget — writeAsStringSync on the
+      // main thread caused measurable UI jank on budget MediaTek devices during
+      // player startup. Diagnostic log loss on crash is acceptable.
+      File(_filePath!).writeAsString('$line\n', mode: FileMode.append).ignore();
     }
 
     static void _flushAppend(String line) => _append(line);
