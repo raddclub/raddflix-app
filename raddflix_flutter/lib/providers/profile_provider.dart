@@ -59,7 +59,27 @@ class ProfileNotifier extends StateNotifier<ProfileState> {
       (p) => p.id == id,
       orElse: () => state.profiles.first,
     );
-    if (profile.isLocked && profile.pin != pin) return false;
+    if (profile.isLocked) {
+      if (pin == null) return false;
+      final storedPin = profile.pin ?? '';
+      // BUG-PROFILE-PIN fix: PINs are stored as SHA-256 hashes (always 64 hex
+      // chars). Legacy installs may still have a plaintext 4-8 digit PIN in the
+      // DB — detect by length and transparently migrate on successful match.
+      final bool matches;
+      if (storedPin.length == 64) {
+        // Hashed format — compare hash of input against stored hash
+        matches = LocalDb.hashProfilePin(pin) == storedPin;
+      } else {
+        // Legacy plaintext PIN — compare directly
+        matches = storedPin == pin;
+        if (matches) {
+          // Silently migrate this profile's PIN to hashed format
+          await LocalDb.updateProfile(id, pin: pin);
+          await load();
+        }
+      }
+      if (!matches) return false;
+    }
 
     LocalDb.currentProfileId = profile.id;
     final prefs = await SharedPreferences.getInstance();
