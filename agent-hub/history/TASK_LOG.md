@@ -1933,6 +1933,36 @@ Fix: added `await prefs.setDouble('pref_sub_margin', _subBottomMargin)` to `_sav
 
 ---
 
+## Session: 2026-07-27 — AUTH-UX-2026 completion
+
+### Auth UX implementation
+
+Completed the remaining auth guidance items in:
+
+- `raddflix_flutter/lib/design_system/components/radd_text_field.dart`
+- `raddflix_flutter/lib/screens/login_screen.dart`
+- `raddflix_flutter/lib/screens/register_screen.dart`
+
+The shared text field now supports native autofill metadata, explicit accessibility labels and
+hints, animated focus/error border transitions, and reduced-motion handling. Login and registration
+now use `AutofillGroup`, phone/password autofill hints, live-region error and step announcements,
+password visibility tooltips, reduced-motion-aware transitions, and haptic feedback for validation,
+step, submit, and guest actions.
+
+Existing auth APIs, guest access, device-conflict handling, and phone/password flows were preserved.
+
+### Verification
+
+- Code commit: `39343b0490633a49cfbdf094441fd7de093fd860`
+- GitHub Actions APK build: `30263339764` — **success**
+- `flutter pub get`: **success**
+- Dart analyze: **success**
+- No Oracle deployment required.
+
+`AUTH-UX-2026` is marked ✅ DONE in `agent-hub/TASKS.md`.
+
+---
+
 ## Session 2026-07-26 — Docs cleanup pass 2 (`ca365a5f`)
 
 **Task:** DOC-CLEANUP-2026-07-26-P2 — deeper audit of all folders and files for wrong info.

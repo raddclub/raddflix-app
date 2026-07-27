@@ -5,16 +5,18 @@
 
 ---
 
-## Current State (2026-07-26 — Docs cleanup + 2 more bugs fixed)
+## Current State (2026-07-27 — Auth UX refresh complete)
 
-All directly-fixable Flutter and server bugs from the 2026-07-26 audit backlog are now resolved or correctly categorised.
+The auth experience refresh is complete and verified in CI. Login and registration now include
+progressive registration, live validation, native autofill, accessibility semantics, reduced-motion
+support, animated focus/error feedback, and haptic confirmation while preserving the existing
+phone/password, guest, device-conflict, and API flows.
 
 | Status | Count | Task IDs |
 |---|---|---|
-| ✅ DONE (confirmed already fixed in prior sessions) | 7 | SEC-02, SEC-03, BUG-FREE-EP-02, BUG-DOWNLOAD-SIZE, BUG-CATALOG-LISTENER, BUG-EPISODE-SORT, BUG-BINGE-TIMER |
-| ✅ DONE (fixed previous session) | 5 | BUG-TIMELINE-SYNC, BUG-DB-DELETE-RISK, BUG-VOICE-STUB, BUG-PLAYER-AUTODISPOSE, BUG-PROFILE-PIN |
-| ✅ DONE (fixed this session) | 2 | BUG-LOCAL-MEDIA-IO (`3b23881`), BUG-XOR-CLOCK (already in `request_encoding.py` — verified, no code change needed) |
-| ⛔ BLOCKED — external dependency | 3 | SEC-01 (needs domain + TLS cert), SEC-05 (needs release keystore SHA-256), SEC-04 (vault PIN migration — breaks existing PINs) |
+| ✅ DONE | 1 | AUTH-UX-2026 (`39343b04`; APK CI `30263339764`) |
+| ✅ DONE — prior audit backlog | 14 | SEC-02, SEC-03, BUG-FREE-EP-02, BUG-DOWNLOAD-SIZE, BUG-CATALOG-LISTENER, BUG-EPISODE-SORT, BUG-BINGE-TIMER, BUG-TIMELINE-SYNC, BUG-DB-DELETE-RISK, BUG-VOICE-STUB, BUG-PLAYER-AUTODISPOSE, BUG-PROFILE-PIN, BUG-LOCAL-MEDIA-IO, BUG-XOR-CLOCK |
+| ⛔ BLOCKED — external dependency | 3 | SEC-01 (needs domain + TLS cert), SEC-05 (needs release keystore SHA-256), SEC-04 (vault PIN migration) |
 
 ### Blocked tasks (no agent can fix these without external input)
 
@@ -26,10 +28,12 @@ All directly-fixable Flutter and server bugs from the 2026-07-26 audit backlog a
 
 | SHA | Description |
 |---|---|
+| `39343b04` | Complete auth accessibility, autofill, reduced-motion, haptic, and focus/error interaction polish |
 | `3b23881` | BUG-LOCAL-MEDIA-IO: batch subtitle checks (20 at a time) to avoid I/O storm |
 | (docs only) | TASKS.md, infrastructure-constraints.md, AGENT_HANDOFF.md cleanup |
 
-**Oracle:** Deployed to latest after doc commits.
+**CI:** APK build `30263339764` passed successfully, including `flutter pub get` and `Dart analyze`.
+No Oracle deployment needed — this session changed Flutter code and canonical documentation only.
 
 ---
 
