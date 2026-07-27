@@ -40,6 +40,7 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
   double _subSync = 0.0; // seconds
   double _subSpeed = 1.0; // 0.5..2.0
   String? _currentSubFile;
+  int _subtitleStyleReapplyGeneration = 0;
 
   List<SubtitleTrack> get _realSubtitleTracks =>
       _subtitleTracks.where((t) => t.id != null && int.tryParse(t.id!) != null).toList();
@@ -128,6 +129,17 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
     } catch (_) {}
   }
 
+  /// MPV may recreate its subtitle renderer after a track or `sub-file`
+  /// change. Reapply after that lifecycle event, rather than racing the
+  /// renderer while it is still loading the new subtitle stream.
+  void _reapplySubtitleStyleAfterLifecycle() {
+    final generation = ++_subtitleStyleReapplyGeneration;
+    Future.delayed(const Duration(milliseconds: 150), () async {
+      if (!mounted || generation != _subtitleStyleReapplyGeneration) return;
+      await _applySubtitleStylePrefs();
+    });
+  }
+
   void _openSubtitlePanel() {
       final panel = _SubtitlePanel(
         isLocal: _isLocal,
@@ -180,11 +192,10 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
           _scheduleSavePrefs();
           if (track != null) {
             _player.setSubtitleTrack(track);
-            // BUG-SUB-STYLE-01: force the override mode immediately on every
-            // track switch so a newly-selected track's baked-in ASS style
-            // never wins over the user's custom style/position, even before
-            // the next controls show/hide fires `_applySubtitleMargin`.
-            try { _np.setProperty('sub-ass-override', 'force'); } catch (_) {}
+            // Reapply the complete saved style after the track switch. MPV
+            // can recreate its subtitle renderer and restore the track's
+            // baked-in ASS defaults after the selection call returns.
+            _reapplySubtitleStyleAfterLifecycle();
           } else {
             try { _np.setProperty('sid', 'no'); } catch (_) {}
           }

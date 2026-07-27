@@ -16,6 +16,7 @@ part of '../player_screen.dart';
 mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
   // ── Cross-cluster methods (defined in _PlayerScreenState) ────────────────
   void _applySubtitleMargin({required bool controlsVisible});
+  void _reapplySubtitleStyleAfterLifecycle();
   String _formatDuration(Duration d);
   void _setNativeOrientation(String mode);
   void _scheduleSavePrefs();
@@ -460,6 +461,9 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
               if (mounted) setState(() => _selectedAudio = t);
             }
           }
+          // Track discovery/selection can recreate MPV's subtitle renderer,
+          // which otherwise restores the embedded track's default styling.
+          _reapplySubtitleStyleAfterLifecycle();
         });
         // P57-05: EAC3/DTS auto SW decoder fallback
         // media_kit_libs_android_video bundles full ffmpeg so EAC3 decodes fine,
@@ -1221,8 +1225,13 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
   }
 
   void _applyCompanionSub(String? subPath) {
-    if (subPath == null || subPath.isEmpty) return;
-    try { _np.setProperty('sub-file', subPath); } catch (_) {}
+    if (subPath != null && subPath.isNotEmpty) {
+      try { _np.setProperty('sub-file', subPath); } catch (_) {}
+    }
+    // This is called after every VOD/media open. Reapply even when there is no
+    // companion file because MPV may have just recreated its subtitle renderer
+    // while opening the media itself.
+    _reapplySubtitleStyleAfterLifecycle();
   }
 
   Future<void> _setSpeed(double speed) async {
