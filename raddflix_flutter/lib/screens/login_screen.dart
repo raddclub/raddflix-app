@@ -52,6 +52,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _loading  = false;
   String? _error;
 
+  bool get _phoneIsValid {
+    final digits = _phoneCtrl.text.replaceAll('-', '').trim();
+    return digits.length == 11 && digits.startsWith('03');
+  }
+
   @override
   void dispose() {
     _phoneCtrl.dispose(); _passCtrl.dispose();
@@ -157,9 +162,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           fontWeight: FontWeight.w500))
                         .animate(delay: 100.ms).fadeIn(duration: 400.ms),
                     SizedBox(height: 4),
-                    Text('Sign In',
+                    Text('Sign in to continue watching',
                         style: TextStyle(
-                          color: t.textPrimary, fontSize: 30,
+                          color: t.textPrimary, fontSize: 29,
                           fontWeight: FontWeight.w800, letterSpacing: -0.8))
                         .animate(delay: 150.ms).fadeIn(duration: 400.ms)
                         .slideX(begin: -0.2, end: 0, duration: 400.ms, curve: AppCurves.standard),
@@ -176,8 +181,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           focusNode: _phoneFocus,
                           textInputAction: TextInputAction.next, // UX4-08
                           inputFormatters: [_PhoneFormatter()],  // UX4-10
+                          onChanged: (_) => setState(() {}),
                           onFieldSubmitted: (_) =>
                               FocusScope.of(context).requestFocus(_passFocus),
+                          suffixIcon: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 180),
+                            transitionBuilder: (child, animation) =>
+                                ScaleTransition(scale: animation, child: child),
+                            child: _phoneIsValid
+                                ? Icon(
+                                    AppIcons.successIcon,
+                                    key: const ValueKey('valid-phone'),
+                                    color: context.signalPrimary,
+                                    size: 20,
+                                  )
+                                : const SizedBox(
+                                    key: ValueKey('empty-phone'),
+                                    width: 20,
+                                    height: 20,
+                                  ),
+                          ),
                           validator: (v) {
                             if (v == null || v.trim().isEmpty) return 'Enter your phone number';
                             final digits = v.replaceAll('-', '');
@@ -222,6 +245,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           .animate().fadeIn(duration: 250.ms).shakeX(hz: 3, amount: 4),
                     ],
                     SizedBox(height: 28),
+                    Row(
+                      children: [
+                        Icon(AppIcons.shield, color: context.signalPrimary, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Your account stays private and synced to one device.',
+                            style: TextStyle(color: t.textMuted, fontSize: 12, height: 1.35),
+                          ),
+                        ),
+                      ],
+                    ).animate(delay: 290.ms).fadeIn(duration: 300.ms),
+                    const SizedBox(height: 16),
                     // Sign In Button
                     RaddButton(
                       label: 'Sign In',
