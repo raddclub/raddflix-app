@@ -135,9 +135,20 @@ class _RaddTextFieldState extends State<RaddTextField> {
               padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md, vertical: RaddSpace.sm),
               alignment: Alignment.center,
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   if (widget.prefixIcon != null) ...[
-                    Icon(widget.prefixIcon, color: t.textMuted, size: 20),
+                    SizedBox(
+                      width: 24,
+                      height: 52,
+                      child: Center(
+                        child: Icon(
+                          widget.prefixIcon,
+                          color: widget.enabled ? t.textMuted : t.textMuted.withOpacity(0.5),
+                          size: 20,
+                        ),
+                      ),
+                    ),
                     const SizedBox(width: RaddSpace.sm),
                   ],
                   Expanded(
@@ -159,7 +170,14 @@ class _RaddTextFieldState extends State<RaddTextField> {
                         textInputAction: widget.textInputAction,
                         inputFormatters: widget.inputFormatters,
                         onSubmitted: widget.onFieldSubmitted,
-                        style: context.raddBody.copyWith(color: t.textPrimary),
+                        textAlignVertical: widget.maxLines > 1
+                            ? TextAlignVertical.top
+                            : TextAlignVertical.center,
+                        style: context.raddBody.copyWith(
+                          color: widget.enabled
+                              ? t.textPrimary
+                              : t.textPrimary.withOpacity(0.5),
+                        ),
                         onChanged: (v) {
                           field.didChange(v);
                           widget.onChanged?.call(v);
@@ -179,7 +197,14 @@ class _RaddTextFieldState extends State<RaddTextField> {
                           focusedErrorBorder: InputBorder.none,
                           disabledBorder:     InputBorder.none,
                           hintText: widget.hint,
-                          hintStyle: context.raddBody.copyWith(color: t.textMuted),
+                          hintStyle: context.raddBody.copyWith(
+                            color: widget.enabled
+                                ? t.textMuted
+                                : t.textMuted.withOpacity(0.5),
+                          ),
+                          contentPadding: EdgeInsets.zero,
+                          isDense: true,
+                          alignLabelWithHint: widget.maxLines > 1,
                           // suffixIcon intentionally NOT here — putting it inside
                           // InputDecorator lets Flutter add its own internal chrome
                           // around the text+suffix area. It is rendered in the
@@ -194,7 +219,12 @@ class _RaddTextFieldState extends State<RaddTextField> {
                   // Suffix lives in the outer Row, not inside InputDecoration,
                   // so it shares the same 52dp Container height and is aligned
                   // by our own layout rather than Flutter's InputDecorator chrome.
-                  if (widget.suffixIcon != null) widget.suffixIcon!,
+                  if (widget.suffixIcon != null)
+                    SizedBox(
+                      width: 40,
+                      height: 52,
+                      child: Center(child: widget.suffixIcon!),
+                    ),
                 ],
               ),
             ),
