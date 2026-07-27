@@ -41,6 +41,11 @@ class RaddTextField extends StatefulWidget {
   final TextInputAction? textInputAction;
   final List<TextInputFormatter>? inputFormatters;
   final ValueChanged<String>? onFieldSubmitted;
+  // Native keyboard autofill metadata. Keep this on the shared field so every
+  // form gets the same platform behaviour and accessibility semantics.
+  final Iterable<String>? autofillHints;
+  final String? semanticsLabel;
+  final String? semanticsHint;
 
   const RaddTextField({
     super.key,
@@ -62,6 +67,9 @@ class RaddTextField extends StatefulWidget {
     this.textInputAction,
     this.inputFormatters,
     this.onFieldSubmitted,
+    this.autofillHints,
+    this.semanticsLabel,
+    this.semanticsHint,
   });
 
   @override
@@ -113,7 +121,11 @@ class _RaddTextFieldState extends State<RaddTextField> {
               Text(widget.label!, style: context.raddCaption.copyWith(color: t.textSecondary)),
               const SizedBox(height: RaddSpace.xs),
             ],
-            Container(
+            AnimatedContainer(
+              duration: MediaQuery.of(context).disableAnimations
+                  ? Duration.zero
+                  : const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
               height: widget.maxLines > 1 ? null : 52,
               decoration: BoxDecoration(
                 color: t.surface,
@@ -129,46 +141,53 @@ class _RaddTextFieldState extends State<RaddTextField> {
                     const SizedBox(width: RaddSpace.sm),
                   ],
                   Expanded(
-                    child: TextField(
-                      controller: widget.controller,
-                      focusNode: _focusNode,
-                      obscureText: widget.obscureText,
-                      keyboardType: widget.keyboardType,
-                      maxLines: widget.maxLines,
-                      maxLength: widget.maxLength,
-                      textCapitalization: widget.textCapitalization,
-                      enabled: widget.enabled,
-                      textInputAction: widget.textInputAction,
-                      inputFormatters: widget.inputFormatters,
-                      onSubmitted: widget.onFieldSubmitted,
-                      style: context.raddBody.copyWith(color: t.textPrimary),
-                      onChanged: (v) {
-                        field.didChange(v);
-                        widget.onChanged?.call(v);
-                      },
-                      decoration: InputDecoration(
-                        // Override the global inputDecorationTheme which sets
-                        // filled:true — without this the theme injects its own
-                        // fillColor, creating a visible inner box inside our
-                        // custom Container border.
-                        filled: false,
-                        // Explicitly clear every border state so no state
-                        // transition (focus, error, disabled) can draw a border.
-                        border:             InputBorder.none,
-                        enabledBorder:      InputBorder.none,
-                        focusedBorder:      InputBorder.none,
-                        errorBorder:        InputBorder.none,
-                        focusedErrorBorder: InputBorder.none,
-                        disabledBorder:     InputBorder.none,
-                        hintText: widget.hint,
-                        hintStyle: context.raddBody.copyWith(color: t.textMuted),
-                        // suffixIcon intentionally NOT here — putting it inside
-                        // InputDecorator lets Flutter add its own internal chrome
-                        // around the text+suffix area. It is rendered in the
-                        // outer Row below instead, so all visual layout is owned
-                        // by our Container.
-                        isCollapsed: true,
-                        counterText: widget.maxLength != null ? '' : null,
+                    child: Semantics(
+                      textField: true,
+                      label: widget.semanticsLabel ?? widget.label,
+                      hint: widget.semanticsHint ?? widget.hint,
+                      obscured: widget.obscureText,
+                      child: TextField(
+                        controller: widget.controller,
+                        focusNode: _focusNode,
+                        obscureText: widget.obscureText,
+                        keyboardType: widget.keyboardType,
+                        autofillHints: widget.autofillHints,
+                        maxLines: widget.maxLines,
+                        maxLength: widget.maxLength,
+                        textCapitalization: widget.textCapitalization,
+                        enabled: widget.enabled,
+                        textInputAction: widget.textInputAction,
+                        inputFormatters: widget.inputFormatters,
+                        onSubmitted: widget.onFieldSubmitted,
+                        style: context.raddBody.copyWith(color: t.textPrimary),
+                        onChanged: (v) {
+                          field.didChange(v);
+                          widget.onChanged?.call(v);
+                        },
+                        decoration: InputDecoration(
+                          // Override the global inputDecorationTheme which sets
+                          // filled:true — without this the theme injects its own
+                          // fillColor, creating a visible inner box inside our
+                          // custom Container border.
+                          filled: false,
+                          // Explicitly clear every border state so no state
+                          // transition (focus, error, disabled) can draw a border.
+                          border:             InputBorder.none,
+                          enabledBorder:      InputBorder.none,
+                          focusedBorder:      InputBorder.none,
+                          errorBorder:        InputBorder.none,
+                          focusedErrorBorder: InputBorder.none,
+                          disabledBorder:     InputBorder.none,
+                          hintText: widget.hint,
+                          hintStyle: context.raddBody.copyWith(color: t.textMuted),
+                          // suffixIcon intentionally NOT here — putting it inside
+                          // InputDecorator lets Flutter add its own internal chrome
+                          // around the text+suffix area. It is rendered in the
+                          // outer Row below instead, so all visual layout is owned
+                          // by our Container.
+                          isCollapsed: true,
+                          counterText: widget.maxLength != null ? '' : null,
+                        ),
                       ),
                     ),
                   ),

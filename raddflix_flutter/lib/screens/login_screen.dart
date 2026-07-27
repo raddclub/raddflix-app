@@ -66,6 +66,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
+    HapticFeedback.lightImpact();
+    TextInput.finishAutofillContext(shouldSave: false);
     setState(() { _loading = true; _error = null; });
     try {
       await ref.read(authProvider.notifier).login(
@@ -97,6 +99,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _guest() async {
+    HapticFeedback.lightImpact();
     setState(() { _loading = true; _error = null; });
     try {
       await ref.read(authProvider.notifier).continueAsGuest();
@@ -110,6 +113,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
     final authState = ref.watch(authProvider);
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
     return LoadingOverlay(
       loading: _loading,
       child: Scaffold(
@@ -169,9 +173,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         .animate(delay: 150.ms).fadeIn(duration: 400.ms)
                         .slideX(begin: -0.2, end: 0, duration: 400.ms, curve: AppCurves.standard),
                     const SizedBox(height: 28),
-                    Form(
-                      key: _formKey,
-                      child: Column(children: [
+                    AutofillGroup(
+                      child: Form(
+                        key: _formKey,
+                        child: Column(children: [
                         RaddTextField(
                           controller: _phoneCtrl,
                           label: 'Phone Number',
@@ -181,11 +186,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           focusNode: _phoneFocus,
                           textInputAction: TextInputAction.next, // UX4-08
                           inputFormatters: [_PhoneFormatter()],  // UX4-10
+                          autofillHints: const [AutofillHints.telephoneNumber],
+                          semanticsLabel: 'Phone number',
+                          semanticsHint: 'Enter your Pakistani phone number',
                           onChanged: (_) => setState(() {}),
                           onFieldSubmitted: (_) =>
                               FocusScope.of(context).requestFocus(_passFocus),
                           suffixIcon: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 180),
+                            duration: reduceMotion
+                                ? Duration.zero
+                                : const Duration(milliseconds: 180),
+                            // Autofill/state feedback should respect the
+                            // user's reduced-motion preference.
+                            reverseDuration: reduceMotion
+                                ? Duration.zero
+                                : const Duration(milliseconds: 180),
                             transitionBuilder: (child, animation) =>
                                 ScaleTransition(scale: animation, child: child),
                             child: _phoneIsValid
@@ -219,8 +234,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           prefixIcon: AppIcons.lock,
                           focusNode: _passFocus,
                           textInputAction: TextInputAction.done, // UX4-08
+                          autofillHints: const [AutofillHints.password],
+                          semanticsLabel: 'Password',
+                          semanticsHint: 'Enter your account password',
                           onFieldSubmitted: (_) => _login(),
                           suffixIcon: IconButton(
+                            tooltip: _obscure ? 'Show password' : 'Hide password',
                             icon: Icon(
                               _obscure ? AppIcons.eyeOff : AppIcons.eye,
                               color: t.textMuted, size: 20),
@@ -232,7 +251,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           },
                         ).animate(delay: 260.ms).fadeIn(duration: 350.ms)
                             .slideY(begin: 0.2, end: 0, duration: 350.ms, curve: AppCurves.standard),
-                      ]),
+                        ]),
+                      ),
                     ),
                     // Device conflict panel — shown when another device is bound
                     if (authState.isDeviceConflict) ...[
@@ -241,8 +261,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           .animate().fadeIn(duration: 300.ms).slideY(begin: 0.1, end: 0, duration: 300.ms),
                     ] else if (_error != null) ...[
                       const SizedBox(height: 14),
-                      _ErrorBanner(message: _error!)
-                          .animate().fadeIn(duration: 250.ms).shakeX(hz: 3, amount: 4),
+                      Semantics(
+                        liveRegion: true,
+                        label: 'Sign-in error: $_error',
+                        child: _ErrorBanner(message: _error!),
+                      ).animate().fadeIn(
+                            duration: reduceMotion ? Duration.zero : 250.ms,
+                          ).shakeX(
+                            hz: reduceMotion ? 0 : 3,
+                            amount: reduceMotion ? 0 : 4,
+                          ),
                     ],
                     SizedBox(height: 28),
                     Row(

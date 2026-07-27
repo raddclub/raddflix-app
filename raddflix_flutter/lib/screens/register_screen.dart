@@ -67,6 +67,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   Future<void> _register() async {
     if (!_phoneIsValid || !_passwordIsValid || !_passwordsMatch) {
+      HapticFeedback.mediumImpact();
       setState(() => _error = !_phoneIsValid
           ? 'Enter a valid Pakistani phone number.'
           : !_passwordIsValid
@@ -75,6 +76,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       return;
     }
     setState(() { _loading = true; _error = null; });
+    HapticFeedback.lightImpact();
+    TextInput.finishAutofillContext(shouldSave: true);
     try {
       // UX4-10: strip formatter hyphen before sending to API
       final rawPhone = _phone.text.replaceAll('-', '').trim();
@@ -120,9 +123,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   void _continueToPassword() {
     if (!_phoneIsValid) {
+      HapticFeedback.mediumImpact();
       setState(() => _error = 'Enter a valid Pakistani phone number to continue.');
       return;
     }
+    HapticFeedback.selectionClick();
     setState(() => _error = null);
     setState(() => _step = 1);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -131,6 +136,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   Future<void> _guest() async {
+    HapticFeedback.lightImpact();
     setState(() { _loading = true; _error = null; });
     try {
       await ref.read(authProvider.notifier).continueAsGuest();
@@ -144,6 +150,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
     return LoadingOverlay(
       loading: _loading,
       child: Scaffold(
@@ -187,23 +194,29 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ],
                   ).animate().fadeIn(duration: 250.ms),
                   const SizedBox(height: 22),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 260),
-                    transitionBuilder: (child, animation) => FadeTransition(
-                      opacity: animation,
-                      child: SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0.06, 0),
-                          end: Offset.zero,
-                        ).animate(animation),
-                        child: child,
+                  Semantics(
+                    liveRegion: true,
+                    label: 'Registration step ${_step + 1} of 2',
+                    child: AnimatedSwitcher(
+                      duration: reduceMotion
+                          ? Duration.zero
+                          : const Duration(milliseconds: 260),
+                      transitionBuilder: (child, animation) => FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0.06, 0),
+                            end: Offset.zero,
+                          ).animate(animation),
+                          child: child,
+                        ),
                       ),
+                      child: Text(
+                        _step == 0 ? 'Create your account' : 'Secure your account',
+                        key: ValueKey(_step),
+                        style: TextStyle(color: t.textPrimary, fontSize: 28,
+                            fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                     ),
-                    child: Text(
-                      _step == 0 ? 'Create your account' : 'Secure your account',
-                      key: ValueKey(_step),
-                      style: TextStyle(color: t.textPrimary, fontSize: 28,
-                          fontWeight: FontWeight.w800, letterSpacing: -0.5))
                   ),
                   const SizedBox(height: 6),
                   Text(_step == 0
@@ -212,102 +225,193 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       style: TextStyle(color: t.textMuted, fontSize: 14))
                       .animate(delay: 80.ms).fadeIn(duration: 300.ms),
                   SizedBox(height: 32),
-                  Form(key: _formKey, child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 240),
-                    child: _step == 0
-                        ? Column(
-                            key: const ValueKey('phone-step'),
-                            children: [
-                    RaddTextField(controller: _phone, label: 'Phone Number',
-                        hint: '03XX-XXXXXXX', keyboardType: TextInputType.phone,
-                        prefixIcon: AppIcons.phone,
-                        focusNode: _phoneFocus,
-                        textInputAction: TextInputAction.next, // UX4-08
-                        inputFormatters: [_PhoneFormatter()],  // UX4-10
-                        onChanged: (_) => setState(() => _error = null),
-                        onFieldSubmitted: (_) =>
-                            FocusScope.of(context).requestFocus(_passFocus),
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) return 'Enter your phone number';
-                          final digits = v.replaceAll('-', '');
-                          if (digits.length != 11 || !digits.startsWith('03')) {
-                            return 'Enter a valid Pakistani number (03XX-XXXXXXX)';
-                          }
-                          return null;
-                        }),
-                    const SizedBox(height: 18),
-                    RaddButton(
-                      label: 'Continue',
-                      trailingIcon: AppIcons.arrowDown,
-                      onPressed: _loading ? null : _continueToPassword,
-                      fullWidth: true,
-                    ),
-                  ],
-                        )
-                        : Column(
-                            key: const ValueKey('password-step'),
-                            children: [
-                    RaddTextField(controller: _pass, label: 'Password',
-                        obscureText: _obscure, prefixIcon: AppIcons.lock,
-                        focusNode: _passFocus,
-                        textInputAction: TextInputAction.next, // UX4-08
-                        onChanged: (_) => setState(() => _error = null),
-                        onFieldSubmitted: (_) =>
-                            FocusScope.of(context).requestFocus(_confirmFocus),
-                        suffixIcon: IconButton(
-                          icon: Icon(_obscure ? AppIcons.eyeOff : AppIcons.eye,
-                              color: t.textMuted, size: 20),
-                          onPressed: () => setState(() => _obscure = !_obscure)),
-                        validator: (v) {
-                          if (v == null || v.isEmpty) return 'Enter a password';
-                          if (v.length < 8) return 'Min 8 characters';
-                          return null;
-                        }),
-                    const SizedBox(height: 14),
-                    RaddTextField(controller: _confirm, label: 'Confirm Password',
-                        obscureText: _obscure, prefixIcon: AppIcons.lock,
-                        focusNode: _confirmFocus,
-                        textInputAction: TextInputAction.done, // UX4-08
-                        onChanged: (_) => setState(() => _error = null),
-                        onFieldSubmitted: (_) => _register(),
-                        validator: (v) {
-                          if (v != _pass.text) return 'Passwords do not match';
-                          return null;
-                        }),
-                    const SizedBox(height: 12),
-                    AnimatedSize(
-                      duration: const Duration(milliseconds: 220),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _PasswordRule(
-                            label: 'At least 8 characters',
-                            valid: _passwordIsValid,
-                          ),
-                          const SizedBox(height: 6),
-                          _PasswordRule(
-                            label: 'Passwords match',
-                            valid: _passwordsMatch,
-                          ),
-                        ],
+                  AutofillGroup(
+                    child: Form(
+                      key: _formKey,
+                      child: AnimatedSwitcher(
+                        duration: reduceMotion
+                            ? Duration.zero
+                            : const Duration(milliseconds: 240),
+                        child: _step == 0
+                            ? Column(
+                                key: const ValueKey('phone-step'),
+                                children: [
+                                  RaddTextField(
+                                    controller: _phone,
+                                    label: 'Phone Number',
+                                    hint: '03XX-XXXXXXX',
+                                    keyboardType: TextInputType.phone,
+                                    prefixIcon: AppIcons.phone,
+                                    focusNode: _phoneFocus,
+                                    textInputAction: TextInputAction.next,
+                                    inputFormatters: [_PhoneFormatter()],
+                                    autofillHints: const [
+                                      AutofillHints.telephoneNumber,
+                                    ],
+                                    semanticsLabel: 'Phone number',
+                                    semanticsHint:
+                                        'Enter your Pakistani phone number',
+                                    onChanged: (_) =>
+                                        setState(() => _error = null),
+                                    onFieldSubmitted: (_) =>
+                                        FocusScope.of(context)
+                                            .requestFocus(_passFocus),
+                                    validator: (v) {
+                                      if (v == null || v.trim().isEmpty) {
+                                        return 'Enter your phone number';
+                                      }
+                                      final digits = v.replaceAll('-', '');
+                                      if (digits.length != 11 ||
+                                          !digits.startsWith('03')) {
+                                        return 'Enter a valid Pakistani number (03XX-XXXXXXX)';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 18),
+                                  RaddButton(
+                                    label: 'Continue',
+                                    trailingIcon: AppIcons.arrowDown,
+                                    onPressed: _loading
+                                        ? null
+                                        : _continueToPassword,
+                                    fullWidth: true,
+                                  ),
+                                ],
+                              )
+                            : Column(
+                                key: const ValueKey('password-step'),
+                                children: [
+                                  RaddTextField(
+                                    controller: _pass,
+                                    label: 'Password',
+                                    obscureText: _obscure,
+                                    prefixIcon: AppIcons.lock,
+                                    focusNode: _passFocus,
+                                    textInputAction: TextInputAction.next,
+                                    autofillHints: const [
+                                      AutofillHints.newPassword,
+                                    ],
+                                    semanticsLabel: 'Password',
+                                    semanticsHint:
+                                        'Create a password with at least 8 characters',
+                                    onChanged: (_) =>
+                                        setState(() => _error = null),
+                                    onFieldSubmitted: (_) =>
+                                        FocusScope.of(context)
+                                            .requestFocus(_confirmFocus),
+                                    suffixIcon: IconButton(
+                                      tooltip: _obscure
+                                          ? 'Show password'
+                                          : 'Hide password',
+                                      icon: Icon(
+                                        _obscure
+                                            ? AppIcons.eyeOff
+                                            : AppIcons.eye,
+                                        color: t.textMuted,
+                                        size: 20,
+                                      ),
+                                      onPressed: () => setState(
+                                          () => _obscure = !_obscure),
+                                    ),
+                                    validator: (v) {
+                                      if (v == null || v.isEmpty) {
+                                        return 'Enter a password';
+                                      }
+                                      if (v.length < 8) return 'Min 8 characters';
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 14),
+                                  RaddTextField(
+                                    controller: _confirm,
+                                    label: 'Confirm Password',
+                                    obscureText: _obscure,
+                                    prefixIcon: AppIcons.lock,
+                                    focusNode: _confirmFocus,
+                                    textInputAction: TextInputAction.done,
+                                    autofillHints: const [
+                                      AutofillHints.newPassword,
+                                    ],
+                                    semanticsLabel: 'Confirm password',
+                                    semanticsHint: 'Re-enter your password',
+                                    onChanged: (_) =>
+                                        setState(() => _error = null),
+                                    onFieldSubmitted: (_) => _register(),
+                                    validator: (v) {
+                                      if (v != _pass.text) {
+                                        return 'Passwords do not match';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                  AnimatedSize(
+                                    duration: reduceMotion
+                                        ? Duration.zero
+                                        : const Duration(milliseconds: 220),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        _PasswordRule(
+                                          label: 'At least 8 characters',
+                                          valid: _passwordIsValid,
+                                        ),
+                                        const SizedBox(height: 6),
+                                        _PasswordRule(
+                                          label: 'Passwords match',
+                                          valid: _passwordsMatch,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                       ),
                     ),
-                  ],
-                        ),
-                  )),
-                  if (_error != null) ...[
+                  ),
+                   if (_error != null) ...[
                     const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      decoration: BoxDecoration(color: context.accentError.withOpacity(0.1),
-                          borderRadius: RaddRadius.smRadius,
-                          border: Border.all(color: context.accentError.withOpacity(0.3))),
-                      child: Row(children: [
-                        Icon(AppIcons.errorIcon, color: context.accentError, size: 18),
-                        const SizedBox(width: 10),
-                        Expanded(child: Text(_error!, style: TextStyle(color: context.accentError, fontSize: 13))),
-                      ]),
-                    ).animate().fadeIn(duration: 250.ms).shakeX(hz: 3, amount: 4),
+                     Builder(
+                       builder: (context) {
+                         final banner = Semantics(
+                           liveRegion: true,
+                           label: 'Registration error: $_error',
+                           child: Container(
+                             padding: const EdgeInsets.symmetric(
+                                 horizontal: 14, vertical: 12),
+                             decoration: BoxDecoration(
+                               color: context.accentError.withOpacity(0.1),
+                               borderRadius: RaddRadius.smRadius,
+                               border: Border.all(
+                                   color: context.accentError.withOpacity(0.3)),
+                             ),
+                             child: Row(
+                               children: [
+                                 Icon(AppIcons.errorIcon,
+                                     color: context.accentError, size: 18),
+                                 const SizedBox(width: 10),
+                                 Expanded(
+                                   child: Text(
+                                     _error!,
+                                     style: TextStyle(
+                                         color: context.accentError,
+                                         fontSize: 13),
+                                   ),
+                                 ),
+                               ],
+                             ),
+                           ),
+                         );
+                         return reduceMotion
+                             ? banner
+                             : banner
+                                 .animate()
+                                 .fadeIn(duration: 250.ms)
+                                 .shakeX(hz: 3, amount: 4);
+                       },
+                     ),
                   ],
                   if (_step == 1) ...[
                     const SizedBox(height: 28),
