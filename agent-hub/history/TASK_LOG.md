@@ -2227,3 +2227,56 @@ Deployed to GitHub main HEAD after all commits.
 **Commits:** `65c5588` (code)
 **CI:** APK build triggered — confirm `build-apk.yml` green before closing.
 **Docs updated:** `TASKS.md`, `AGENT_HANDOFF.md`, `TASK_LOG.md` (this entry).
+
+---
+
+## Session: 2026-07-28 — HOME-FILTER-CHIP: category chip style fix
+
+### Context
+
+User uploaded the Home screen redesign brief and asked to implement it. The previous session
+(HOME-REDESIGN-2026, `65c5588`) had addressed every item in the brief except one: the
+`_CategoryChip` widget in `home_screen.dart` was still using the old filled-pill style
+(gradient fill, rounded capsule, `1.2px` border, box shadow, check icon). Everything else
+(full-bleed hero, Continue Watching order, SIMOSA position, shelf header simplification, card
+decoration reduction) was already correct in the code.
+
+### Change Made
+
+**HOME-FILTER-CHIP** — `b320f40c`
+
+Replaced `_CategoryChip.build()` entirely:
+
+- **Removed:** `AppColors.primaryGradient` fill, `BorderRadius.circular(AppRadius.round)`
+  capsule, `Border.all()` outline, `BoxShadow` on selection, `AppIcons.check` icon,
+  `RaddMotion.tuneDuration` duration reference
+- **Added:** Plain text label; `AnimatedContainer` with `Border(bottom: BorderSide(...))` — 2px
+  `AppColors.primary` underline when selected, `Colors.transparent` when not; brand-red
+  `AppColors.primary` text color when selected, `t.textMuted` when not; `margin right: 22` (was 10)
+  to give text-only labels breathing room; `padding: only(bottom: 4)` for underline clearance
+
+Result matches the brief's spec exactly:
+```
+All     Movies     Shows     Urdu     Punjabi
+────
+```
+
+**Files:** `raddflix_flutter/lib/screens/home_screen.dart`
+**Docs updated:** `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry)
+**CI:** APK build triggered — confirm `build-apk.yml` green before closing.
+
+---
+
+## Session: 2026-07-28 — HOME-FILTER-CHIP-CLEANUP: shimmer + import fix
+
+Continued from same session. After HOME-FILTER-CHIP landed, three follow-on issues found:
+
+1. **Unused import** — `import '../design_system/motion/radd_motion.dart'` was the only consumer of `RaddMotion.tuneDuration` in the file. Removing the chip's usage left the import dangling. Removed.
+
+2. **Shimmer hero: two CTA buttons** — `_buildShimmer()` showed two side-by-side button placeholders (120px + 90px). The real `_HeroCard` has had only one button (Resume / Watch Now) since HOME-REDESIGN-2026. Replaced with a single 130px placeholder.
+
+3. **Shimmer category row: rounded pill capsules** — shimmer showed `borderRadius: BorderRadius.circular(AppRadius.round)` pill shapes (72px wide each). Real chips are now plain text. Replaced with a static `Row` of six narrow text-width rectangles (heights 11px, widths 22/46/38/32/50/36, radius 2) — simulates "All  Movies  Shows  Urdu  Punjabi  English" text labels.
+
+**Commits:** `2f2918b9`
+**CI:** `build-apk.yml` run `30360481826` ✅ success
+**Docs updated:** `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry)

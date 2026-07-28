@@ -5,14 +5,22 @@
 
 ---
 
-## Current State (2026-07-28 — Home screen redesign complete)
+## Current State (2026-07-28 — Home screen redesign complete + category chip fix)
 
-The Home screen visual hierarchy reset is complete and pushed. Every item from the
-HOME-REDESIGN-2026 brief is addressed: full-bleed hero (232px, background-blended, dots inside
-fade, one CTA), Continue Watching directly below the hero, quieter text filters, reduced default
-shelves, compact SIMOSA reminder after the first discovery shelf, simplified shelf headers
-(accent bar / count badge / bordered See-All removed), and reduced card decoration throughout.
-APK CI is running on commit `65c5588`.
+The Home screen visual hierarchy reset is complete. HOME-REDESIGN-2026 addressed: full-bleed
+hero (232px, background-blended, dots inside fade, one CTA), Continue Watching directly below
+the hero, reduced default shelves, compact SIMOSA reminder after the first discovery shelf,
+simplified shelf headers (accent bar / count badge / bordered See-All removed), and reduced card
+decoration throughout.
+
+HOME-FILTER-CHIP (`b320f40c`, CI ✅ `30359788627`) replaced `_CategoryChip`: was still using
+old filled-pill style (gradient, border, box shadow, check icon). Now plain text + 2px brand-red
+underline when selected, no fill, no capsule.
+
+HOME-FILTER-CHIP-CLEANUP (`2f2918b9`, CI ✅ `30360481826`): removed the now-unused
+`RaddMotion` import; fixed loading shimmer to show one CTA button (matching the real hero) and
+text-style word-width rectangles (matching the new text filters) instead of two pill buttons and
+rounded pill chips.
 
 | Status | Count | Task IDs |
 |---|---|---|
