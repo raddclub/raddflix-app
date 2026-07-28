@@ -5,16 +5,18 @@
 
 ---
 
-## Current State (2026-07-27 — Auth UX refresh complete)
+## Current State (2026-07-28 — Home screen redesign complete)
 
-The auth experience refresh is complete and verified in CI. Login and registration now include
-progressive registration, live validation, native autofill, accessibility semantics, reduced-motion
-support, animated focus/error feedback, and haptic confirmation while preserving the existing
-phone/password, guest, device-conflict, and API flows.
+The Home screen visual hierarchy reset is complete and pushed. Every item from the
+HOME-REDESIGN-2026 brief is addressed: full-bleed hero (232px, background-blended, dots inside
+fade, one CTA), Continue Watching directly below the hero, quieter text filters, reduced default
+shelves, compact SIMOSA reminder after the first discovery shelf, simplified shelf headers
+(accent bar / count badge / bordered See-All removed), and reduced card decoration throughout.
+APK CI is running on commit `65c5588`.
 
 | Status | Count | Task IDs |
 |---|---|---|
-| ✅ DONE | 1 | AUTH-UX-2026 (`39343b04`; APK CI `30263339764`) |
+| ✅ DONE | 2 | HOME-REDESIGN-2026 (`65c5588`), AUTH-UX-2026 (`39343b04`; APK CI `30263339764`) |
 | ✅ DONE — prior audit backlog | 14 | SEC-02, SEC-03, BUG-FREE-EP-02, BUG-DOWNLOAD-SIZE, BUG-CATALOG-LISTENER, BUG-EPISODE-SORT, BUG-BINGE-TIMER, BUG-TIMELINE-SYNC, BUG-DB-DELETE-RISK, BUG-VOICE-STUB, BUG-PLAYER-AUTODISPOSE, BUG-PROFILE-PIN, BUG-LOCAL-MEDIA-IO, BUG-XOR-CLOCK |
 | ⛔ BLOCKED — external dependency | 3 | SEC-01 (needs domain + TLS cert), SEC-05 (needs release keystore SHA-256), SEC-04 (vault PIN migration) |
 
@@ -28,11 +30,11 @@ phone/password, guest, device-conflict, and API flows.
 
 | SHA | Description |
 |---|---|
-| `39343b04` | Complete auth accessibility, autofill, reduced-motion, haptic, and focus/error interaction polish |
+| `65c5588` | HOME-REDESIGN-2026: complete Home screen redesign — full-bleed hero, reordered shelves, simplified headers, quieter cards, compact SIMOSA reminder |
+| `39343b04` | AUTH-UX-2026: complete auth accessibility, autofill, reduced-motion, haptic, and focus/error interaction polish |
 | `3b23881` | BUG-LOCAL-MEDIA-IO: batch subtitle checks (20 at a time) to avoid I/O storm |
-| (docs only) | TASKS.md, infrastructure-constraints.md, AGENT_HANDOFF.md cleanup |
 
-**CI:** APK build `30263339764` passed successfully, including `flutter pub get` and `Dart analyze`.
+**CI:** APK build for `65c5588` in progress. Previous build `30263339764` (on `39343b04`) passed.
 No Oracle deployment needed — this session changed Flutter code and canonical documentation only.
 
 ---

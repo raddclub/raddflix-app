@@ -2203,3 +2203,27 @@ The following 7 tasks from the AUDIT-FLUTTER-2026-07-26 backlog were confirmed f
 Deployed to GitHub main HEAD after all commits.
 
 **Docs updated:** `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry).
+
+---
+
+### 2026-07-28 — HOME-REDESIGN-2026 complete
+
+**Task:** Home screen visual hierarchy reset per uploaded redesign brief.
+
+**Files changed:**
+- `raddflix_flutter/lib/screens/home_screen.dart`
+- `raddflix_flutter/lib/widgets/content_card.dart`
+- `raddflix_flutter/lib/widgets/simosa_card.dart`
+
+**Summary of changes:**
+- Hero: full-bleed (no horizontal margin, no card border-radius, no box shadow), height 232px, background-blended gradient bottom, page dots inside the hero Stack at `bottom: 12`, only Resume / Watch Now CTA (My List removed), auto-rotation slowed to 8 s
+- Layout order: hero → Continue Watching (when available) → text filters → Trending Now (or New Arrivals fallback) → compact SIMOSA reminder → Movies → TV Shows & Dramas
+- Filters: shimmer animation removed from category chips; clean fade + slideX only
+- Removed shelves: New Episodes, Free to Watch, Ongoing Shows, duplicate New Arrivals
+- `_ContentSection` header: glowing accent bar removed, count badge removed, bordered "See all" container replaced with plain muted text tap target
+- Cards: border reduced (0.5 px / 22 % opacity), glass shadow removed, specular glint animation removed, badge logic simplified (FREE > NEW, ONGOING only when neither), language/rating/new-episode decorative badges removed
+- SIMOSA: pulsing animation removed, icon/padding reduced, compact reminder tappable to open SIMOSA; placed below the first discovery shelf (All tab only)
+
+**Commits:** `65c5588` (code)
+**CI:** APK build triggered — confirm `build-apk.yml` green before closing.
+**Docs updated:** `TASKS.md`, `AGENT_HANDOFF.md`, `TASK_LOG.md` (this entry).

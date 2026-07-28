@@ -215,7 +215,6 @@ class _SimosaCardState extends State<SimosaCard> {
                             ),
                           ),
                         ),
-                      )
                     else
                       Container(
                         padding: const EdgeInsets.symmetric(

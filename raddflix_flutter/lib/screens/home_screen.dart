@@ -880,7 +880,6 @@ class _HeroCardState extends ConsumerState<_HeroCard>
                 ]),
               )),
           ]),
-      ),
     );
     // Phase 48: wrap card in 3D Transform with perspective depth (ANIM-48-02/03)
     if (!shouldFloat) return card;
