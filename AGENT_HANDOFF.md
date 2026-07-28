@@ -33,7 +33,7 @@ jank); category chip row wrapped in ShaderMask right-edge fade (scroll affordanc
 |---|---|
 | `10aaa85` | HS-04–11: fix 8 pending home screen bugs (AppBar spacer, dupe cards, nav bleed, sync banner, hero clip, shimmer void, float jank, chip fade) |
 
-**CI:** APK build pending — `build-apk.yml` triggered by `10aaa85`. Confirm green before closing.
+**CI:** APK build `30384199775` on `10aaa85` ✅ success.
 No Oracle deployment needed — Flutter code only.
 
 ---

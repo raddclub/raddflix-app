@@ -2301,5 +2301,5 @@ Continued from same session. After HOME-FILTER-CHIP landed, three follow-on issu
 - **HS-11 (Minor)** Category chip `ListView.builder` wrapped in `ShaderMask` with a right-edge fade gradient (stops: 0.82→1.0). English chip and any future overflow chips now have a visible scroll affordance. Right padding raised 16→48 to give the last chip breathing room.
 
 **Commit:** `10aaa85`
-**CI:** APK build triggered — confirm `build-apk.yml` green before closing.
+**CI:** APK build `30384199775` on `10aaa85` ✅ success.
 **Docs updated:** `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry)
