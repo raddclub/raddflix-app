@@ -34,7 +34,7 @@ APK CI is running on commit `65c5588`.
 | `39343b04` | AUTH-UX-2026: complete auth accessibility, autofill, reduced-motion, haptic, and focus/error interaction polish |
 | `3b23881` | BUG-LOCAL-MEDIA-IO: batch subtitle checks (20 at a time) to avoid I/O storm |
 
-**CI:** APK build for `65c5588` in progress. Previous build `30263339764` (on `39343b04`) passed.
+**CI:** APK build `30355793350` on `42386f9` ✅ passed. Previous session build `30263339764` (on `39343b04`) also ✅.
 No Oracle deployment needed — this session changed Flutter code and canonical documentation only.
 
 ---
