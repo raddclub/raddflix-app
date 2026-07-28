@@ -1163,7 +1163,8 @@ class _ContentSection extends StatelessWidget {
   }
 }
 
-// ── Category Chip ─────────────────────────────────────────────────────────────
+// ── Category Chip — quiet text filter (no fill, no capsule, no check icon) ────
+// Selected state: brand-red text + 2px underline. Unselected: muted text, no decoration.
 class _CategoryChip extends StatelessWidget {
   final String label;
   final bool isSelected;
@@ -1176,32 +1177,26 @@ class _CategoryChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: RaddMotion.tuneDuration,
-        margin: const EdgeInsets.only(right: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.only(right: 22),
+        padding: const EdgeInsets.only(bottom: 4),
         decoration: BoxDecoration(
-          gradient: isSelected
-              ? AppColors.primaryGradient
-              : null,
-          color: isSelected ? null : t.surface,
-          borderRadius: BorderRadius.circular(AppRadius.round),
-          border: Border.all(
-            color: isSelected ? Colors.transparent : t.textMuted.withOpacity(0.35), width: 1.2),
-          boxShadow: isSelected
-              ? [BoxShadow(color: AppColors.primary.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))]
-              : null,
+          border: Border(
+            bottom: BorderSide(
+              color: isSelected ? AppColors.primary : Colors.transparent,
+              width: 2,
+            ),
+          ),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          if (isSelected) ...[
-            Icon(AppIcons.check, size: 11, color: Colors.white),
-            const SizedBox(width: RaddSpace.xs),
-          ],
-          Text(label, style: TextStyle(
-            color: isSelected ? Colors.white : t.textMuted,
-            fontSize: 12,
-            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-            letterSpacing: isSelected ? 0.1 : 0)),
-        ]),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? AppColors.primary : t.textMuted,
+            fontSize: 13,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            letterSpacing: 0,
+          ),
+        ),
       ),
     );
   }
