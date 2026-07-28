@@ -1,4 +1,4 @@
-# RaddFlix Tasks
+ ✅ DONE | `10aaa85` | ✅ DONE | `10aaa85` | ✅ DONE | `10aaa85` | ✅ DONE | `10aaa85` | ✅ DONE | `10aaa85` | ✅ DONE | `10aaa85` | ✅ DONE | `10aaa85` | ✅ DONE | `10aaa85` |# RaddFlix Tasks
 
 > This is the single live task board. Start every session at `AGENT_PROMPT.md`.
 > Add a row here (⏳ IN PROGRESS) before starting work, mark ✅ DONE + commit SHA when pushed.

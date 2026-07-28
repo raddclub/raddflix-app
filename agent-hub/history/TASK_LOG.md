@@ -2280,3 +2280,26 @@ Continued from same session. After HOME-FILTER-CHIP landed, three follow-on issu
 **Commits:** `2f2918b9`
 **CI:** `build-apk.yml` run `30360481826` ✅ success
 **Docs updated:** `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry)
+
+---
+
+## Session: 2026-07-28 — HS-04–11: home screen bug batch
+
+**Tasks completed:** HS-04, HS-05, HS-06, HS-07, HS-08, HS-09, HS-10, HS-11 (all 8 pending home screen issues)
+
+**File changed:** `raddflix_flutter/lib/screens/home_screen.dart`
+
+### Changes
+
+- **HS-04 (Critical)** AppBar spacer: `SizedBox(height: 48)` → `SizedBox(height: MediaQuery.of(context).padding.top + kToolbarHeight)` in both `_buildContent` and `_buildShimmer`. Greeting now clears the logo on all device sizes.
+- **HS-05 (Critical)** Trending Now / New Arrivals shelves gated with `_selectedCategory == 'All'`. Non-All filter tabs no longer show the discovery shelf alongside the SliverGrid — duplicate cards gone.
+- **HS-06 (Critical)** Bottom clearance: `SizedBox(height: 72)` → `96`. Last card title and FREE badge clear the translucent bottom nav bar.
+- **HS-07 (Medium)** Sync banner extracted from its own `SliverToBoxAdapter` and moved inside the hero's `Stack` as a `Positioned(top: 8)` overlay. Banner now floats over the hero without pushing it down.
+- **HS-08 (Medium)** Hero `Transform` wrapped in `ClipRect`. Rotated card edges are clipped to their page slot — neighbouring slides no longer bleed through during auto-scroll.
+- **HS-09 (Medium)** Added `Shimmer.fromColors(baseColor: t.surfaceHigh, highlightColor: t.surface)` as the lowest layer in `_HeroCard`'s Stack. Hero area has a visible shimmer while the poster image resolves — no black void.
+- **HS-10 (Minor)** `_floatCtrl.repeat(reverse: true)` moved from `build()` to `initState()`. `build()` now only stops the controller when `shouldFloat == false`. Mid-cycle restart jank on provider rebuild eliminated.
+- **HS-11 (Minor)** Category chip `ListView.builder` wrapped in `ShaderMask` with a right-edge fade gradient (stops: 0.82→1.0). English chip and any future overflow chips now have a visible scroll affordance. Right padding raised 16→48 to give the last chip breathing room.
+
+**Commit:** `10aaa85`
+**CI:** APK build triggered — confirm `build-apk.yml` green before closing.
+**Docs updated:** `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry)

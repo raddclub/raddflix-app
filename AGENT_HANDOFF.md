@@ -5,26 +5,19 @@
 
 ---
 
-## Current State (2026-07-28 — Home screen redesign complete + category chip fix)
+## Current State (2026-07-28 — HS-04–11 home screen bug batch complete)
 
-The Home screen visual hierarchy reset is complete. HOME-REDESIGN-2026 addressed: full-bleed
-hero (232px, background-blended, dots inside fade, one CTA), Continue Watching directly below
-the hero, reduced default shelves, compact SIMOSA reminder after the first discovery shelf,
-simplified shelf headers (accent bar / count badge / bordered See-All removed), and reduced card
-decoration throughout.
-
-HOME-FILTER-CHIP (`b320f40c`, CI ✅ `30359788627`) replaced `_CategoryChip`: was still using
-old filled-pill style (gradient, border, box shadow, check icon). Now plain text + 2px brand-red
-underline when selected, no fill, no capsule.
-
-HOME-FILTER-CHIP-CLEANUP (`2f2918b9`, CI ✅ `30360481826`): removed the now-unused
-`RaddMotion` import; fixed loading shimmer to show one CTA button (matching the real hero) and
-text-style word-width rectangles (matching the new text filters) instead of two pill buttons and
-rounded pill chips.
+All 8 pending home screen bugs from the HS-04–HS-11 audit batch are resolved in
+`home_screen.dart` (commit `10aaa85`). Fixes: AppBar spacer now uses real device height so greeting
+clears the logo; Trending/New Arrivals shelves gated to All tab (no duplicate cards on filter);
+bottom clearance raised to 96px; sync banner moved to Positioned overlay over the hero (no layout
+shift); hero Transform wrapped in ClipRect (no adjacent-slide bleed); shimmer backdrop added below
+hero poster (no black void during load); `_floatCtrl.repeat()` moved to initState (no mid-cycle
+jank); category chip row wrapped in ShaderMask right-edge fade (scroll affordance for hidden chips).
 
 | Status | Count | Task IDs |
 |---|---|---|
-| ✅ DONE | 2 | HOME-REDESIGN-2026 (`65c5588`), AUTH-UX-2026 (`39343b04`; APK CI `30263339764`) |
+| ✅ DONE | 10 | HOME-REDESIGN-2026 (`65c5588`), AUTH-UX-2026 (`39343b04`), HS-04–HS-11 (`10aaa85`) |
 | ✅ DONE — prior audit backlog | 14 | SEC-02, SEC-03, BUG-FREE-EP-02, BUG-DOWNLOAD-SIZE, BUG-CATALOG-LISTENER, BUG-EPISODE-SORT, BUG-BINGE-TIMER, BUG-TIMELINE-SYNC, BUG-DB-DELETE-RISK, BUG-VOICE-STUB, BUG-PLAYER-AUTODISPOSE, BUG-PROFILE-PIN, BUG-LOCAL-MEDIA-IO, BUG-XOR-CLOCK |
 | ⛔ BLOCKED — external dependency | 3 | SEC-01 (needs domain + TLS cert), SEC-05 (needs release keystore SHA-256), SEC-04 (vault PIN migration) |
 
@@ -38,12 +31,10 @@ rounded pill chips.
 
 | SHA | Description |
 |---|---|
-| `65c5588` | HOME-REDESIGN-2026: complete Home screen redesign — full-bleed hero, reordered shelves, simplified headers, quieter cards, compact SIMOSA reminder |
-| `39343b04` | AUTH-UX-2026: complete auth accessibility, autofill, reduced-motion, haptic, and focus/error interaction polish |
-| `3b23881` | BUG-LOCAL-MEDIA-IO: batch subtitle checks (20 at a time) to avoid I/O storm |
+| `10aaa85` | HS-04–11: fix 8 pending home screen bugs (AppBar spacer, dupe cards, nav bleed, sync banner, hero clip, shimmer void, float jank, chip fade) |
 
-**CI:** APK build `30355793350` on `42386f9` ✅ passed. Previous session build `30263339764` (on `39343b04`) also ✅.
-No Oracle deployment needed — this session changed Flutter code and canonical documentation only.
+**CI:** APK build pending — `build-apk.yml` triggered by `10aaa85`. Confirm green before closing.
+No Oracle deployment needed — Flutter code only.
 
 ---
 
