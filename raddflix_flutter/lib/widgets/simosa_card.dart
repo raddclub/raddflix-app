@@ -254,7 +254,8 @@ class _SimosaCardState extends State<SimosaCard> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }
 
