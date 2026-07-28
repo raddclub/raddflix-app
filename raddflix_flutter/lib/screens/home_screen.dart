@@ -365,7 +365,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       physics: const BouncingScrollPhysics(),
       slivers: [
         // The hero is the visual opening; keep the feed close to the app bar.
-        const SliverToBoxAdapter(child: SizedBox(height: 48)),
+        // HS-04: use actual AppBar height (status bar + toolbar) so greeting clears the logo
+        SliverToBoxAdapter(child: SizedBox(height: MediaQuery.of(context).padding.top + kToolbarHeight)),
 
         // Personalized greeting row
         SliverToBoxAdapter(
@@ -396,36 +397,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
           ).animate().fadeIn(duration: 500.ms),
         ),
 
-        // Sync banner
-        if (ref.watch(syncProvider).isSyncing)
+        // Hero spotlight — sync banner floats over the hero as a Positioned overlay
+        // so it never shifts the layout (HS-07)
+        if (catalog.movies.isNotEmpty || catalog.shows.isNotEmpty)
           SliverToBoxAdapter(
-            child: Center(
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-                decoration: BoxDecoration(
-                  color: t.surface,
-                  borderRadius: BorderRadius.circular(AppRadius.round),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.25)),
-                  boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.08), blurRadius: 12)],
-                ),
-                child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                  SizedBox(width: 10, height: 10,
-                    child: CircularProgressIndicator(strokeWidth: 1.5,
-                        valueColor: AlwaysStoppedAnimation(AppColors.primary))),
-                  SizedBox(width: RaddSpace.sm),
-                  Text('Syncing catalog…', style: TextStyle(color: AppColors.primary,
-                      fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.1)),
-                ]),
-              ),
+            child: Stack(
+              alignment: Alignment.topCenter,
+              children: [
+                _HeroSpotlight(items: _heroItems(catalog))
+                    .animate().fadeIn(duration: 500.ms),
+                if (ref.watch(syncProvider).isSyncing)
+                  Positioned(
+                    top: 8, left: 0, right: 0,
+                    child: Center(
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: t.surface,
+                          borderRadius: BorderRadius.circular(AppRadius.round),
+                          border: Border.all(color: AppColors.primary.withOpacity(0.25)),
+                          boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.08), blurRadius: 12)],
+                        ),
+                        child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                          SizedBox(width: 10, height: 10,
+                            child: CircularProgressIndicator(strokeWidth: 1.5,
+                                valueColor: AlwaysStoppedAnimation(AppColors.primary))),
+                          SizedBox(width: RaddSpace.sm),
+                          Text('Syncing catalog…', style: TextStyle(color: AppColors.primary,
+                              fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.1)),
+                        ]),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
-
-        // Hero spotlight (first 5 items)
-        if (catalog.movies.isNotEmpty || catalog.shows.isNotEmpty)
-          SliverToBoxAdapter(child: _HeroSpotlight(
-            items: _heroItems(catalog),
-          ).animate().fadeIn(duration: 500.ms)),
 
         // Continue Watching belongs immediately after the hero so active
         // viewing is never buried beneath promotions or filters.
@@ -437,45 +444,55 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             onRemove: (item) => ref.read(catalogProvider.notifier).removeFromContinueWatching(item),
           )),
 
-        // Quiet text filters instead of filled category pills.
+        // Quiet text filters — ShaderMask fades the right edge to hint scrollability (HS-11)
         SliverToBoxAdapter(
           child: SizedBox(
             height: 44,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              itemCount: _categories.length,
-              itemBuilder: (_, i) {
-                final filter = _CategoryChip(
-                  label: _categories[i],
-                  isSelected: _selectedCategory == _categories[i],
-                  onTap: () {
-                    DebugLogger.logTap('Home', 'category ${_categories[i]}');
-                    setState(() => _selectedCategory = _categories[i]);
-                  },
-                );
-                return RepaintBoundary(
-                  child: canAnimate
-                      ? filter.animate(delay: animConfig.stagger(i))
-                          .fadeIn(duration: animConfig.normal)
-                          .slideX(begin: 0.12, end: 0,
-                              duration: animConfig.normal,
-                              curve: AppCurves.standard)
-                      : filter,
-                );
-              },
+            child: ShaderMask(
+              shaderCallback: (rect) => const LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                stops: [0.82, 1.0],
+                colors: [Colors.white, Colors.transparent],
+              ).createShader(rect),
+              blendMode: BlendMode.dstIn,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.fromLTRB(16, 8, 48, 0),
+                itemCount: _categories.length,
+                itemBuilder: (_, i) {
+                  final filter = _CategoryChip(
+                    label: _categories[i],
+                    isSelected: _selectedCategory == _categories[i],
+                    onTap: () {
+                      DebugLogger.logTap('Home', 'category ${_categories[i]}');
+                      setState(() => _selectedCategory = _categories[i]);
+                    },
+                  );
+                  return RepaintBoundary(
+                    child: canAnimate
+                        ? filter.animate(delay: animConfig.stagger(i))
+                            .fadeIn(duration: animConfig.normal)
+                            .slideX(begin: 0.12, end: 0,
+                                duration: animConfig.normal,
+                                curve: AppCurves.standard)
+                        : filter,
+                  );
+                },
+              ),
             ),
           ),
         ),
 
-        // Keep one priority discovery shelf by default.
-        if (catalog.trending.isNotEmpty)
+        // Discovery shelves — gated to All tab so they don't duplicate the
+        // filtered SliverGrid when a category chip is selected (HS-05)
+        if (_selectedCategory == 'All' && catalog.trending.isNotEmpty)
           SliverToBoxAdapter(child: _ContentSection(
             title: 'Trending Now',
             subtitle: "What everyone's watching",
             items: catalog.trending,
           ).animate().fadeIn(duration: 400.ms)),
-        if (catalog.trending.isEmpty && catalog.newlyAdded.isNotEmpty)
+        if (_selectedCategory == 'All' && catalog.trending.isEmpty && catalog.newlyAdded.isNotEmpty)
           SliverToBoxAdapter(child: _ContentSection(
             title: 'New Arrivals',
             subtitle: 'Just added',
@@ -567,7 +584,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
 
         const SliverToBoxAdapter(child: SizedBox(height: RaddSpace.lg)),
         // Phase 47 ANIM-47-04: extra clearance so last card isn't hidden behind nav bar
-        const SliverToBoxAdapter(child: SizedBox(height: 72)),
+        // HS-06: 96px clears the translucent bottom nav bar (62px bar + 10px padding + ~20px gesture inset)
+        const SliverToBoxAdapter(child: SizedBox(height: 96)),
       ],
     );
   }
@@ -628,7 +646,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     );
 
     return ListView(physics: const NeverScrollableScrollPhysics(), children: [
-       const SizedBox(height: 48),
+      SizedBox(height: MediaQuery.of(context).padding.top + kToolbarHeight),
       // Hero banner skeleton
       Shimmer.fromColors(
         baseColor: t.surface, highlightColor: t.surfaceHigh,
@@ -798,6 +816,8 @@ class _HeroCardState extends ConsumerState<_HeroCard>
         .animate(CurvedAnimation(parent: _floatCtrl, curve: Curves.easeInOut));
     _tiltY = Tween<double>(begin: 0.015, end: -0.015)
         .animate(CurvedAnimation(parent: _floatCtrl, curve: Curves.easeInOut));
+    // HS-10: start once in initState — build() must never call repeat() mid-cycle
+    _floatCtrl.repeat(reverse: true);
   }
 
   @override
@@ -818,8 +838,8 @@ class _HeroCardState extends ConsumerState<_HeroCard>
     // Phase 48: Tier 1+ and animations-enabled → start float; otherwise stop
     final shouldFloat = animConfig.canStagger &&
         !MediaQuery.of(context).disableAnimations;
-    if (shouldFloat && !_floatCtrl.isAnimating) _floatCtrl.repeat(reverse: true);
-    else if (!shouldFloat && _floatCtrl.isAnimating) _floatCtrl.stop();
+    // HS-10: only stop here; repeat() lives in initState to avoid mid-cycle restart jank
+    if (!shouldFloat && _floatCtrl.isAnimating) _floatCtrl.stop();
 
     // Build the card widget (identical to old StatelessWidget.build, no renames needed)
     final card = GestureDetector(
@@ -828,6 +848,13 @@ class _HeroCardState extends ConsumerState<_HeroCard>
         Navigator.of(context).pushNamed(AppRoutes.showDetail, arguments: item);
       },
       child: Stack(fit: StackFit.expand, children: [
+            // HS-09: visible shimmer backdrop so the hero slot is never a black void
+            // while the poster image resolves (sits below the Hero, covered once loaded)
+            Shimmer.fromColors(
+              baseColor: t.surfaceHigh,
+              highlightColor: t.surface,
+              child: Container(color: t.surfaceHigh),
+            ),
             // Task 3.5: prefer local cached poster file; fallback to network URL
             // Phase 42: Hero tag matches show_detail_screen banner for smooth morph
             Hero(tag: 'poster_${item.id}', child: _buildPosterImage()),
@@ -881,15 +908,18 @@ class _HeroCardState extends ConsumerState<_HeroCard>
     );
     // Phase 48: wrap card in 3D Transform with perspective depth (ANIM-48-02/03)
     if (!shouldFloat) return card;
+    // HS-08: ClipRect prevents rotated card edges from bleeding into adjacent PageView slots
     return AnimatedBuilder(
       animation: _floatCtrl,
-      builder: (_, child) => Transform(
-        alignment: Alignment.center,
-        transform: Matrix4.identity()
-          ..setEntry(3, 2, 0.001) // perspective — needed for rotateX/Y to appear 3D
-          ..rotateX(_tiltX.value) // pitch tilt  ±1.43°
-          ..rotateY(_tiltY.value), // yaw tilt   ±0.86°
-        child: child,
+      builder: (_, child) => ClipRect(
+        child: Transform(
+          alignment: Alignment.center,
+          transform: Matrix4.identity()
+            ..setEntry(3, 2, 0.001) // perspective — needed for rotateX/Y to appear 3D
+            ..rotateX(_tiltX.value) // pitch tilt  ±1.43°
+            ..rotateY(_tiltY.value), // yaw tilt   ±0.86°
+          child: child,
+        ),
       ),
       child: card,
     );
