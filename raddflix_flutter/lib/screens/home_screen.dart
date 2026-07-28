@@ -5,7 +5,6 @@ import '../core/design/app_icons.dart';
 import 'package:flutter/services.dart';
 import '../core/theme/radd_theme.dart';
 import '../design_system/components/radd_button.dart';
-import '../design_system/motion/radd_motion.dart';
 import '../design_system/spacing/radd_space.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -657,33 +656,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                     decoration: BoxDecoration(color: t.surfaceHigh,
                         borderRadius: BorderRadius.circular(4))),
                 const SizedBox(height: 12),
-                Row(children: [
-                  Container(width: 120, height: 36, decoration: BoxDecoration(
-                      color: t.surfaceHigh,
-                      borderRadius: BorderRadius.circular(AppRadius.round))),
-                  const SizedBox(width: 10),
-                  Container(width: 90, height: 36, decoration: BoxDecoration(
-                      color: t.surfaceHigh,
-                      borderRadius: BorderRadius.circular(AppRadius.round))),
-                ]),
+                // One button placeholder — matches the single Resume/Watch Now CTA in the real hero
+                Container(width: 130, height: 36, decoration: BoxDecoration(
+                    color: t.surfaceHigh,
+                    borderRadius: BorderRadius.circular(AppRadius.round))),
               ])),
           ]),
         ),
       ),
       const SizedBox(height: RaddSpace.md),
-      // Category chips row skeleton
+      // Category filter row skeleton — text-style rectangles, no pill capsules
       Shimmer.fromColors(
         baseColor: t.surface, highlightColor: t.surfaceHigh,
         child: SizedBox(
-          height: 48,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            itemCount: 7,
-            itemBuilder: (_, __) => Container(
-              width: 72, height: 32, margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(color: t.surface,
-                  borderRadius: BorderRadius.circular(AppRadius.round))),
+          height: 44,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const SizedBox(width: 16),
+              // Vary widths to simulate "All  Movies  Shows  Urdu  Punjabi" text labels
+              for (final w in [22.0, 46.0, 38.0, 32.0, 50.0, 36.0])
+                Container(
+                  width: w, height: 11,
+                  margin: const EdgeInsets.only(right: 22),
+                  decoration: BoxDecoration(
+                    color: t.surfaceHigh,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+            ],
           ),
         ),
       ),
