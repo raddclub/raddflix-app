@@ -196,9 +196,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
     _loadHistory();
     _loadFilterMeta();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // UX4-01: don't auto-pop the keyboard when embedded in the IndexedStack
-      // shell (showBottomNav=false) — the tab isn't visible on first build.
-      if (widget.showBottomNav) _focus.requestFocus();
+      // SR-01: never auto-focus on open — keyboard collapsing discover content
+      // was the user's core complaint. User can tap the field to start typing.
       final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       final f = args?['initialFilter'] as String?;
       if (f != null && f != 'All' && mounted) {
@@ -400,21 +399,29 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         child: Column(children: [
           const OfflineBanner(),
           _buildSearchBar(),
-          _buildTypeRow(),
-          AnimatedSize(
-            duration: RaddMotion.sheetEnterDuration,
-            curve: Curves.easeInOut,
-            child: _showFilters ? _buildFilterPanel() : const SizedBox.shrink(),
-          ),
+          // SR-05: type chips only meaningful when results are active;
+          // they have no effect on the discover page so hide them there.
+          if (showResultsArea) _buildTypeRow(),
           if (_filters.hasAny)
             _buildActiveFilterBar(),
           const SizedBox(height: RaddSpace.xs),
+          // SR-02: history rendered only here — _buildDiscover also had it,
+          // causing the section to appear twice. Removed from _buildDiscover.
           if (!showResultsArea && _history.isNotEmpty)
             _buildHistorySection(),
           Expanded(
-            child: showResultsArea
-                ? _buildResults()
-                : _buildDiscover(allItems, catalog.trending),
+            // SR-04: filter panel now overlays content via Stack/Positioned
+            // so it no longer shrinks the results area when expanded.
+            child: Stack(children: [
+              showResultsArea
+                  ? _buildResults()
+                  : _buildDiscover(allItems, catalog.trending),
+              if (_showFilters)
+                Positioned(
+                  top: 0, left: 0, right: 0,
+                  child: _buildFilterPanel(),
+                ),
+            ]),
           ),
         ]),
       ),
@@ -712,6 +719,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         color: t.surface.withOpacity(0.92),
         borderRadius: RaddRadius.lgRadius,
         border: Border.all(color: t.border),
+        // SR-04: shadow so the floating overlay reads as elevated above content
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.32),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
 
@@ -944,8 +959,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
               if (_filters.isFree == false)   _activePill('Premium'),
               if (_filters.status    != null) _activePill(_filters.status!),
               if (_filters.offlineOnly)       _activePill('Downloaded'),
+              // SR-07: show human label, not raw key (e.g. "Newest" not "year_desc")
               if (_filters.sortBy != 'relevance')
-                _activePill('Sort: ${_filters.sortBy}'),
+                _activePill('Sort: ${const {
+                  'rating':    'Top Rated',
+                  'year_desc': 'Newest',
+                  'year_asc':  'Oldest',
+                  'title':     'A–Z',
+                }[_filters.sortBy] ?? _filters.sortBy}'),
             ]),
           ),
         ),
@@ -1012,7 +1033,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
         ),
       Expanded(
         child: GridView.builder(
-          padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
+          // SR-06: 96px bottom clearance so cards clear the nav bar
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 96),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
             crossAxisSpacing: RaddSpace.sm,
@@ -1170,34 +1192,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen>
       padding: const EdgeInsets.only(bottom: 24),
       children: [
 
-        // ── Search history ─────────────────────────────────────────────────
-        if (_history.isNotEmpty) ...[
-          _sectionHeader('Recent', trailing: TextButton(
-            onPressed: _clearHistory,
-            child: Text('Clear',
-                style: TextStyle(color: t.textMuted, fontSize: 12)),
-          )),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-                RaddSpace.md, 0, RaddSpace.md, 4),
-            child: Wrap(spacing: 8, runSpacing: 6,
-                children: _history.map((h) {
-              return GestureDetector(
-                onLongPress: () => _removeFromHistory(h),
-                child: GestureDetector(
-                  onTap: () => _tapSuggestion(h),
-                  child: _GlassChip(
-                    label: h,
-                    leadingIcon: AppIcons.history,
-                  ),
-                ),
-              );
-            }).toList()),
-          ),
-          const SizedBox(height: RaddSpace.sm),
-        ],
-
         // ── Trending ───────────────────────────────────────────────────────
+        // SR-02: history section removed — it is now rendered exclusively by
+        // _buildHistorySection() above the Expanded widget so it never shows twice.
         if (trending.isNotEmpty) ...[
           _sectionHeader('Trending Now'),
           SizedBox(

@@ -244,7 +244,8 @@ class _WatchlistScreenState extends ConsumerState<WatchlistScreen> {
     final animConfig = ref.watch(animConfigProvider);
     final canMorph = animConfig.canMorph && animConfig.shouldAnimate(context);
     return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+      // UX-01: 96px bottom clearance to clear the nav bar (was 32)
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3, childAspectRatio: 2 / 3,
         crossAxisSpacing: 10, mainAxisSpacing: 10,

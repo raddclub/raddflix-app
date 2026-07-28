@@ -116,7 +116,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 16, vertical: 10),
                 child: Row(children: [
-                  Icon(Icons.sync_problem_rounded,
+                  // UX-04: use AppIcons design token, not raw Material icon
+                  Icon(AppIcons.warning,
                       size: 16, color: AppColors.error),
                   const SizedBox(width: 8),
                   Expanded(
@@ -213,7 +214,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     final animConfig = ref.watch(animConfigProvider);
     final canMorph = animConfig.canMorph && animConfig.shouldAnimate(context);
     return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+      // UX-01: 96px bottom clearance to clear the nav bar (was 32)
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
         childAspectRatio: 2 / 3,

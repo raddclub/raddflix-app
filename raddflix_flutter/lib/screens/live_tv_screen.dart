@@ -162,7 +162,8 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
               if (all.isNotEmpty) ..._buildContent(t, lvState, all),
 
               // ── Bottom spacer ─────────────────────────────────────────────
-              const SliverToBoxAdapter(child: SizedBox(height: 80)),
+              // UX-02: 96px for consistency with other screens (was 80)
+              const SliverToBoxAdapter(child: SizedBox(height: 96)),
             ],
           ),
         ),

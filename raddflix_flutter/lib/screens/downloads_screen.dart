@@ -486,9 +486,14 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     ]),
   );
 
-  SliverGrid _moviesGrid(List<Map<String, dynamic>> items, DownloadsState state) {
+  // UX-03: returns SliverPadding so horizontal outer margins are uniform;
+  // per-item left/right padding was asymmetric (isEven/isOdd) and made the
+  // right-column cards flush to the grid edge.
+  Widget _moviesGrid(List<Map<String, dynamic>> items, DownloadsState state) {
     final animConfig = ref.read(animConfigProvider);
-    return SliverGrid(
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverGrid(
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2, childAspectRatio: 0.72, crossAxisSpacing: 12, mainAxisSpacing: 12),
       delegate: SliverChildBuilderDelegate(
@@ -497,9 +502,10 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           final id = _id(d);
           final liveProgress = state.activeProgress[id];
           final isActive = liveProgress != null;
+          // UX-03: symmetric outer padding via SliverPadding on the grid;
+          // no per-item horizontal padding so right-column cards are no longer flush.
           return Padding(
             padding: EdgeInsets.only(
-                left: i.isEven ? 16 : 0, right: i.isOdd ? 16 : 0,
                 bottom: 12, top: i < 2 ? 4 : 0),
             child: _DownloadCard(
               title: _title(d),
@@ -540,7 +546,8 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
         },
         childCount: items.length,
       ),
-    );
+    ),   // closes SliverGrid (sliver: param)
+    );   // closes SliverPadding
   }
 
   SliverPadding _moviesList(List<Map<String, dynamic>> items, DownloadsState state) {

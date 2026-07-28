@@ -1085,7 +1085,8 @@ class _ContentSection extends StatelessWidget {
                   ContentCard(
                       item: items[i],
                       showProgress: showProgress,
-                      progress: showProgress ? (items[i].watchProgress ?? 0.5) : null,
+                      // SR-03: no watch data → 0% not 50%; 0.5 was a false half-filled bar
+                      progress: showProgress ? (items[i].watchProgress ?? 0.0) : null,
                       onLongPress: onRemove != null
                           ? () => _showRemoveDialog(context, items[i])
                           : null),
