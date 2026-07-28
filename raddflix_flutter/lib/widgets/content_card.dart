@@ -11,7 +11,6 @@ import '../core/constants.dart';
 import '../core/constants.dart' show AppRoutes;
 import '../models/catalog_item.dart';
 import '../providers/watchlist_provider.dart';
-import '../core/utils/anim_config.dart';
 
 class ContentCard extends StatelessWidget {
   final CatalogItem item;
@@ -26,7 +25,6 @@ class ContentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
-    final animConfig = ProviderScope.containerOf(context, listen: false).read(animConfigProvider);
     return _PressableCard(
       onTap: onTap ?? () => _onTap(context),
       onLongPressStart: onLongPress != null
@@ -35,42 +33,13 @@ class ContentCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: RaddRadius.smRadius,
-          boxShadow: AppShadows.glassCard,
-          // Asymmetric border: bright top = light catching the glass rim,
-          // fading sides, dark bottom = shadow beneath the pane.
-          border: Border(
-            top:    BorderSide(color: Colors.white.withOpacity(0.22), width: 0.8),
-            left:   BorderSide(color: Colors.white.withOpacity(0.10), width: 0.5),
-            right:  BorderSide(color: Colors.white.withOpacity(0.05), width: 0.5),
-            bottom: BorderSide(color: t.cardBorder.withOpacity(0.40), width: 0.5),
-          ),
+          border: Border.all(color: t.cardBorder.withOpacity(0.22), width: 0.5),
         ),
         child: ClipRRect(
           borderRadius: RaddRadius.smRadius,
           child: Stack(fit: StackFit.expand, children: [
             // Poster
             _buildPoster(context),
-            // ── Specular highlight — bright sheen at the top edge ──────────
-            // Mimics light catching a glass surface: strong at the very top,
-            // fading to nothing by ~40% of the card height.
-            Positioned(
-              top: 0, left: 0, right: 0,
-              child: Container(
-                height: 72,
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0x1EFFFFFF), // 12% white at the rim
-                      Color(0x08FFFFFF), // 3% white mid-fade
-                      Colors.transparent,
-                    ],
-                    stops: [0.0, 0.40, 1.0],
-                  ),
-                ),
-              ),
-            ),
             // ── Frosted base overlay — glass-tinted dark bottom ────────────
             Positioned(bottom: 0, left: 0, right: 0,
               child: Container(
@@ -106,8 +75,6 @@ class ContentCard extends StatelessWidget {
                   ],
                 ]),
               )),
-            // ── Glint sweep (Tier 1+) — diagonal light reflection animation ──
-            if (animConfig.canMorph) const _GlintOverlay(), // UX4-11: raised tier gate — saves timers on mid-range devices
             // Top badges
             Positioned(top: 6, left: 6, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               // FIX-13: show only one badge at a time — FREE takes priority over NEW
@@ -115,64 +82,9 @@ class ContentCard extends StatelessWidget {
                 _Badge(label: 'FREE', color: AppColors.success)
               else if (item.isNew == true)
                 _Badge(label: 'NEW', color: AppColors.primary),
-              if (item.isUploading == true) ...[
-                const SizedBox(height: 4),
-                _UploadingBadge(),
-              ],
-              if (item.isOngoingNow) ...[
-                const SizedBox(height: 4),
+              if (!item.isFree && item.isNew != true && item.isOngoingNow)
                 _StatusBadge(label: 'ONGOING', color: AppColors.success),
-              ] else if (item.isCompleted && !item.isMovie) ...[
-                const SizedBox(height: 4),
-                _StatusBadge(label: 'COMPLETED', color: AppColors.info),
-              ],
             ])),
-            // Language badge (bottom-left, above title text)
-            if (item.language != null && item.language!.isNotEmpty)
-              Positioned(bottom: 28, left: 6,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.65),
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(color: Colors.white24, width: 0.5),
-                  ),
-                  child: Text(
-                    _langLabel(item.language!),
-                    style: const TextStyle(
-                      color: Colors.white70, fontSize: 8,
-                      fontWeight: FontWeight.w600, letterSpacing: 0.3),
-                  ),
-                )),
-            // New-episode badge — bottom-right, symmetric to language badge
-            if (item.isShow &&
-                item.newEpisodeCount != null &&
-                item.newEpisodeCount! > 0)
-              Positioned(
-                bottom: 28, right: 6,
-                child: _NewEpBadge(count: item.newEpisodeCount!),
-              ),
-            if (item.rating != null && item.rating! > 0)
-              Positioned(top: 6, right: 6,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.10),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border(
-                      top:    BorderSide(color: Colors.white.withOpacity(0.28), width: 0.6),
-                      left:   BorderSide(color: Colors.white.withOpacity(0.15), width: 0.5),
-                      right:  BorderSide(color: Colors.white.withOpacity(0.08), width: 0.5),
-                      bottom: BorderSide(color: Colors.white.withOpacity(0.04), width: 0.5),
-                    ),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(AppIcons.starFill, color: Colors.amber, size: 10),
-                    const SizedBox(width: 2),
-                    Text(item.displayRating,
-                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w600)),
-                  ]),
-                )),
           ]),
         ),
       ),

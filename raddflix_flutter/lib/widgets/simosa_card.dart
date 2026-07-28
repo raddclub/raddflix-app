@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -18,30 +17,19 @@ class SimosaCard extends StatefulWidget {
   State<SimosaCard> createState() => _SimosaCardState();
 }
 
-class _SimosaCardState extends State<SimosaCard>
-    with SingleTickerProviderStateMixin {
+class _SimosaCardState extends State<SimosaCard> {
   int _streak = 0;
   bool _claimedToday = false;
   bool _dismissed = false;
-  late AnimationController _pulse;
-  late Animation<double> _scale;
 
   @override
   void initState() {
     super.initState();
-    _pulse = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    )..repeat(reverse: true);
-    _scale = Tween<double>(begin: 1.0, end: 1.07).animate(
-      CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
-    );
     _loadStreak();
   }
 
   @override
   void dispose() {
-    _pulse.dispose();
     super.dispose();
   }
 
@@ -97,7 +85,9 @@ class _SimosaCardState extends State<SimosaCard>
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(16),
         clipBehavior: Clip.hardEdge,
-        child: Ink(
+         child: InkWell(
+           onTap: _launchSimosa,
+           child: Ink(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: isDark
@@ -106,7 +96,7 @@ class _SimosaCardState extends State<SimosaCard>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(16),
+             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: AppColors.simosaAccent.withOpacity(isDark ? 0.35 : 0.5),
               width: 1,
@@ -118,13 +108,13 @@ class _SimosaCardState extends State<SimosaCard>
                 : null,
           ),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
+             padding: const EdgeInsets.fromLTRB(12, 8, 10, 8),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // ── Jazz/SimoSA icon ────────────────────────────────
-                _JazzBadgeIcon(streak: _streak),
-                const SizedBox(width: 12),
+                 _JazzBadgeIcon(streak: _streak),
+                 const SizedBox(width: 10),
 
                 // ── Text content ────────────────────────────────────
                 Expanded(
@@ -191,9 +181,7 @@ class _SimosaCardState extends State<SimosaCard>
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     if (!_claimedToday)
-                      ScaleTransition(
-                        scale: _scale,
-                        child: GestureDetector(
+                       GestureDetector(
                           onTap: _onClaim,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
@@ -206,7 +194,7 @@ class _SimosaCardState extends State<SimosaCard>
                                 ],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
-                              ),
+                       ),
                               borderRadius: BorderRadius.circular(10),
                               boxShadow: [
                                 BoxShadow(
@@ -280,16 +268,16 @@ class _JazzBadgeIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 44,
-      height: 44,
+      width: 36,
+      height: 36,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           Container(
-            width: 44,
-            height: 44,
+             width: 36,
+             height: 36,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
+               borderRadius: BorderRadius.circular(10),
               boxShadow: [
                 BoxShadow(
                   color: AppColors.primary.withOpacity(0.35),
@@ -299,7 +287,7 @@ class _JazzBadgeIcon extends StatelessWidget {
               ],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
+               borderRadius: BorderRadius.circular(10),
               child: Image.asset(
                 'assets/brand/simosa_logo.jpg',
                 fit: BoxFit.cover,
@@ -317,7 +305,7 @@ class _JazzBadgeIcon extends StatelessWidget {
                     child: Text('S',
                         style: TextStyle(
                             color: Colors.white,
-                            fontSize: 22,
+                             fontSize: 18,
                             fontWeight: FontWeight.w900)),
                   ),
                 ),

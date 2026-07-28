@@ -365,8 +365,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
       controller: _scroll,
       physics: const BouncingScrollPhysics(),
       slivers: [
-        // Spacing for AppBar
-        const SliverToBoxAdapter(child: SizedBox(height: 96)),
+        // The hero is the visual opening; keep the feed close to the app bar.
+        const SliverToBoxAdapter(child: SizedBox(height: 48)),
 
         // Personalized greeting row
         SliverToBoxAdapter(
@@ -392,8 +392,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
                       style: TextStyle(color: t.textPrimary, fontSize: 15,
                           fontWeight: FontWeight.w700)),
                 ],
-                TextSpan(text: ' 👋',
-                    style: const TextStyle(fontSize: 15)),
               ]));
             }),
           ).animate().fadeIn(duration: 500.ms),
@@ -430,40 +428,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             items: _heroItems(catalog),
           ).animate().fadeIn(duration: 500.ms)),
 
-        // Category chips
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: 48,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              itemCount: _categories.length,
-              itemBuilder: (_, i) {
-                // Phase 43: tier-gated chip stagger
-                final chip = _CategoryChip(
-                  label: _categories[i],
-                  isSelected: _selectedCategory == _categories[i],
-                  onTap: () { DebugLogger.logTap('Home', 'category ${_categories[i]}'); setState(() => _selectedCategory = _categories[i]); },
-                );
-                return RepaintBoundary(
-                  child: canAnimate
-                      // Phase 46 ANIM-46-05: shimmer runs once after slide-in (Tier 1+)
-                      ? chip.animate(delay: animConfig.stagger(i)).fadeIn(duration: animConfig.normal)
-                          .slideX(begin: 0.2, end: 0, duration: animConfig.normal, curve: AppCurves.standard)
-                          .shimmer(duration: 500.ms, color: Colors.white24)
-                      : chip,
-                );
-              },
-            ),
-          ),
-        ),
-
-        const SliverToBoxAdapter(child: SizedBox(height: RaddSpace.sm)),
-
-        // SIMOSA daily MB reminder (Phase 9)
-        const SliverToBoxAdapter(child: SimosaCard()),
-
-        // Continue Watching (from history)
+        // Continue Watching belongs immediately after the hero so active
+        // viewing is never buried beneath promotions or filters.
         if (catalog.recentlyWatched.isNotEmpty)
           SliverToBoxAdapter(child: _ContentSection(
             title: 'Continue Watching',
@@ -472,40 +438,55 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
             onRemove: (item) => ref.read(catalogProvider.notifier).removeFromContinueWatching(item),
           )),
 
-        // New Episodes — shows with unread episodes (badge count > 0)
-        if (catalog.shows.any((s) => (s.newEpisodeCount ?? 0) > 0))
-          SliverToBoxAdapter(child: _ContentSection(
-            title: 'New Episodes',
-            subtitle: 'Fresh this week',
-            titleIcon: AppIcons.newReleases,
-            items: catalog.shows.where((s) => (s.newEpisodeCount ?? 0) > 0).toList(),
-          ).animate().fadeIn(duration: 400.ms)),
+        // Quiet text filters instead of filled category pills.
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: 44,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              itemCount: _categories.length,
+              itemBuilder: (_, i) {
+                final filter = _CategoryChip(
+                  label: _categories[i],
+                  isSelected: _selectedCategory == _categories[i],
+                  onTap: () {
+                    DebugLogger.logTap('Home', 'category ${_categories[i]}');
+                    setState(() => _selectedCategory = _categories[i]);
+                  },
+                );
+                return RepaintBoundary(
+                  child: canAnimate
+                      ? filter.animate(delay: animConfig.stagger(i))
+                          .fadeIn(duration: animConfig.normal)
+                          .slideX(begin: 0.12, end: 0,
+                              duration: animConfig.normal,
+                              curve: AppCurves.standard)
+                      : filter,
+                );
+              },
+            ),
+          ),
+        ),
 
-        // Free to Watch
-        if (catalog.freeContent.isNotEmpty)
-          SliverToBoxAdapter(child: _ContentSection(
-            title: 'Free to Watch',
-            subtitle: 'No subscription needed',
-            titleIcon: AppIcons.playCircle,
-            items: catalog.freeContent,
-          ).animate().fadeIn(duration: 400.ms)),
-
-        // Ongoing Shows
-        if (catalog.ongoingShows.isNotEmpty)
-          SliverToBoxAdapter(child: _ContentSection(
-            title: 'Ongoing Shows',
-            subtitle: 'Still airing',
-            titleIcon: AppIcons.liveTv,
-            items: catalog.ongoingShows,
-          ).animate().fadeIn(duration: 400.ms)),
-
-        // Trending Now
+        // Keep one priority discovery shelf by default.
         if (catalog.trending.isNotEmpty)
           SliverToBoxAdapter(child: _ContentSection(
             title: 'Trending Now',
             subtitle: "What everyone's watching",
             items: catalog.trending,
           ).animate().fadeIn(duration: 400.ms)),
+        if (catalog.trending.isEmpty && catalog.newlyAdded.isNotEmpty)
+          SliverToBoxAdapter(child: _ContentSection(
+            title: 'New Arrivals',
+            subtitle: 'Just added',
+            items: catalog.newlyAdded,
+          ).animate().fadeIn(duration: 400.ms)),
+
+        // Keep the SIMOSA utility available below the first discovery shelf,
+        // where it can remind without competing with active viewing.
+        if (_selectedCategory == 'All')
+          const SliverToBoxAdapter(child: SimosaCard()),
 
         // Main content grid or rows
         if (_selectedCategory == 'All') ...[
@@ -521,15 +502,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
               count: catalog.shows.length,
               items: catalog.shows,
             )),
-          // New Arrivals (highest db_version = most recently synced)
-          if (catalog.newlyAdded.isNotEmpty)
-            SliverToBoxAdapter(child: _ContentSection(
-              title: 'New Arrivals',
-              subtitle: 'Just added',
-              titleIcon: AppIcons.newReleases,
-              items: catalog.newlyAdded,
-            ).animate().fadeIn(duration: 400.ms)),
-
           if (catalog.movies.isEmpty && catalog.shows.isEmpty &&
               !ref.watch(syncProvider).isSyncing)
             SliverToBoxAdapter(
@@ -660,14 +632,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     );
 
     return ListView(physics: const NeverScrollableScrollPhysics(), children: [
-      const SizedBox(height: 96),
+       const SizedBox(height: 48),
       // Hero banner skeleton
       Shimmer.fromColors(
         baseColor: t.surface, highlightColor: t.surfaceHigh,
-        child: Container(
-          height: 264, margin: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: t.surface, borderRadius: BorderRadius.circular(AppRadius.lg)),
+         child: Container(
+           height: 232,
+           color: t.surface,
           child: Stack(children: [
             // Page-indicator dots
             Positioned(bottom: 14, left: 0, right: 0,
@@ -744,7 +715,7 @@ class _HeroSpotlightState extends State<_HeroSpotlight> {
   }
 
   void _autoScroll() {
-    Future.delayed(const Duration(seconds: 4), () {
+    Future.delayed(const Duration(seconds: 8), () {
       if (!mounted) return;
       final next = (_current + 1) % widget.items.length;
       _ctrl.animateToPage(next, duration: const Duration(milliseconds: 600), curve: Curves.easeInOutCubic);
@@ -760,27 +731,42 @@ class _HeroSpotlightState extends State<_HeroSpotlight> {
     final t = RaddTheme.of(context);
     return Column(children: [
       SizedBox(
-        height: 264,
-        child: PageView.builder(
-          controller: _ctrl,
-          itemCount: widget.items.length,
-          onPageChanged: (i) => setState(() => _current = i),
-          itemBuilder: (_, i) => _HeroCard(item: widget.items[i]),
+        height: 232,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            PageView.builder(
+              controller: _ctrl,
+              itemCount: widget.items.length,
+              onPageChanged: (i) => setState(() => _current = i),
+              itemBuilder: (_, i) => _HeroCard(item: widget.items[i]),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 12,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  widget.items.length,
+                  (i) => AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: _current == i ? 22 : 5,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: _current == i
+                          ? AppColors.primary
+                          : Colors.white.withOpacity(0.42),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
-      SizedBox(height: 10),
-      Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(
-        widget.items.length,
-        (i) => AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          width: _current == i ? 22 : 5,
-          height: 5,
-          decoration: BoxDecoration(
-            color: _current == i ? AppColors.primary : t.textMuted.withOpacity(0.3),
-            borderRadius: BorderRadius.circular(3)),
-        ),
-      )),
     ]);
   }
 }
@@ -843,62 +829,29 @@ class _HeroCardState extends ConsumerState<_HeroCard>
         DebugLogger.logTap('Home', 'heroCard');
         Navigator.of(context).pushNamed(AppRoutes.showDetail, arguments: item);
       },
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          boxShadow: AppShadows.card,
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          child: Stack(fit: StackFit.expand, children: [
+      child: Stack(fit: StackFit.expand, children: [
             // Task 3.5: prefer local cached poster file; fallback to network URL
             // Phase 42: Hero tag matches show_detail_screen banner for smooth morph
             Hero(tag: 'poster_${item.id}', child: _buildPosterImage()),
             // Cinematic gradient overlay — stronger bottom fade with Pakistani night-sky depth
             Container(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter, end: Alignment.bottomCenter,
                   stops: [0.0, 0.25, 0.6, 1.0],
-                  colors: [Colors.transparent, Colors.transparent, Color(0xDD000000), Color(0xFF0A0A1E)],
+                  colors: [
+                    Colors.transparent,
+                    Colors.transparent,
+                    t.bg.withOpacity(0.78),
+                    t.bg,
+                  ],
                 ),
               ),
             ),
-            // Top badges: content type
-            Positioned(top: 12, left: 16, child: Row(children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.white12),
-                ),
-                child: Text(item.isShow ? 'SERIES' : 'MOVIE',
-                    style: const TextStyle(color: Colors.white70, fontSize: 9,
-                        fontWeight: FontWeight.w800, letterSpacing: 1.2)),
-              ),
-              if (item.displayRating.isNotEmpty) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(AppIcons.starFill, color: Colors.amber, size: 10),
-                    const SizedBox(width: 3),
-                    Text(item.displayRating, style: const TextStyle(
-                        color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
-                  ]),
-                ),
-              ],
-            ])),
             // Content
             Positioned(bottom: 0, left: 0, right: 0,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(item.title,
                     maxLines: 2, overflow: TextOverflow.ellipsis,
@@ -923,31 +876,10 @@ class _HeroCardState extends ConsumerState<_HeroCard>
                                 fontSize: 13, fontWeight: FontWeight.w800)),
                       ]),
                     ),
-                    const SizedBox(width: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.10),
-                        borderRadius: BorderRadius.circular(AppRadius.round),
-                        border: Border(
-                          top:    BorderSide(color: Colors.white.withOpacity(0.38), width: 0.8),
-                          left:   BorderSide(color: Colors.white.withOpacity(0.20), width: 0.5),
-                          right:  BorderSide(color: Colors.white.withOpacity(0.10), width: 0.5),
-                          bottom: BorderSide(color: Colors.white.withOpacity(0.05), width: 0.5),
-                        ),
-                      ),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(AppIcons.add, color: Colors.white, size: 16),
-                        SizedBox(width: RaddSpace.xs),
-                        Text('My List', style: TextStyle(color: Colors.white,
-                            fontSize: 12, fontWeight: FontWeight.w600)),
-                      ]),
-                    ),
                   ]),
                 ]),
               )),
           ]),
-        ),
       ),
     );
     // Phase 48: wrap card in 3D Transform with perspective depth (ANIM-48-02/03)
@@ -1078,24 +1010,8 @@ class _ContentSection extends StatelessWidget {
     final t = RaddTheme.of(context);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Padding(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Red accent bar — glowing pill with brand shadow
-          Container(
-            width: 3, height: subtitle != null ? 34 : 20,
-            margin: const EdgeInsets.only(right: 10, top: 1),
-            decoration: BoxDecoration(
-              gradient: AppColors.primaryGradient,
-              borderRadius: BorderRadius.circular(2),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withOpacity(0.55),
-                  blurRadius: 8,
-                  spreadRadius: 0,
-                ),
-              ],
-            ),
-          ),
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 10),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Row(children: [
               if (titleIcon != null) ...[
@@ -1103,29 +1019,15 @@ class _ContentSection extends StatelessWidget {
                 const SizedBox(width: 6),
               ],
               Expanded(child: Text(title, style: TextStyle(color: t.textPrimary,
-                  fontSize: 17, fontWeight: FontWeight.w800, letterSpacing: -0.4))),
-              if (count != null) ...[
-                const SizedBox(width: RaddSpace.sm),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(AppRadius.round),
-                    border: Border.all(color: AppColors.primary.withOpacity(0.2)),
-                  ),
-                  child: Text(count.toString(),
-                      style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700)),
-                ),
-              ],
+                  fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.3))),
             ]),
             if (subtitle != null)
               Padding(
-                padding: const EdgeInsets.only(top: 3),
+                padding: const EdgeInsets.only(top: 2),
                 child: Text(subtitle!, style: TextStyle(
                     color: t.textMuted, fontSize: 11, fontWeight: FontWeight.w400, letterSpacing: 0.1)),
               ),
           ])),
-          const SizedBox(width: 8),
           GestureDetector(
             onTap: () {
               String? filter;
@@ -1134,20 +1036,10 @@ class _ContentSection extends StatelessWidget {
               Navigator.of(context).pushNamed(AppRoutes.search,
                   arguments: {"initialFilter": filter});
             },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(AppRadius.round),
-                border: Border(
-                  top:    BorderSide(color: AppColors.primary.withOpacity(0.35), width: 0.7),
-                  left:   BorderSide(color: AppColors.primary.withOpacity(0.20), width: 0.5),
-                  right:  BorderSide(color: AppColors.primary.withOpacity(0.12), width: 0.5),
-                  bottom: BorderSide(color: AppColors.primary.withOpacity(0.06), width: 0.5),
-                ),
-              ),
-              child: const Text('See all →', style: TextStyle(
-                  color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              child: Text('See all', style: TextStyle(
+                  color: t.textMuted, fontSize: 12, fontWeight: FontWeight.w500)),
             ),
           ),
         ]),
