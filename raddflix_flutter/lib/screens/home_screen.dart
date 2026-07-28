@@ -577,16 +577,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     Widget section() => Shimmer.fromColors(
       baseColor: t.surface, highlightColor: t.surfaceHigh,
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Shimmer shelf header — plain title bar only; no accent-bar placeholder
+        // (real _ContentSection headers have no left accent bar)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-          child: Row(children: [
-            Container(width: 3, height: 20, margin: const EdgeInsets.only(right: 10),
-                decoration: BoxDecoration(color: t.surfaceHigh,
-                    borderRadius: BorderRadius.circular(2))),
-            Container(height: 14, width: 130,
-                decoration: BoxDecoration(color: t.surfaceHigh,
-                    borderRadius: BorderRadius.circular(4))),
-          ]),
+          child: Container(height: 14, width: 130,
+              decoration: BoxDecoration(color: t.surfaceHigh,
+                  borderRadius: BorderRadius.circular(4))),
         ),
         SizedBox(
           height: 190,
