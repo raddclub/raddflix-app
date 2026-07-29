@@ -33,7 +33,7 @@ All open tasks from the home screen audit (HS-01–HS-11), BUG-SUB-STYLE-REAPPLY
 |---|---|
 | `e3b828ea` | **INPUT-STYLE**: standardise all input boxes to match login page `RaddTextField` style — 5 files |
 
-**CI:** `build-apk.yml` in progress on `e3b828ea`. No Oracle deployment needed — Flutter only.
+**CI:** `e3b828ea` → `build-apk.yml` ✅ success. No Oracle deployment needed — Flutter only.
 
 ### INPUT-STYLE — What changed
 

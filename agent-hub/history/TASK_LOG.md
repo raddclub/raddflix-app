@@ -2455,4 +2455,4 @@ This mirrors the exact pattern already used for `_applySubtitleMargin`, `_reappl
 - `_showPlayFromUrlDialog()` TextField: `RaddRadius.smRadius` → `RaddRadius.mdRadius`; `contentPadding` aligned to `RaddSpace.md / 14`
 
 **Commit:** `e3b828ea`
-**CI:** `build-apk.yml` in progress on `e3b828ea`.
+**CI:** `e3b828ea` → `build-apk.yml` ✅ success.
