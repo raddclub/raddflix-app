@@ -17,6 +17,7 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
   // ── Cross-cluster methods (defined in _PlayerScreenState) ────────────────
   void _applySubtitleMargin({required bool controlsVisible});
   void _reapplySubtitleStyleAfterLifecycle();
+  void _applyAllAf(); // defined in _PlayerAudioLabMixin; called here after tracks confirmed
   String _formatDuration(Duration d);
   void _setNativeOrientation(String mode);
   void _scheduleSavePrefs();
