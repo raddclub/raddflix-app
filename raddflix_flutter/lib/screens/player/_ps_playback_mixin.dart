@@ -520,6 +520,16 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
           _applyAutoOrientation();
         }
       }),
+      // SUB-OVERLAY-FIX: feed current subtitle text into _currentSubLine so
+      // SubtitleOverlay can render it as a Flutter widget.  media_kit emits
+      // List<String> where index 0 is the primary track line; an empty list
+      // or an empty string means no subtitle is active at this timestamp.
+      _player.stream.subtitle.listen((lines) {
+        if (!mounted) return;
+        final raw = lines.isNotEmpty ? lines.first : null;
+        final line = (raw != null && raw.isNotEmpty) ? raw : null;
+        setState(() => _currentSubLine = line);
+      }),
     ]);
   }
 

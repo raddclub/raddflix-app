@@ -798,6 +798,14 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
           controller: _videoCtrl,
           controls: NoVideoControls,
           fit: _getBoxFit(),
+          // SUB-OVERLAY-FIX: disable MPV's native subtitle renderer so the
+          // Flutter SubtitleOverlay widget owns all rendering.  Without this
+          // line MPV kept rendering subs inside the SurfaceView texture — a
+          // layer that has no knowledge of Flutter controls — while
+          // SubtitleOverlay was never wired up, so every style/position
+          // change pushed via NativePlayer.setProperty() fought against
+          // embedded ASS style blocks and never stuck reliably.
+          subtitleViewConfiguration: const SubtitleViewConfiguration(visible: false),
         ),
       );
 
@@ -2736,6 +2744,30 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
               children: [
                 // Video surface
                 Positioned.fill(child: RepaintBoundary(child: _buildVideoSurface())),
+
+                // Flutter subtitle overlay — SUB-OVERLAY-FIX (portrait)
+                // Mirrors the landscape layer in player_screen.dart.
+                if (!_isAudioOnly)
+                  Positioned.fill(
+                    child: Consumer(
+                      builder: (ctx, ref, _) {
+                        final prefs = ref.watch(playerPrefsProvider);
+                        return IgnorePointer(
+                          ignoring: !prefs.dictEnabled,
+                          child: SubtitleOverlay(
+                            currentLine: _currentSubLine,
+                            prefs: prefs,
+                            onPausedForLookup: () {
+                              try { _player.pause(); } catch (_) {}
+                            },
+                            onResumedAfterLookup: () {
+                              try { _player.play(); } catch (_) {}
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
 
                 // Audio-mode backdrop — sits above the (blank) video SurfaceView
                 // whenever MPV opens a file with no video track. Gives audio-only

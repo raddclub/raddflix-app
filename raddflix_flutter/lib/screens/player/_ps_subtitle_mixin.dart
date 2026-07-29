@@ -37,6 +37,11 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
 
   double _subBottomMarginMain = 100.0;
 
+  /// Current subtitle text line, kept in sync with player.stream.subtitle.
+  /// Passed to SubtitleOverlay so it can render without polling.
+  /// Null when no subtitle is active for the current position.
+  String? _currentSubLine;
+
   double _subSync = 0.0; // seconds
   double _subSpeed = 1.0; // 0.5..2.0
   String? _currentSubFile;

@@ -55,6 +55,7 @@ import '../design_system/spacing/radd_space.dart';
 import '../widgets/player/audio_mode_backdrop.dart';
 import '../core/player/word_dict.dart';
 import '../widgets/player/word_definition_sheet.dart';
+import '../widgets/player/subtitle_overlay.dart'; // SUB-OVERLAY-FIX
 import '../core/player/subtitle_style.dart';
 import '../core/utils/anim_config.dart';
 import '../core/utils/anim_durations.dart';
@@ -754,6 +755,37 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 Positioned.fill(
                   child: RepaintBoundary(child: _buildVideoSurface()),
                 ),
+
+                // 1b. Flutter subtitle overlay — SUB-OVERLAY-FIX
+                // Sits above the video texture, below gesture/controls layers.
+                // MPV's native renderer is disabled via SubtitleViewConfiguration
+                // (visible: false) in _buildVideoSurface(), so this widget is the
+                // sole subtitle renderer.  It reads PlayerPrefs directly so every
+                // style change (font, colour, size, position, outline) takes effect
+                // instantly without any NativePlayer.setProperty() race condition.
+                // IgnorePointer lets taps fall through to the gesture layer when
+                // dict lookup is off, so play/pause taps still work normally.
+                if (!_isAudioOnly)
+                  Positioned.fill(
+                    child: Consumer(
+                      builder: (ctx, ref, _) {
+                        final prefs = ref.watch(playerPrefsProvider);
+                        return IgnorePointer(
+                          ignoring: !prefs.dictEnabled,
+                          child: SubtitleOverlay(
+                            currentLine: _currentSubLine,
+                            prefs: prefs,
+                            onPausedForLookup: () {
+                              try { _player.pause(); } catch (_) {}
+                            },
+                            onResumedAfterLookup: () {
+                              try { _player.play(); } catch (_) {}
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ),
 
                 // 2. Lock overlay
                 if (_isLocked) _buildLockOverlay(),
