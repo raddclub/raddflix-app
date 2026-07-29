@@ -2415,3 +2415,44 @@ This mirrors the exact pattern already used for `_applySubtitleMargin`, `_reappl
 **Docs updated:** `TASKS.md` (added AUDIO-FIX-1/2/3, BUG-SUBLINE-ABSTRACT, BUG-APPLYALLAF rows), `AGENT_HANDOFF.md`, `TASK_LOG.md` (this entry)
 
 **CI result:** `fd21ebb6` → `build-apk.yml` ✅ success. All three audio fixes (c84e7f1, 6d8b7f4, 37aa08f) and the subtitle abstract fix (77c6306) are now building correctly. CI had been red for 4 consecutive commits — this is the first green build since SUB-OVERLAY-FIX landed.
+
+---
+
+## Session: 2026-07-29 — INPUT-STYLE: standardise all input boxes to match login page
+
+**Task completed:** INPUT-STYLE
+
+**Context:** User reported Live TV screen search bar used a different input style from the rest of the app. Full audit conducted — five files required fixes. Player overlay sheets and the dedicated search screen were intentionally left as-is.
+
+### Exempt files (leave as-is)
+- `widgets/player/jump_to_panel.dart` — white-on-dark player overlay
+- `widgets/player/jump_to_sheet.dart` — white-on-dark player overlay
+- `widgets/player/sleep_timer_sheet.dart` — white-on-dark player overlay
+- `widgets/player/color_picker_sheet.dart` — white-on-dark player overlay
+- `core/subtitles/subtitle_hunter_sheet.dart` — white-on-dark player overlay
+- `screens/search_screen.dart` — deliberate premium glass-pill (`BackdropFilter` + animated glow)
+
+### Files changed
+
+**`live_tv_screen.dart`**
+- Added `FocusNode _searchFocusNode` + `bool _searchFocused` to state class
+- Wired focus listener in `initState`, disposed in `dispose`
+- `_buildSearchBar`: `Container(h:44, border.withOpacity(0.4))` → `AnimatedContainer(h:52, duration:180ms)` with `Border.all(color: focused ? AppColors.primary : t.border, width: focused ? 1.5 : 1.0)`
+- TextField inside now has `enabledBorder`/`focusedBorder: InputBorder.none` + `isCollapsed:true` (prevents inner decoration overriding outer)
+
+**`vault_screen.dart`**
+- Create-folder dialog TextField: `fillColor: t.bg` → `t.surface`; `BorderRadius.circular(10)` → `RaddRadius.mdRadius`; added `enabledBorder` + `focusedBorder(AppColors.primary, 1.5)`; `hintStyle` `textSecondary` → `textMuted`
+- Rename-file dialog TextField: same changes
+
+**`vault_settings_screen.dart`**
+- `_pinField()`: `fillColor: t.bg` → `t.surface`; `BorderRadius.circular(10)` → `RaddRadius.mdRadius`; added `enabledBorder` + `focusedBorder`; `hintStyle` `textSecondary` → `textMuted`; preserved `letterSpacing:8` and `obscureText:true`
+
+**`local_folder_screen.dart`**
+- `_buildSearchBar()`: removed `BorderSide.none`; added proper `enabledBorder(t.border)` + `focusedBorder(AppColors.primary, 1.5)`; `BorderRadius.circular(AppRadius.md)` → `RaddRadius.mdRadius`
+
+**`local_media_screen.dart`**
+- `_buildSearchBar()`: same fix as local_folder
+- `_showPlayFromUrlDialog()` TextField: `RaddRadius.smRadius` → `RaddRadius.mdRadius`; `contentPadding` aligned to `RaddSpace.md / 14`
+
+**Commit:** `e3b828ea`
+**CI:** `build-apk.yml` in progress on `e3b828ea`.

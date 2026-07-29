@@ -424,3 +424,15 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 | AUDIO-FIX-3 | **`aformat=channel_layouts=stereo` only prepended when `pan=` filter present.** For users with no Balance/Vocal/Channel-Mode active, 5.1/mono tracks entered channel-count-sensitive filters with no normalisation → silent failure. Fix: always prepend `aformat` when the filter chain is non-empty (safe no-op for stereo content). | ✅ DONE | 2026-07-29 | `37aa08f0` — `_ps_audiolab_mixin.dart` |
 | BUG-SUBLINE-ABSTRACT | **`_currentSubLine` undefined in `_PlayerPlaybackMixin` and `_PlayerUIMixin`** after SUB-OVERLAY-FIX added writes/reads in both. Fix: abstract getter/setter pair added to both mixins' cross-cluster declarations. | ✅ DONE | 2026-07-29 | `77c63061` — `_ps_playback_mixin.dart`, `_ps_ui_mixin.dart` |
 | BUG-APPLYALLAF | **`_applyAllAf()` missing from `_PlayerPlaybackMixin` cross-cluster declarations.** AUDIO-FIX-2 added calls at lines 477+515 but the abstract stub was never added → dart analyze `undefined_method` on every build since. Fix: one-line abstract declaration added to cross-cluster methods block. | ✅ DONE | 2026-07-29 | `fd21ebb6` — `_ps_playback_mixin.dart` |
+
+---
+
+## Input Style Consistency (2026-07-29)
+
+> Audit of every raw `TextField` in the app; match all to the login page `RaddTextField` style (52dp, `t.surface` fill, `t.border` 1px enabled → `AppColors.primary` 1.5px focused, `RaddRadius.mdRadius`).
+> **Player overlay sheets are exempt** (white-on-dark, intentional): `jump_to_panel`, `jump_to_sheet`, `sleep_timer_sheet`, `color_picker_sheet`, `subtitle_hunter_sheet`.
+> **Search screen (`search_screen.dart`) is exempt** — deliberate premium glass-pill with `BackdropFilter`.
+
+| Task | Description | Status | Date | Commit |
+|---|---|---|---|---|
+| INPUT-STYLE | **Standardise all non-exempt TextFields to login page style.** Five files patched: `live_tv_screen.dart` (search bar: `Container` → `AnimatedContainer` 52dp, `FocusNode` + animated focus border), `vault_screen.dart` (two dialog TextFields: `t.bg` → `t.surface`, `BorderRadius.circular(10)` → `RaddRadius.mdRadius`, add `enabledBorder`/`focusedBorder`), `vault_settings_screen.dart` (`_pinField`: same border + fill fix, keep `letterSpacing:8`), `local_folder_screen.dart` (`_buildSearchBar`: `BorderSide.none` → proper `t.border`/`AppColors.primary` pair), `local_media_screen.dart` (`_buildSearchBar` + URL dialog TextField: `smRadius` → `mdRadius`, consistent borders). | ✅ DONE | 2026-07-29 | `e3b828ea` |

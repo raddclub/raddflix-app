@@ -31,23 +31,33 @@ All open tasks from the home screen audit (HS-01–HS-11), BUG-SUB-STYLE-REAPPLY
 
 | SHA | Description |
 |---|---|
-| `b6934fb` | HS-01+HS-02 partial: persist SIMOSA dismiss 24h; add maxLines:1 to body text |
-| `b5e83bc` | HS-02 complete: reduce inner padding, Claim button padding, dismiss icon size |
-| `defb61e` | **SUB-OVERLAY-FIX**: Wire Flutter SubtitleOverlay — disable MPV native rendering, subscribe to `player.stream.subtitle`, insert overlay in all player stacks |
-| (doc commit) | DOCS: document SUB-OVERLAY-FIX architecture — RULES Rule 51, PLAYER_GUIDE, memory, TASKS, TASK_LOG, AGENT_HANDOFF, CONTEXT |
+| `e3b828ea` | **INPUT-STYLE**: standardise all input boxes to match login page `RaddTextField` style — 5 files |
 
-**CI:** APK build pending on `defb61e` — check `build-apk.yml` per Rule 46 before declaring done.
-No Oracle deployment needed — Flutter code only.
+**CI:** `build-apk.yml` in progress on `e3b828ea`. No Oracle deployment needed — Flutter only.
 
-### SUB-OVERLAY-FIX — What changed and why
+### INPUT-STYLE — What changed
 
-Root cause of 100+ failed subtitle-fix commits: `SubtitleOverlay` (a complete Flutter widget) existed and was designed to own subtitle rendering, but was never connected. MPV kept rendering inside the SurfaceView (where it can't know about Flutter controls or respect style changes against embedded ASS tags). Three missing connections:
+Five screens patched to match the login page `RaddTextField` visual spec (52dp height, `t.surface` fill, `t.border` 1px enabled → `AppColors.primary` 1.5px animated focus, `RaddRadius.mdRadius` corners):
 
-1. `Video(...)` in `_buildVideoSurface()` now has `subtitleViewConfiguration: const SubtitleViewConfiguration(visible: false)` — MPV decodes text but renders nothing
-2. `_wirePlayerStreams()` now listens to `player.stream.subtitle` → stores current line in `_currentSubLine`
-3. `SubtitleOverlay` is now placed in both landscape (`player_screen.dart`) and portrait (`_ps_ui_mixin.dart`) stacks
+| Screen | Change |
+|---|---|
+| `live_tv_screen.dart` | `_buildSearchBar`: `Container(h:44)` + `border.withOpacity(0.4)` → `AnimatedContainer(h:52)` with `FocusNode`-driven animated border |
+| `vault_screen.dart` | Create-folder + rename-file dialog TextFields: `t.bg` → `t.surface`, circular-10 → `mdRadius`, add focus border |
+| `vault_settings_screen.dart` | `_pinField()`: same fill/radius/focus-border fix; `letterSpacing:8` and `obscureText` preserved |
+| `local_folder_screen.dart` | `_buildSearchBar()`: `BorderSide.none` → proper `t.border` / `AppColors.primary` border pair |
+| `local_media_screen.dart` | `_buildSearchBar()` + URL dialog: `smRadius` → `mdRadius`, consistent enabled/focused borders |
 
-See **Rule 51 in `agent-hub/RULES.md`** and `agent-hub/memory/subtitle-overlay-architecture.md` for full details.
+**Exempt (intentional different style):**
+- All five player overlay sheets (`jump_to_panel`, `jump_to_sheet`, `sleep_timer_sheet`, `color_picker_sheet`, `subtitle_hunter_sheet`) — white-on-dark player overlay context
+- `search_screen.dart` — premium glass-pill with `BackdropFilter` + animated glow
+
+### Previous sessions (for full history see TASK_LOG.md)
+- `fd21ebb6` — BUG-APPLYALLAF: fix CI red; CI ✅
+- `77c63061` — BUG-SUBLINE-ABSTRACT
+- `37aa08f0` — AUDIO-FIX-3
+- `6d8b7f4f` — AUDIO-FIX-2
+- `c84e7f13` — AUDIO-FIX-1
+- `defb61e` — SUB-OVERLAY-FIX (subtitle architecture; see Rule 51 + memory/subtitle-overlay-architecture.md)
 
 ---
 
