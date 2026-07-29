@@ -131,7 +131,8 @@ class _SimosaCardState extends State<SimosaCard> {
                 : null,
           ),
           child: Padding(
-             padding: const EdgeInsets.fromLTRB(12, 8, 10, 8),
+             // HS-02: reduced vertical padding to constrain card height.
+           padding: const EdgeInsets.fromLTRB(10, 6, 8, 6),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -212,7 +213,7 @@ class _SimosaCardState extends State<SimosaCard> {
                           onTap: _onClaim,
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 7),
+                                horizontal: 14, vertical: 5),
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
@@ -266,10 +267,10 @@ class _SimosaCardState extends State<SimosaCard> {
                       onTap: _onDismiss,
                       behavior: HitTestBehavior.opaque,
                       child: Padding(
-                        padding: const EdgeInsets.all(4),
+                        padding: const EdgeInsets.all(3),
                         child: Icon(
                           AppIcons.close,
-                          size: 15,
+                          size: 12,
                           color: isDark ? Colors.white30 : Colors.black26,
                         ),
                       ),
