@@ -176,7 +176,15 @@ mixin _PlayerAudioLabMixin on ConsumerState<PlayerScreen> {
     // known 2-channel layout first via `aformat=channel_layouts=stereo`, so
     // every pan filter downstream always gets the stereo input it expects
     // regardless of the source track's real channel count.
-    if (parts.any((p) => p.startsWith('pan='))) {
+    //
+    // AUDIO-FIX-3: broaden guard from pan=-only to any non-empty chain.
+    // The original guard was correct for BUG-AUDIO-SILENT-01 but left users
+    // with no balance/channel-mode/vocal effects (most users, most of the time)
+    // unprotected when other filters such as dynaudnorm, extrastereo, or
+    // acompressor receive unexpected channel layouts. aformat is a safe no-op
+    // for stereo content (zero-copy passthrough when already stereo), so
+    // always prepending it costs nothing and makes the entire chain robust.
+    if (parts.isNotEmpty) {
       parts.insert(0, 'aformat=channel_layouts=stereo');
     }
 
