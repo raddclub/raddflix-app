@@ -5,7 +5,7 @@
 
 ---
 
-## Current State (2026-07-29 — subtitle overlay fix complete)
+## Current State (2026-07-29 — audio fix CI unblocked)
 
 All open tasks from the home screen audit (HS-01–HS-11), BUG-SUB-STYLE-REAPPLY, and the subtitle overlay architecture fix (SUB-OVERLAY-FIX) are fully done.
 

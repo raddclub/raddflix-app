@@ -2392,3 +2392,24 @@ Both wrapped in `Consumer(ref.watch(playerPrefsProvider))` for live style update
 **Commit:** `defb61e`
 **CI:** Check `build-apk.yml` per Rule 46.
 **Docs updated:** `RULES.md` (Rule 51), `PLAYER_GUIDE.md` (overlay stack + subtitle section + DO NOT list), `memory/MEMORY.md`, `memory/subtitle-overlay-architecture.md` (new), `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry), `CONTEXT.md`
+
+---
+
+## Session: 2026-07-29 — BUG-APPLYALLAF: fix CI red from AUDIO-FIX-2
+
+**Task completed:** BUG-APPLYALLAF
+
+**Context:** Previous agent session (same date) implemented three audio fixes (AUDIO-FIX-1/2/3) and a subtitle abstract fix (BUG-SUBLINE-ABSTRACT), but left CI red. The dart analyze error was `_applyAllAf isn't defined for the type '_PlayerPlaybackMixin'` — AUDIO-FIX-2 added calls to `_applyAllAf()` at lines 477 and 515 of `_ps_playback_mixin.dart` but never added the corresponding abstract cross-cluster declaration.
+
+**File changed:** `raddflix_flutter/lib/screens/player/_ps_playback_mixin.dart`
+
+### Change
+Added one line to the cross-cluster methods block (line 19):
+```dart
+void _applyAllAf(); // defined in _PlayerAudioLabMixin; called here after tracks confirmed
+```
+This mirrors the exact pattern already used for `_applySubtitleMargin`, `_reapplySubtitleStyleAfterLifecycle`, `_fetchLiveRenditions`, etc.
+
+**Commit:** `fd21ebb6`
+**CI:** Awaiting `build-apk.yml` result (Rule 46).
+**Docs updated:** `TASKS.md` (added AUDIO-FIX-1/2/3, BUG-SUBLINE-ABSTRACT, BUG-APPLYALLAF rows), `AGENT_HANDOFF.md`, `TASK_LOG.md` (this entry)
