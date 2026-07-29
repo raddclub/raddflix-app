@@ -144,12 +144,27 @@ Admin page → Trigger OTP
 ## Flutter App Key Files
 ```
 raddflix_flutter/lib/
-  core/security/request_encoder.dart   XOR decode + base64 padding fix (CRITICAL)
-  core/api/api_client.dart             Dio + XOR + auth interceptors
-  core/db/local_db.dart                SQLCipher DB, schema v17
-  screens/player_screen.dart           Video player
-  providers/auth_provider.dart         Auth state + session restore
+  core/security/request_encoder.dart          XOR decode + base64 padding fix (CRITICAL)
+  core/api/api_client.dart                    Dio + XOR + auth interceptors
+  core/db/local_db.dart                       SQLCipher DB, schema v17
+  screens/player_screen.dart                  Video player (landscape stack + initState/dispose)
+  screens/player/_ps_ui_mixin.dart            Player UI: _buildVideoSurface(), portrait stack, controls
+  screens/player/_ps_subtitle_mixin.dart      Subtitle track selection, _currentSubLine state var
+  screens/player/_ps_playback_mixin.dart      Player streams (_wirePlayerStreams), _subs list
+  screens/player/_ps_panels_subtitle.dart     Subtitle settings panel UI (1520 lines)
+  widgets/player/subtitle_overlay.dart        Flutter subtitle renderer — the SOLE subtitle renderer
+  core/player/player_prefs.dart               PlayerPrefs data class (subtitle style, dict, etc.)
+  core/player/player_prefs_provider.dart      Riverpod provider for PlayerPrefs
+  providers/auth_provider.dart                Auth state + session restore
 ```
+
+### Subtitle Architecture (as of 2026-07-29, commit `defb61e`)
+MPV's native subtitle renderer is DISABLED via `SubtitleViewConfiguration(visible: false)` in
+`_buildVideoSurface()`. All subtitle rendering is done by the Flutter `SubtitleOverlay` widget.
+Current subtitle text flows: `player.stream.subtitle` → `_currentSubLine` → `SubtitleOverlay`.
+Style flows: `PlayerPrefs` → `SubtitleOverlay.build()`.
+**Do NOT add subtitle visual styling via `NativePlayer.setProperty('sub-*', ...)` — MPV renders nothing.**
+See `agent-hub/RULES.md` Rule 51 and `agent-hub/memory/subtitle-overlay-architecture.md`.
 
 ## Flask Key Files
 ```

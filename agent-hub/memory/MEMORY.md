@@ -9,3 +9,4 @@
 - [RaddColors has no gradient getter](radd-colors-no-gradient.md) — context.signalPrimaryGradient does not exist; use AppColors.primaryGradient for primary-color gradients
 - [TEN_POINT_PLAN dead-code findings need re-verification](dead-code-plan-findings.md) — plan docs can be wrong/stale about "dead" vars; always re-grep before deleting
 - [tamashaweb CDN access model](tamashaweb-cdn-access.md) — streams globally accessible from any internet; zero-rated Jazz SIM only; NOT IP-blocked; Chrome plays HLS natively
+- [Subtitle overlay architecture](subtitle-overlay-architecture.md) — Flutter SubtitleOverlay (not MPV) must own all subtitle rendering; SubtitleViewConfiguration(visible:false) + stream.subtitle + overlay in both stacks

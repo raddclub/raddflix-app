@@ -8,19 +8,23 @@
 ## Overlay Stack (build order, bottom to top)
 
 ```
-1. Video surface (NativePlayer texture)
-2. Seek flash animation (double-tap ripple)
-3. Gesture layer (GestureDetector — tap/drag/scale/double-tap/long-press)
-4. Controls overlay (AnimatedOpacity — auto-hides) ← _buildControlsOverlay()
-5. Sidebar strip (right edge, _sidebarExpanded, hidden when _panelOpen=true)
-6a. Brightness indicator pill (LEFT, amber, _showBrightnessIndicator)
-6b. Volume indicator pill (LEFT, white/orange/red, _showVolumeIndicator)
-7. Long-press 2× badge
-8a. Pinch-zoom indicator pill
-8b. Reset zoom button
-9. Lock overlay (when _isLocked)
+1.  Video surface (NativePlayer SurfaceView — MPV subtitle renderer DISABLED via SubtitleViewConfiguration(visible:false))
+1b. Flutter SubtitleOverlay (IgnorePointer when dictEnabled=false; Consumer(playerPrefsProvider) for live style updates)
+2.  Lock overlay (when _isLocked)
+3.  AI Dub progress overlay (when _dubGenerating)
+4.  Gesture layer (GestureDetector — tap/drag/scale/double-tap/long-press)
+5.  Controls overlay (AnimatedOpacity — auto-hides) ← _buildControlsOverlay()
+6.  Sidebar strip (right edge, _sidebarExpanded, hidden when _panelOpen=true)
+7a. Brightness indicator pill (LEFT, amber, _showBrightnessIndicator)
+7b. Volume indicator pill (LEFT, white/orange/red, _showVolumeIndicator)
+8.  Long-press 2× badge
+9a. Pinch-zoom indicator pill
+9b. Reset zoom button
 10. Seek preview label (during drag)
 ```
+
+**SubtitleOverlay is present in BOTH landscape (player_screen.dart) and portrait (_ps_ui_mixin.dart `_buildPortraitLayout`) stacks.**
+The overlay is hidden during audio-only mode (`if (!_isAudioOnly)` gate).
 
 ---
 
@@ -116,25 +120,42 @@ Never show simultaneously (brightness = left drag, volume = right drag).
 
 ---
 
-## Subtitle Properties (MPV)
-| Setting | MPV Property | Notes |
-|---------|-------------|-------|
-| Font | `sub-font` | 'sans-serif','serif','monospace' |
-| Size | `sub-font-size` | Integer string |
-| Scale | `sub-scale` | Float e.g. "1.50" |
-| Bold | `sub-bold` | 'yes'/'no' |
-| Color | `sub-color` | `#RRGGBB` format |
-| Background | `sub-back-color` | `#00000000` transparent, `#ffRRGGBB` |
-| Opacity | `sub-opacity` | Float 0.0–1.0 (fixed: was sub-ass-fade-in-time) |
-| Align X | `sub-align-x` | 'left'/'center'/'right' |
-| Align Y | `sub-align-y` | 0=top 1=center 2=bottom |
-| Margin Y | `sub-margin-y` | 0–200px |
-| Margin X | `sub-margin-x` | 0–60px |
-| Shadow offset | `sub-shadow-offset` | '0','3' |
-| Outline size | `sub-outline-size` | '0','1.5' |
-| Line spacing | `sub-spacing` | Float |
-| Speed | `sub-speed` | Float |
-| Sync | `sub-delay` | Float seconds |
+## Subtitle Rendering — Flutter Overlay (NOT MPV)
+
+> ⚠️ **Updated 2026-07-29 (commit `defb61e`):** MPV's native subtitle renderer is
+> **disabled**. All subtitle rendering is done by `SubtitleOverlay` (Flutter widget).
+> See **Rule 51 in `RULES.md`** for the full architecture and why MPV native rendering
+> can never be reliably customized.
+
+### How the Flutter overlay works
+| Property | Controlled by | Source |
+|----------|--------------|--------|
+| Current text | `_currentSubLine` (String?) | `player.stream.subtitle` stream → `_ps_playback_mixin.dart` |
+| Font, size, bold, italic | `PlayerPrefs.subtitleFontIndex` etc. | `SubtitleOverlay.build()` |
+| Text color, outline color | `PlayerPrefs.subtitleTextColorValue` etc. | Same |
+| Background + opacity | `PlayerPrefs.subtitleBackgroundColorValue` etc. | Same |
+| Position (top/center/bottom) | `PlayerPrefs.subtitlePosition` | `SubtitleOverlay._padding` |
+| Vertical offset | `PlayerPrefs.subtitleVerticalOffset` | Multiplied ×60, added to padding |
+| Word-tap dict lookup | `PlayerPrefs.dictEnabled` | `_onWordTap()`; IgnorePointer wrapper in stack |
+
+### MPV timing properties — still active
+`sub-delay` (sync) and `sub-speed` still affect *when* MPV emits subtitle text via
+`player.stream.subtitle`. All other `sub-*` visual properties are no-ops (MPV renderer disabled).
+
+### ⚠️ STALE — MPV sub-* Properties (kept for reference only, no longer rendered)
+| Setting | MPV Property | Status |
+|---------|-------------|--------|
+| Font | `sub-font` | No-op (visual) |
+| Size | `sub-font-size` | No-op (visual) |
+| Bold | `sub-bold` | No-op (visual) |
+| Color | `sub-color` | No-op (visual) |
+| Background | `sub-back-color` | No-op (visual) |
+| Opacity | `sub-opacity` | No-op (visual) |
+| Align X/Y | `sub-align-x/y` | No-op (visual) |
+| Margin Y | `sub-margin-y` | No-op (visual) |
+| Shadow/Outline | `sub-shadow-offset/sub-outline-size` | No-op (visual) |
+| **Speed** | **`sub-speed`** | **✅ Active — timing** |
+| **Sync** | **`sub-delay`** | **✅ Active — timing** |
 
 ---
 
@@ -146,3 +167,6 @@ Never show simultaneously (brightness = left drag, volume = right drag).
 - ❌ `androidAttachSurfaceAfterVideoParameters: true` — black screen
 - ❌ `sub-ass-fade-in-time` — fake property, use `sub-opacity`
 - ❌ Panel width < 0.55 — user confirmed 55% minimum
+- ❌ Remove `subtitleViewConfiguration: const SubtitleViewConfiguration(visible: false)` from `Video(...)` — instant regression, MPV starts rendering subs inside the SurfaceView, uncontrollable styling returns
+- ❌ Add subtitle visual styling via `NativePlayer.setProperty('sub-font'/'sub-color'/etc.)` as primary path — MPV renderer is disabled; property calls are no-ops for rendering (timing-only: `sub-delay`, `sub-speed` still work)
+- ❌ Put `SubtitleOverlay` in only one of landscape/portrait stacks — subtitles disappear on rotation

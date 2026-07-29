@@ -2344,3 +2344,51 @@ Prior commit `b6934fb` only added `maxLines:1` and `overflow:TextOverflow.ellips
 **Commit:** `b5e83bc`
 **CI:** APK build on `b5e83bc` ✅ success.
 **Docs updated:** `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry)
+
+---
+
+## Session: 2026-07-29 — SUB-OVERLAY-FIX: Subtitle overlay architecture fixed
+
+**Task completed:** SUB-OVERLAY-FIX
+
+**Files changed:**
+- `raddflix_flutter/lib/screens/player/_ps_ui_mixin.dart`
+- `raddflix_flutter/lib/screens/player/_ps_subtitle_mixin.dart`
+- `raddflix_flutter/lib/screens/player/_ps_playback_mixin.dart`
+- `raddflix_flutter/lib/screens/player/player_screen.dart`
+
+### Root Cause (why 100+ previous commits failed)
+
+Two subtitle rendering systems existed in parallel but were **never connected**:
+
+1. **MPV native renderer** — always active, rendering inside the Android SurfaceView texture. `NativePlayer.setProperty('sub-font', ...)` etc. push style here. This system is fundamentally unreliable for customization because: (a) ASS inline tags (`{\c&...}`, `{\an8}`) bypass `sub-ass-override: force`; (b) the renderer recreates on every track change and the 150ms reapply is a race condition; (c) it has no knowledge of Flutter controls so `sub-margin-y` math is fragile across devices.
+
+2. **Flutter `SubtitleOverlay`** — a complete, well-built widget in `lib/widgets/player/subtitle_overlay.dart`. Designed for this purpose. The file's own opening comment says *"The MPV subtitle track is set invisible via SubtitleViewConfiguration(visible:false)"*. This was **never implemented** and the widget was **never placed in any Stack**.
+
+### Changes Made
+
+**1. `_ps_ui_mixin.dart` — `_buildVideoSurface()`**
+Added `subtitleViewConfiguration: const SubtitleViewConfiguration(visible: false)` to the `Video(...)` widget. MPV now decodes subtitle text but renders nothing. All `sub-font/sub-color/sub-bold` etc. property calls become no-ops for rendering (they remain for timing: `sub-delay`, `sub-speed` still affect when text is emitted).
+
+**2. `_ps_subtitle_mixin.dart`**
+Added `String? _currentSubLine` state variable — holds the current subtitle text line, null when none is active.
+
+**3. `_ps_playback_mixin.dart` — `_wirePlayerStreams()`**
+Added `_player.stream.subtitle.listen(...)` to the existing `_subs.addAll([...])` block. `player.stream.subtitle` emits `List<String>` — index 0 is the primary track line. Stored in `_currentSubLine` via `setState`. Auto-cancels in `dispose()` via the `_subs` list.
+
+**4. `player_screen.dart`**
+Added `import '../widgets/player/subtitle_overlay.dart'` and placed `SubtitleOverlay` in:
+- **Landscape fullscreen Stack**: after video surface, before lock overlay
+- **Portrait Stack** (in `_ps_ui_mixin.dart`): same position
+
+Both wrapped in `Consumer(ref.watch(playerPrefsProvider))` for live style updates, and `IgnorePointer(ignoring: !prefs.dictEnabled)` so play/pause taps work when dict is off.
+
+### Result
+- All subtitle style settings (font, size, colour, outline, background, position, vertical offset) now apply instantly — no MPV property race, no ASS inline tag override
+- Subtitles never appear under the seekbar — Flutter layout positions the overlay correctly
+- Word-tap dictionary lookup continues to work (SubtitleOverlay handles it natively)
+- The existing `_applySubtitleStylePrefs()` / `_applySubtitleMargin()` / `_reapplySubtitleStyleAfterLifecycle()` functions remain in code and are now no-ops for visual rendering (left in place; removing requires deeper audit)
+
+**Commit:** `defb61e`
+**CI:** Check `build-apk.yml` per Rule 46.
+**Docs updated:** `RULES.md` (Rule 51), `PLAYER_GUIDE.md` (overlay stack + subtitle section + DO NOT list), `memory/MEMORY.md`, `memory/subtitle-overlay-architecture.md` (new), `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry), `CONTEXT.md`

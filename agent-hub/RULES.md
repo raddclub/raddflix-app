@@ -248,6 +248,73 @@ system, add it to the `REQUIRES_IMPORT` map in `preflight_check.sh` too.
 
 ---
 
+## Subtitle Rendering Architecture (Rule 51 — added 2026-07-29)
+
+**Rule 51: Subtitle customization MUST use Flutter `SubtitleOverlay`, never MPV native properties.**
+
+This is the root cause of 100+ failed subtitle-fix commits. Read carefully before touching any subtitle code.
+
+### The two systems — only one works for customization
+
+| System | Where it renders | Who controls it | Customizable? |
+|--------|-----------------|-----------------|---------------|
+| MPV native renderer | Inside the Android SurfaceView texture | MPV + embedded ASS style blocks | ❌ Unreliable |
+| Flutter `SubtitleOverlay` | Flutter widget tree, above video | `PlayerPrefs` → instant, deterministic | ✅ Always works |
+
+### Why MPV native rendering can never be reliably customized
+1. **ASS inline tags win over `sub-ass-override: force`** — `force` overrides the script *style block*, but inline tags like `{\c&H0000FF&}` or `{\an8\pos(320,50)}` baked into individual dialogue lines still apply. Most Urdu/Hindi subtitle files from the internet have these.
+2. **Renderer recreates itself on every track change** — `_reapplySubtitleStyleAfterLifecycle()` with 150ms delay is a race condition; if MPV takes 200ms on a slower device, the reapply fires into the old renderer, the new one loads with defaults.
+3. **MPV has no knowledge of Flutter controls** — `sub-margin-y` is measured inside the video frame, not the Flutter layout. Every device/aspect-ratio combination needs different values, and there is no way to query the Flutter seekbar position from MPV.
+4. **`sub-ass-override: 'yes'` was the previous bug** — it lets the embedded ASS file's style block win. Every controls toggle called `_applySubtitleMargin()` which was the last writer of this property, resetting it to `'yes'` and undoing any style change the user made. Fixed to `'force'` in BUG-SUB-STYLE-01, but this only partially helps (see point 1 above).
+
+### The correct architecture (implemented in commit `defb61e`, 2026-07-29)
+
+**Three connected pieces — ALL three must be present or subtitles break:**
+
+1. **`_buildVideoSurface()` in `_ps_ui_mixin.dart`** — must always have:
+   ```dart
+   subtitleViewConfiguration: const SubtitleViewConfiguration(visible: false),
+   ```
+   This tells media_kit/MPV: decode subtitle text but do NOT render it. Without this, MPV renders inside the SurfaceView and `SubtitleOverlay` renders on top — you get duplicates and the MPV copy is uncontrollable.
+
+2. **`_wirePlayerStreams()` in `_ps_playback_mixin.dart`** — must listen to:
+   ```dart
+   _player.stream.subtitle.listen((lines) {
+     if (!mounted) return;
+     final raw = lines.isNotEmpty ? lines.first : null;
+     setState(() => _currentSubLine = (raw != null && raw.isNotEmpty) ? raw : null);
+   }),
+   ```
+   `player.stream.subtitle` emits `List<String>` — index 0 is the primary track line. Must be in `_subs` list so it auto-cancels in `dispose()`.
+
+3. **`SubtitleOverlay` in every player Stack** — present in both landscape (`player_screen.dart`) and portrait (`_ps_ui_mixin.dart`). Must be wrapped in `IgnorePointer(ignoring: !prefs.dictEnabled)` so taps fall through to the gesture layer when dict lookup is off.
+   ```dart
+   if (!_isAudioOnly)
+     Positioned.fill(
+       child: Consumer(builder: (ctx, ref, _) {
+         final prefs = ref.watch(playerPrefsProvider);
+         return IgnorePointer(
+           ignoring: !prefs.dictEnabled,
+           child: SubtitleOverlay(currentLine: _currentSubLine, prefs: prefs, ...),
+         );
+       }),
+     ),
+   ```
+
+### What this makes redundant (but harmless to leave)
+- `_applySubtitleStylePrefs()` MPV property calls (`sub-font`, `sub-color`, etc.) — MPV won't render anything, so these are no-ops
+- `_applySubtitleMargin()` / `sub-margin-y` — Flutter layout positions `SubtitleOverlay` correctly without this
+- `_reapplySubtitleStyleAfterLifecycle()` — the Flutter overlay doesn't need to be "reapplied"; it reads live from `PlayerPrefs`
+
+**Do NOT remove** the above functions without reading the full subtitle panel first — some may have side-effects or be called for non-styling reasons.
+
+### DO NOT
+- ❌ Remove `subtitleViewConfiguration: const SubtitleViewConfiguration(visible: false)` from the Video widget — instant regression, MPV starts rendering again
+- ❌ Add subtitle style via `NativePlayer.setProperty('sub-*', ...)` as the primary path — always unreliable for the reasons above
+- ❌ Place `SubtitleOverlay` in only one stack (landscape but not portrait, or vice versa) — subtitles disappear when rotating
+
+---
+
 ## Replit Environment & Bootstrap Rules (added 2026-07-12)
 
 **Rule 48: Always verify credentials via code — never trust verbal confirmation alone.**
