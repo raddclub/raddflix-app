@@ -561,10 +561,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       }
     });
     // Restore speed via MPV
-    // Deferred AF restore — applied once player is ready
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) _applyAllAf();
-    });
+    // AUDIO-FIX-2: AF chain is now applied inside stream.tracks.listen
+    // (after audio track discovery) so it fires when the audio pipeline is
+    // actually ready. The old 500ms blind timer fired before MPV had opened
+    // its audio decoder on slow devices / poor connections, causing setProperty
+    // to be silently discarded. No delayed call needed here.
     if (_speed != 1.0) {
       try {
         _np.setProperty('framedrop', _speed > 1.0 ? 'decoder+vo' : 'vo');

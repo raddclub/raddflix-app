@@ -464,6 +464,16 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
           // Track discovery/selection can recreate MPV's subtitle renderer,
           // which otherwise restores the embedded track's default styling.
           _reapplySubtitleStyleAfterLifecycle();
+          // AUDIO-FIX-2: apply the AF chain (EQ + Lab + reverb + balance) now
+          // that MPV has confirmed audio tracks exist. A short delay lets the
+          // audio decoder fully initialise before we set the filter graph —
+          // MPV accepts setProperty('af') at any time, but the filter-graph
+          // init itself happens asynchronously; firing this too early (as a
+          // 500ms blind timer from prefs-load time) caused silent discard on
+          // slow devices where media hadn't opened yet.
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (mounted) _applyAllAf();
+          });
         });
         // P57-05: EAC3/DTS auto SW decoder fallback
         // media_kit_libs_android_video bundles full ffmpeg so EAC3 decodes fine,
@@ -496,6 +506,12 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
                   'dts': 'DTS', 'dca': 'DTS-HD', 'truehd': 'Dolby TrueHD', 'mlp': 'MLP/TrueHD',
                 }[detected] ?? detected.toUpperCase();
                 _showInfoSnackbar('$name — using software decoder for full fidelity');
+                // Re-apply AF chain after hwdec switch — changing hwdec while
+                // playing can reset MPV's audio pipeline, discarding any
+                // previously applied filter graph.
+                Future.delayed(const Duration(milliseconds: 200), () {
+                  if (mounted) _applyAllAf();
+                });
               }
             } catch (_) {}
           });
