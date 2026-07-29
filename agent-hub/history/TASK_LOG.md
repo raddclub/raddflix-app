@@ -2413,3 +2413,5 @@ This mirrors the exact pattern already used for `_applySubtitleMargin`, `_reappl
 **Commit:** `fd21ebb6`
 **CI:** Awaiting `build-apk.yml` result (Rule 46).
 **Docs updated:** `TASKS.md` (added AUDIO-FIX-1/2/3, BUG-SUBLINE-ABSTRACT, BUG-APPLYALLAF rows), `AGENT_HANDOFF.md`, `TASK_LOG.md` (this entry)
+
+**CI result:** `fd21ebb6` → `build-apk.yml` ✅ success. All three audio fixes (c84e7f1, 6d8b7f4, 37aa08f) and the subtitle abstract fix (77c6306) are now building correctly. CI had been red for 4 consecutive commits — this is the first green build since SUB-OVERLAY-FIX landed.

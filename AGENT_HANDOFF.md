@@ -7,7 +7,7 @@
 
 ## Current State (2026-07-29 — audio fix CI unblocked)
 
-All open tasks from the home screen audit (HS-01–HS-11), BUG-SUB-STYLE-REAPPLY, and the subtitle overlay architecture fix (SUB-OVERLAY-FIX) are fully done.
+All open tasks from the home screen audit (HS-01–HS-11), BUG-SUB-STYLE-REAPPLY, the subtitle overlay architecture fix (SUB-OVERLAY-FIX), and the three audio fixes (AUDIO-FIX-1/2/3) are fully done. CI is green on `fd21ebb6`.
 
 - **BUG-SUB-STYLE-REAPPLY**: All three `_reapplySubtitleStyleAfterLifecycle()` call sites confirmed in code — `stream.tracks.listen` microtask, `_applyCompanionSub()`, `onSubtitleTrackSelected`. No code change needed; marked done.
 - **HS-01**: SIMOSA dismiss persists 24 h via SharedPreferences. `_onDismiss()` async, writes `simosa_dismissed_until` (Unix ms + 24 h). `_loadDismissed()` in `initState`. `_onClaim()` clears key.
