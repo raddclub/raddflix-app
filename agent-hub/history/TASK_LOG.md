@@ -2303,3 +2303,25 @@ Continued from same session. After HOME-FILTER-CHIP landed, three follow-on issu
 **Commit:** `10aaa85`
 **CI:** APK build `30384199775` on `10aaa85` ✅ success.
 **Docs updated:** `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry)
+
+## Session: 2026-07-29 — BUG-SUB-STYLE-REAPPLY + HS-01/02/03 SIMOSA card fixes
+
+**Tasks completed:** BUG-SUB-STYLE-REAPPLY (confirmed done), HS-01, HS-02, HS-03 (covered by HS-06)
+
+**Files changed:** `raddflix_flutter/lib/widgets/simosa_card.dart`
+
+### Changes
+
+- **BUG-SUB-STYLE-REAPPLY (confirmed done)**: Static code trace verified all three `_reapplySubtitleStyleAfterLifecycle()` call sites present at HEAD: (1) `stream.tracks.listen` microtask in `_ps_playback_mixin.dart`; (2) `_applyCompanionSub()` in `_ps_playback_mixin.dart`; (3) `onSubtitleTrackSelected` in `_ps_subtitle_mixin.dart`. Implementation was complete from a prior session — marked ✅ DONE.
+
+- **HS-01 (Critical)** SIMOSA dismiss persistence: `_onDismiss()` changed from synchronous setState to async; now writes `simosa_dismissed_until` (current time + 24 h, Unix ms) to SharedPreferences. New `_loadDismissed()` called from `initState()` reads the key and sets `_dismissed = true` if still within the 24 h window. `_onClaim()` calls `prefs.remove('simosa_dismissed_until')` so the card reappears immediately showing "Claimed ✓" after the user claims.
+
+- **HS-02 (Critical)** SIMOSA card body text single-line: added `maxLines: 1, overflow: TextOverflow.ellipsis` to the body Text widget. Prevents two-line wrap on 360dp screens.
+
+- **HS-03 (Critical)** SIMOSA card nav-clip: already resolved by HS-06 (`10aaa85`) which raised bottom clearance to 96px. Marked done — no code change needed.
+
+- **TASKS.md backfill**: HS-04–HS-11 rows were still marked ⏳ PENDING in TASKS.md despite being completed in `10aaa85` last session. All 8 rows corrected to ✅ DONE.
+
+**Commit:** `b6934fb` (Flutter)
+**CI:** APK build triggered on `b6934fb` — check GitHub Actions for final status.
+**Docs updated:** `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry)

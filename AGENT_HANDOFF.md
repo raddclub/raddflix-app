@@ -5,19 +5,19 @@
 
 ---
 
-## Current State (2026-07-28 — HS-04–11 home screen bug batch complete)
+## Current State (2026-07-29 — SIMOSA card fixes complete)
 
-All 8 pending home screen bugs from the HS-04–HS-11 audit batch are resolved in
-`home_screen.dart` (commit `10aaa85`). Fixes: AppBar spacer now uses real device height so greeting
-clears the logo; Trending/New Arrivals shelves gated to All tab (no duplicate cards on filter);
-bottom clearance raised to 96px; sync banner moved to Positioned overlay over the hero (no layout
-shift); hero Transform wrapped in ClipRect (no adjacent-slide bleed); shimmer backdrop added below
-hero poster (no black void during load); `_floatCtrl.repeat()` moved to initState (no mid-cycle
-jank); category chip row wrapped in ShaderMask right-edge fade (scroll affordance for hidden chips).
+All open tasks from the HS-01–HS-11 home screen bug batch and BUG-SUB-STYLE-REAPPLY are now complete.
+
+- **BUG-SUB-STYLE-REAPPLY**: All three `_reapplySubtitleStyleAfterLifecycle()` call sites confirmed present in code — `stream.tracks.listen` microtask (`_ps_playback_mixin.dart`), `_applyCompanionSub()`, and `onSubtitleTrackSelected` (subtitle mixin). Marked done (already implemented in a prior session, not previously marked).
+- **HS-01**: `_onDismiss()` now async; writes `simosa_dismissed_until` (Unix ms + 24 h) to SharedPrefs; `_loadDismissed()` called in `initState` to restore state across cold starts; `_onClaim()` clears the key so the card shows "Claimed ✓" after claiming.
+- **HS-02**: `maxLines: 1, overflow: TextOverflow.ellipsis` added to body Text widget — no more wrapping on 360dp screens.
+- **HS-03**: Already resolved by HS-06 (96px bottom clearance, `10aaa85`).
+- **HS-04–HS-11**: All done in `10aaa85` (prior session). TASKS.md rows were still marked PENDING — corrected this session.
 
 | Status | Count | Task IDs |
 |---|---|---|
-| ✅ DONE | 10 | HOME-REDESIGN-2026 (`65c5588`), AUTH-UX-2026 (`39343b04`), HS-04–HS-11 (`10aaa85`) |
+| ✅ DONE | 14 | HOME-REDESIGN-2026 (`65c5588`), AUTH-UX-2026 (`39343b04`), HS-01–HS-11 (`10aaa85`, `b6934fb`), BUG-SUB-STYLE-REAPPLY (confirmed at HEAD) |
 | ✅ DONE — prior audit backlog | 14 | SEC-02, SEC-03, BUG-FREE-EP-02, BUG-DOWNLOAD-SIZE, BUG-CATALOG-LISTENER, BUG-EPISODE-SORT, BUG-BINGE-TIMER, BUG-TIMELINE-SYNC, BUG-DB-DELETE-RISK, BUG-VOICE-STUB, BUG-PLAYER-AUTODISPOSE, BUG-PROFILE-PIN, BUG-LOCAL-MEDIA-IO, BUG-XOR-CLOCK |
 | ⛔ BLOCKED — external dependency | 3 | SEC-01 (needs domain + TLS cert), SEC-05 (needs release keystore SHA-256), SEC-04 (vault PIN migration) |
 
@@ -31,9 +31,9 @@ jank); category chip row wrapped in ShaderMask right-edge fade (scroll affordanc
 
 | SHA | Description |
 |---|---|
-| `10aaa85` | HS-04–11: fix 8 pending home screen bugs (AppBar spacer, dupe cards, nav bleed, sync banner, hero clip, shimmer void, float jank, chip fade) |
+| `b6934fb` | HS-01+HS-02: persist SIMOSA dismiss 24h via SharedPreferences; add maxLines:1 to body text |
 
-**CI:** APK build `30384199775` on `10aaa85` ✅ success.
+**CI:** APK build on `b6934fb` — in progress at time of doc update (check GitHub Actions).
 No Oracle deployment needed — Flutter code only.
 
 ---
