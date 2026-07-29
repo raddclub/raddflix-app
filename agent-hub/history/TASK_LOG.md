@@ -2325,3 +2325,22 @@ Continued from same session. After HOME-FILTER-CHIP landed, three follow-on issu
 **Commit:** `b6934fb` (Flutter)
 **CI:** APK build on `b6934fb` ✅ success.
 **Docs updated:** `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry)
+
+## Session: 2026-07-29 (part 2) — HS-02 completion: card height reduction
+
+**Task completed:** HS-02-SIMOSA-CARD-SIZE (full spec)
+
+**File changed:** `raddflix_flutter/lib/widgets/simosa_card.dart`
+
+### Changes
+
+Prior commit `b6934fb` only added `maxLines:1` and `overflow:TextOverflow.ellipsis`. Full HS-02 spec also required reduced padding and smaller dismiss icon. This commit completes those:
+
+- **Inner card padding**: `EdgeInsets.fromLTRB(12, 8, 10, 8)` → `EdgeInsets.fromLTRB(10, 6, 8, 6)` — vertical padding 8→6 px (saves 4 px total)
+- **Claim button vertical padding**: `vertical: 7` → `vertical: 5` (saves 4 px on right-column content)
+- **Dismiss icon**: `size: 15` → `size: 12`; hit-area padding `all(4)` → `all(3)` (saves 5 px on right-column dismiss row)
+- Net result: right-column content 59 px → 46 px; total card height ~83 px → ~58 px
+
+**Commit:** `b5e83bc`
+**CI:** APK build on `b5e83bc` ✅ success.
+**Docs updated:** `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry)
