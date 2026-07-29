@@ -30,6 +30,8 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
   bool get _backgroundAudio;
   String get _currentAudioCodec; set _currentAudioCodec(String v);
   String? get _currentSubFile; set _currentSubFile(String? v);
+  // SUB-OVERLAY-FIX: declared in _PlayerSubtitleMixin; written here in stream.subtitle.listen
+  String? get _currentSubLine; set _currentSubLine(String? v);
   Timer? get _hideTimer; set _hideTimer(Timer? v);
   Timer? get _immersiveExitTimer;
   Duration? get _introEnd; set _introEnd(Duration? v);

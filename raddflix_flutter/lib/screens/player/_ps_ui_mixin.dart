@@ -64,6 +64,8 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   String get _currentLabAf; set _currentLabAf(String v);
   String get _currentReverbAf; set _currentReverbAf(String v);
   String get _currentTitle;
+  // SUB-OVERLAY-FIX: declared in _PlayerSubtitleMixin; read here for SubtitleOverlay
+  String? get _currentSubLine;
   String get _dubActiveLang;
   bool get _dubGenerating;
   String get _endAction; set _endAction(String v);
