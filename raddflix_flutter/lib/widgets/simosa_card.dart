@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../core/db/local_db.dart';
 import '../core/constants.dart';
 
@@ -26,6 +27,7 @@ class _SimosaCardState extends State<SimosaCard> {
   void initState() {
     super.initState();
     _loadStreak();
+    _loadDismissed();
   }
 
   @override
@@ -43,8 +45,21 @@ class _SimosaCardState extends State<SimosaCard> {
     }
   }
 
+  /// HS-01: load persisted dismiss state; auto-expires after 24 h.
+  Future<void> _loadDismissed() async {
+    final prefs = await SharedPreferences.getInstance();
+    final until = prefs.getInt('simosa_dismissed_until') ?? 0;
+    if (!mounted) return;
+    setState(() {
+      _dismissed = DateTime.now().millisecondsSinceEpoch < until;
+    });
+  }
+
   Future<void> _onClaim() async {
     await LocalDb.recordSimosaClaim();
+    // Clear any active dismissal so the card shows "Claimed ✓" immediately.
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('simosa_dismissed_until');
     await _loadStreak();
     await _launchSimosa();
   }
@@ -70,7 +85,15 @@ class _SimosaCardState extends State<SimosaCard> {
     } catch (_) {}
   }
 
-  void _onDismiss() => setState(() => _dismissed = true);
+  /// HS-01: persist dismissal for 24 h so card stays gone across cold starts.
+  Future<void> _onDismiss() async {
+    final prefs = await SharedPreferences.getInstance();
+    final until = DateTime.now()
+        .add(const Duration(hours: 24))
+        .millisecondsSinceEpoch;
+    await prefs.setInt('simosa_dismissed_until', until);
+    if (mounted) setState(() => _dismissed = true);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -153,10 +176,14 @@ class _SimosaCardState extends State<SimosaCard> {
                         ],
                       ),
                       const SizedBox(height: 4),
+                      // HS-02: single-line with ellipsis prevents wrapping on
+                      // narrow (360 dp) screens.
                       Text(
                         _claimedToday
                             ? "Today's data claimed! Come back tomorrow."
                             : 'Claim your free Jazz data via SIMOSA',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: isDark
                               ? Colors.white.withOpacity(0.78)
