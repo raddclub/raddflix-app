@@ -33,7 +33,7 @@ All open tasks from the HS-01–HS-11 home screen bug batch and BUG-SUB-STYLE-RE
 |---|---|
 | `b6934fb` | HS-01+HS-02: persist SIMOSA dismiss 24h via SharedPreferences; add maxLines:1 to body text |
 
-**CI:** APK build on `b6934fb` — in progress at time of doc update (check GitHub Actions).
+**CI:** APK build on `b6934fb` ✅ success.
 No Oracle deployment needed — Flutter code only.
 
 ---

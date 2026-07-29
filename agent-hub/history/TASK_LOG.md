@@ -2323,5 +2323,5 @@ Continued from same session. After HOME-FILTER-CHIP landed, three follow-on issu
 - **TASKS.md backfill**: HS-04–HS-11 rows were still marked ⏳ PENDING in TASKS.md despite being completed in `10aaa85` last session. All 8 rows corrected to ✅ DONE.
 
 **Commit:** `b6934fb` (Flutter)
-**CI:** APK build triggered on `b6934fb` — check GitHub Actions for final status.
+**CI:** APK build on `b6934fb` ✅ success.
 **Docs updated:** `AGENT_HANDOFF.md`, `TASKS.md`, `TASK_LOG.md` (this entry)
