@@ -851,6 +851,17 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
       _np.setProperty('audio-delay', '0');
       _np.setProperty('sub-speed', '1');
     } catch (_) {}
+    // AUDIO-FIX-1: lavfi-complex and audio-file survive loadfile just like
+    // sid/aid above. If the user activated AI Dub on any episode, these two
+    // properties persist into every subsequent episode in the same session,
+    // causing MPV to route audio through a dead filter graph → total silence.
+    // _disableDubMode() already clears them when the user manually turns Dub
+    // off, but _playEpisodeAt() skips that path on next/prev navigation.
+    // Reset unconditionally here so each episode always starts clean.
+    try {
+      _np.setProperty('lavfi-complex', '');
+      _np.setProperty('audio-file', '');
+    } catch (_) {}
     _openMediaForEpisode(ep,
       localPath: (ep['local_path'] ?? ep['localPath'] ?? ep['download_path']) as String?,
       shareUrl: (ep['share_url'] ?? ep['shareUrl']) as String?,
