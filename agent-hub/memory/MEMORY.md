@@ -10,3 +10,4 @@
 - [TEN_POINT_PLAN dead-code findings need re-verification](dead-code-plan-findings.md) — plan docs can be wrong/stale about "dead" vars; always re-grep before deleting
 - [tamashaweb CDN access model](tamashaweb-cdn-access.md) — streams globally accessible from any internet; zero-rated Jazz SIM only; NOT IP-blocked; Chrome plays HLS natively
 - [Subtitle overlay architecture](subtitle-overlay-architecture.md) — Flutter SubtitleOverlay (not MPV) must own all subtitle rendering; SubtitleViewConfiguration(visible:false) + stream.subtitle + overlay in both stacks
+- [Input style — player overlay exemption](input-style-player-exemption.md) — player/core/player TextFields are white-on-dark exempt; non-exempt screens must use 52dp AnimatedContainer + t.surface + focus-border spec

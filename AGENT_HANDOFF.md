@@ -32,6 +32,9 @@ All open tasks from the home screen audit (HS-01–HS-11), BUG-SUB-STYLE-REAPPLY
 | SHA | Description |
 |---|---|
 | `e3b828ea` | **INPUT-STYLE**: standardise all input boxes to match login page `RaddTextField` style — 5 files |
+| `2649a0f1` | DOCS: INPUT-STYLE task row, TASK_LOG entry, AGENT_HANDOFF |
+| `996272fc` | DOCS: record CI green on e3b828ea |
+| _(pending)_ | DOCS: INPUT-STYLE doc sweep — blueprint, memory, player-exemption topic |
 
 **CI:** `e3b828ea` → `build-apk.yml` ✅ success. No Oracle deployment needed — Flutter only.
 
