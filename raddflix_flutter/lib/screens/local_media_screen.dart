@@ -725,10 +725,17 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
           prefixIcon: Icon(AppIcons.search, color: t.textMuted, size: 20),
           filled: true,
           fillColor: t.surface,
+          contentPadding: const EdgeInsets.symmetric(
+              horizontal: RaddSpace.md, vertical: 14),
           border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-              borderSide: BorderSide.none),
-          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              borderRadius: RaddRadius.mdRadius,
+              borderSide: BorderSide(color: t.border)),
+          enabledBorder: OutlineInputBorder(
+              borderRadius: RaddRadius.mdRadius,
+              borderSide: BorderSide(color: t.border)),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: RaddRadius.mdRadius,
+              borderSide: BorderSide(color: AppColors.primary, width: 1.5)),
         ),
       ),
     );
@@ -818,17 +825,18 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
               hintStyle: TextStyle(color: t.textMuted, fontSize: 13),
               filled: true,
               fillColor: t.surface,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              contentPadding: const EdgeInsets.symmetric(
+                  horizontal: RaddSpace.md, vertical: 14),
               border: OutlineInputBorder(
-                borderRadius: RaddRadius.smRadius,
+                borderRadius: RaddRadius.mdRadius,
                 borderSide: BorderSide(color: t.border),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: RaddRadius.smRadius,
+                borderRadius: RaddRadius.mdRadius,
                 borderSide: BorderSide(color: t.border),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: RaddRadius.smRadius,
+                borderRadius: RaddRadius.mdRadius,
                 borderSide: BorderSide(color: AppColors.primary, width: 1.5),
               ),
             ),

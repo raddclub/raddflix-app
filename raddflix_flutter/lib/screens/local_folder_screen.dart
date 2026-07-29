@@ -405,10 +405,19 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
           hintText: 'Search in ${widget.folder.name}…',
           hintStyle: TextStyle(color: t.textMuted),
           prefixIcon: Icon(AppIcons.search, color: t.textMuted, size: 20),
-          filled: true, fillColor: t.surface,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.md),
-              borderSide: BorderSide.none),
-          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+          filled: true,
+          fillColor: t.surface,
+          contentPadding: const EdgeInsets.symmetric(
+              horizontal: RaddSpace.md, vertical: 14),
+          border: OutlineInputBorder(
+              borderRadius: RaddRadius.mdRadius,
+              borderSide: BorderSide(color: t.border)),
+          enabledBorder: OutlineInputBorder(
+              borderRadius: RaddRadius.mdRadius,
+              borderSide: BorderSide(color: t.border)),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: RaddRadius.mdRadius,
+              borderSide: BorderSide(color: AppColors.primary, width: 1.5)),
         ),
       ),
     );

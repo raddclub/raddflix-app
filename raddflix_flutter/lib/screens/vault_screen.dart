@@ -126,10 +126,21 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
           style: TextStyle(color: t.textPrimary),
           decoration: InputDecoration(
             hintText: 'Folder name',
-            hintStyle: TextStyle(color: t.textSecondary),
-            filled: true, fillColor: t.bg,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+            hintStyle: TextStyle(color: t.textMuted),
+            filled: true,
+            fillColor: t.surface,
+            contentPadding: const EdgeInsets.symmetric(
+                horizontal: RaddSpace.md, vertical: 14),
+            border: OutlineInputBorder(
+                borderRadius: RaddRadius.mdRadius,
                 borderSide: BorderSide(color: t.border)),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: RaddRadius.mdRadius,
+                borderSide: BorderSide(color: t.border)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: RaddRadius.mdRadius,
+                borderSide:
+                    BorderSide(color: AppColors.primary, width: 1.5)),
           ),
         ),
         actions: [
@@ -173,9 +184,21 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
           autofocus: true,
           style: TextStyle(color: t.textPrimary),
           decoration: InputDecoration(
-            filled: true, fillColor: t.bg,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+            hintStyle: TextStyle(color: t.textMuted),
+            filled: true,
+            fillColor: t.surface,
+            contentPadding: const EdgeInsets.symmetric(
+                horizontal: RaddSpace.md, vertical: 14),
+            border: OutlineInputBorder(
+                borderRadius: RaddRadius.mdRadius,
                 borderSide: BorderSide(color: t.border)),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: RaddRadius.mdRadius,
+                borderSide: BorderSide(color: t.border)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: RaddRadius.mdRadius,
+                borderSide:
+                    BorderSide(color: AppColors.primary, width: 1.5)),
           ),
         ),
         actions: [

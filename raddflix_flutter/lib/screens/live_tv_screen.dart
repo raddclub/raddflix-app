@@ -64,7 +64,9 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
 
   String _selectedCat = 'all';
   final TextEditingController _searchCtrl = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   String _searchQuery = '';
+  bool _searchFocused = false;
   late final AnimationController _pulseCtrl;
 
   @override
@@ -77,12 +79,16 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
     _searchCtrl.addListener(() {
       setState(() => _searchQuery = _searchCtrl.text.toLowerCase().trim());
     });
+    _searchFocusNode.addListener(() {
+      setState(() => _searchFocused = _searchFocusNode.hasFocus);
+    });
   }
 
   @override
   void dispose() {
     _pulseCtrl.dispose();
     _searchCtrl.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -227,28 +233,38 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
 
   Widget _buildSearchBar(RaddTheme t) => Padding(
     padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-    child: Container(
-      height: 44,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      height: 52,
       decoration: BoxDecoration(
         color: t.surface,
         borderRadius: RaddRadius.mdRadius,
-        border: Border.all(color: t.border.withOpacity(0.4)),
+        border: Border.all(
+          color: _searchFocused ? AppColors.primary : t.border,
+          width: _searchFocused ? 1.5 : 1.0,
+        ),
       ),
+      padding: const EdgeInsets.symmetric(horizontal: RaddSpace.md),
       child: Row(
         children: [
-          const SizedBox(width: 12),
           Icon(AppIcons.search, size: 18, color: t.textMuted),
-          const SizedBox(width: 8),
+          const SizedBox(width: RaddSpace.sm),
           Expanded(
             child: TextField(
               controller: _searchCtrl,
+              focusNode: _searchFocusNode,
               style: TextStyle(color: t.textPrimary, fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Search channels…',
                 hintStyle: TextStyle(color: t.textMuted, fontSize: 14),
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
                 isDense: true,
                 contentPadding: EdgeInsets.zero,
+                isCollapsed: true,
               ),
             ),
           ),

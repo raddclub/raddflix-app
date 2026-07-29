@@ -206,22 +206,31 @@ class _VaultSettingsScreenState extends State<VaultSettingsScreen> {
   Widget _pinField(TextEditingController ctrl, String hint) {
     final t = RaddTheme.of(context);
     return TextField(
-    controller: ctrl,
-    obscureText: true,
-    keyboardType: TextInputType.number,
-    maxLength: VaultService.maxPinLength,
-    style: TextStyle(color: t.textPrimary, fontSize: 20, letterSpacing: 8),
-    decoration: InputDecoration(
-      hintText: hint,
-      hintStyle: TextStyle(color: t.textSecondary, fontSize: 13, letterSpacing: 0),
-      counterText: '',
-      filled: true,
-      fillColor: t.bg,
-      border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: t.border)),
-    ),
-  );
+      controller: ctrl,
+      obscureText: true,
+      keyboardType: TextInputType.number,
+      maxLength: VaultService.maxPinLength,
+      style: TextStyle(color: t.textPrimary, fontSize: 20, letterSpacing: 8),
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(
+            color: t.textMuted, fontSize: 13, letterSpacing: 0),
+        counterText: '',
+        filled: true,
+        fillColor: t.surface,
+        contentPadding: const EdgeInsets.symmetric(
+            horizontal: RaddSpace.md, vertical: 14),
+        border: OutlineInputBorder(
+            borderRadius: RaddRadius.mdRadius,
+            borderSide: BorderSide(color: t.border)),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: RaddRadius.mdRadius,
+            borderSide: BorderSide(color: t.border)),
+        focusedBorder: OutlineInputBorder(
+            borderRadius: RaddRadius.mdRadius,
+            borderSide: BorderSide(color: AppColors.primary, width: 1.5)),
+      ),
+    );
   }
 
   @override
