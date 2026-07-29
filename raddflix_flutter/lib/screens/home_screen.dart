@@ -169,9 +169,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with WidgetsBindingObse
     return Scaffold(
       backgroundColor: null,
       extendBodyBehindAppBar: _navIndex == 0,
-      // Phase 47 ANIM-47-03: content renders behind frosted nav on Tier 2+
-      // (home tab only — other tabs must not bleed under the nav bar)
-      extendBody: _navIndex == 0,
+      // Edge-to-edge nav bar is always translucent/frosted, so we extend the
+      // body on every tab — not just home — so content scrolls naturally behind
+      // it and the 96 px bottom spacers in each screen provide the clearance.
+      extendBody: true,
       appBar: _navIndex == 0 ? _buildAppBar(user) : null,
       body: IndexedStack(
         index: _navIndex,
