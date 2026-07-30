@@ -258,7 +258,32 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
     );
   }
 
+  // BGAUDIO-SESSION: request Android audio focus so the system keeps our audio
+  // pipeline alive when the app moves to the background.  `audio_session` is
+  // already in pubspec (^0.1.21) but was never wired up.  Called fire-and-forget
+  // from _initPlayer() on both the fresh-create and reattach paths.
+  Future<void> _configureAudioSession() async {
+    final session = await AudioSession.instance;
+    await session.configure(const AudioSessionConfiguration(
+      avAudioSessionCategory: AVAudioSessionCategory.playback,
+      avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.none,
+      avAudioSessionMode: AVAudioSessionMode.moviePlayback,
+      avAudioSessionRouteSharingPolicy:
+          AVAudioSessionRouteSharingPolicy.longFormVideo,
+      avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
+      androidAudioAttributes: AndroidAudioAttributes(
+        contentType: AndroidAudioContentType.movie,
+        flags: AndroidAudioFlags.none,
+        usage: AndroidAudioUsage.media,
+      ),
+      androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+      androidWillPauseWhenDucked: true,
+    ));
+  }
+
   void _initPlayer() {
+    // Request audio focus on every init (both fresh-create and reattach).
+    _configureAudioSession().ignore();
     // UX3-10: if a minimized session for this exact title is still alive in
     // PlaybackService, reattach to it instead of creating a brand-new
     // Player — that's what makes "tap the mini bar → back to fullscreen,

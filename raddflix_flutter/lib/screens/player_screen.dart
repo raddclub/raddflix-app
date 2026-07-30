@@ -19,6 +19,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'package:audio_session/audio_session.dart';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
@@ -300,6 +301,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         _player.pause();
       } else {
         _isInBackground = true;
+        // BGAUDIO-VID: drop the video decode path so Android does not stall
+        // the audio pipeline waiting for a surface that gets destroyed in the
+        // background.  Restored to vid=auto in the resumed branch above.
+        try { _np.setProperty('vid', 'no'); } catch (_) {}
         // Start the foreground service so Android keeps the process alive.
         _notifyBgState();
         // Refresh the notification every 5 s so the progress bar stays in sync.
@@ -309,6 +314,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         });
       }
     } else if (state == AppLifecycleState.resumed) {
+      // BGAUDIO-VID: restore video track now that the surface is back.
+      if (_isInBackground) {
+        try { _np.setProperty('vid', 'auto'); } catch (_) {}
+      }
       _isInBackground = false;
       _bgNotifTimer?.cancel();
       _bgNotifTimer = null;
