@@ -2528,3 +2528,31 @@ Fix: in `didChangeAppLifecycleState` (`player_screen.dart`):
 
 **Commit:** `f59bebf`
 **CI:** `f59bebf` → `build-apk.yml` ✅ success.
+
+---
+
+## Session: 2026-07-30 — AUDIO-DISC-BUGS-2: pause overlay fade, spurious rebuilds, stale comment
+
+**Task completed:** AUDIO-DISC-BUGS-2 (follow-up audit of `audio_mode_backdrop.dart`)
+
+### Bug 1 — Pause overlay `if (!isPlaying)` guard defeats `AnimatedOpacity` (VISUAL BUG)
+Both `AnimatedOpacity` pause-overlay widgets (dark dim circle + pause bars) were inside `if (!isPlaying)` guards. This means:
+- On pause: the widgets are inserted into the tree with their final opacity already set (`0.28`/`0.60`). Flutter sees no transition — the fade-IN never plays.
+- On play: the widgets are removed from the tree immediately. They can't animate out — they're gone before any frame renders.
+
+The 350ms `AnimatedOpacity` duration was completely dead; the overlay snapped in/out every time.
+
+**Fix:** Removed the `if (!isPlaying)` guards. Widgets now stay in the tree permanently. `AnimatedOpacity` drives visibility: `opacity: isPlaying ? 0.0 : 0.28/0.60`. The animation fires correctly in both directions.
+
+### Bug 2 — `AnimatedBuilder(thumbPulseCtrl)` wrapping timestamp Row (PERFORMANCE BUG)
+The timestamp Row (`AnimatedSlide` + `AnimatedOpacity` for position and duration labels) was wrapped in `AnimatedBuilder(animation: thumbPulseCtrl)`. Neither child used `thumbPulseCtrl.value` — both only depend on `seeking` (a bool prop from the parent). The `AnimatedBuilder` forced ~60fps rebuilds of the Row for the full duration of every seek gesture with no visual result.
+
+**Fix:** Removed the `AnimatedBuilder` wrapper. `AnimatedSlide`/`AnimatedOpacity` handle their own implicit transitions from the `seeking` prop change, which is already delivered via `setState` in the parent.
+
+### Bug 3 — Stale `_GroovePainter` comment (STALE DOC)
+The comment still said "same painter used as both painter and foregroundPainter, but the arc only renders once" — incorrect after the AUDIO-DISC-BUGS fix removed the duplicate `painter:` instance.
+
+**Fix:** Updated comment to reflect the current single-`foregroundPainter:` pattern.
+
+**Commit:** `d5b93d29`
+**CI:** `d5b93d29` → `build-apk.yml` ✅ success.
