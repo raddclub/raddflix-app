@@ -163,7 +163,11 @@ class _AudioModeBackdropState extends State<AudioModeBackdrop>
           _discAngle = (_spinDownFrom + 0.28) % 1.0;
           _discCtrl.value = _discAngle;
         });
-        _spinDownCtrl.reset();
+        // Defer reset() to avoid calling it synchronously inside the listener's
+        // notify cycle, which fires a second notifyListeners() during dispatch.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _spinDownCtrl.reset();
+        });
       }
     });
 
@@ -627,12 +631,11 @@ class _Disc extends StatelessWidget {
           ),
 
           // Groove rings drawn over the face.
+          // Only foregroundPainter is used — painter: would draw behind the
+          // cover art face and be invisible, while also stamping grooves and
+          // the sheen arc a second time at double opacity.
           ClipOval(
             child: CustomPaint(
-              painter: _GroovePainter(
-                innerD: innerD,
-                accentColor: accentColor,
-              ),
               foregroundPainter: _GroovePainter(
                 innerD: innerD,
                 accentColor: accentColor,
@@ -799,15 +802,23 @@ class _Tonearm extends StatelessWidget {
             .animate(CurvedAnimation(parent: tonearmCtrl, curve: Curves.easeInOut))
             .value;
 
-        return Positioned(
-          // Top-right of the disc area.
-          top: 8, right: 8,
-          child: Transform.rotate(
-            angle: swingAngle,
-            alignment: Alignment.topRight,
-            child: CustomPaint(
-              painter: _TonearmPainter(),
-              child: const SizedBox(width: 90, height: 24),
+        // Place the pivot cap at the outer-top-right of the 218dp disc.
+        // Disc radius = 109dp, centered in the Stack. Translate (+60, -58)
+        // from Stack center puts the SizedBox's top-right corner (the pivot)
+        // at ≈ (105, -70) from disc center — just on the disc rim.
+        // Previously used Positioned(top:8, right:8) which anchored to the
+        // screen edge (~60dp off the disc on a 360dp-wide phone).
+        return Align(
+          alignment: Alignment.center,
+          child: Transform.translate(
+            offset: const Offset(60, -58),
+            child: Transform.rotate(
+              angle: swingAngle,
+              alignment: Alignment.topRight,
+              child: CustomPaint(
+                painter: _TonearmPainter(),
+                child: const SizedBox(width: 90, height: 24),
+              ),
             ),
           ),
         );
