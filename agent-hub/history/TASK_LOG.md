@@ -2474,6 +2474,31 @@ Removed the inline `GestureDetector` / headphones icon block from `_buildTopBar(
 - One-handed side strip headphone button (only visible in one-handed mode)
 
 **Commit:** `69fbe76e`
-**CI:** Awaiting `build-apk.yml` (Rule 46).
+**CI:** `321b78e` → `build-apk.yml` ✅ success.
 
 ### Background play diagnosis — see user-facing message this session for full writeup.
+
+---
+
+## Session: 2026-07-30 — BGAUDIO-SESSION + BGAUDIO-VID: background audio fixes A & B
+
+**Tasks completed:** BGAUDIO-SESSION, BGAUDIO-VID
+
+**Context:** Two open tasks from previous session. Background audio button had been deduplicated (BGAUDIO-UI, `69fbe76e`, CI ✅), but the underlying reason background play didn't work was never fixed.
+
+### BGAUDIO-SESSION
+`audio_session: ^0.1.21` was already in `pubspec.yaml` but `AudioSession.instance` was never called, so Android never received an `AUDIOFOCUS_GAIN` request. Without this, the Android OS is free to duck or kill the audio pipeline when the app backgrounds.
+
+Added `_configureAudioSession()` to `_ps_playback_mixin.dart`: configures `AndroidAudioAttributes(contentType: movie, usage: media)` with `AndroidAudioFocusGainType.gain` + `androidWillPauseWhenDucked: true`. Called fire-and-forget (`.ignore()`) from `_initPlayer()` on both the fresh-create and reattach paths.
+
+Import `package:audio_session/audio_session.dart` added to `player_screen.dart` (the `part of` root).
+
+### BGAUDIO-VID
+MPV's video decode pipeline holds a reference to the Android `SurfaceView`. When the app backgrounds, Android can destroy that surface; if MPV is still trying to render to it, it stalls the entire decode pipeline — including audio.
+
+Fix: in `didChangeAppLifecycleState` (`player_screen.dart`):
+- `paused` + `_backgroundAudio=true`: added `_np.setProperty('vid', 'no')` immediately after `_isInBackground = true` — drops the video decoder before the surface is destroyed.
+- `resumed`: added `if (_isInBackground) { _np.setProperty('vid', 'auto'); }` before resetting `_isInBackground = false` — restores video decode when the surface comes back.
+
+**Commit:** `321b78e`
+**CI:** `321b78e` → `build-apk.yml` ✅ success.
