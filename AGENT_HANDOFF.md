@@ -5,7 +5,7 @@
 
 ---
 
-## Current State (2026-07-30 — background audio fixes complete)
+## Current State (2026-07-30 — audio disc UI bugs fixed)
 
 All three background audio tasks (BGAUDIO-UI, BGAUDIO-SESSION, BGAUDIO-VID) are done. CI ✅ on `321b78e`. No open tasks remain.
 

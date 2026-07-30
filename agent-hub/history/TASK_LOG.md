@@ -2502,3 +2502,29 @@ Fix: in `didChangeAppLifecycleState` (`player_screen.dart`):
 
 **Commit:** `321b78e`
 **CI:** `321b78e` → `build-apk.yml` ✅ success.
+
+---
+
+## Session: 2026-07-30 — AUDIO-DISC-BUGS: tonearm position, double groove paint, spindown reset-in-listener
+
+**Task completed:** AUDIO-DISC-BUGS
+
+**Context:** User uploaded a prior-session analysis noting three bugs in `audio_mode_backdrop.dart`.
+
+### Bug 1 — Tonearm position (CRITICAL)
+`_Tonearm` used `Positioned(top:8, right:8)` inside the `Expanded → Stack(alignment:center)`. On a 360dp phone, `right:8` anchors the arm 8dp from the screen edge — the pivot ends up ~60dp to the right of the 218dp disc with zero visual overlap.
+
+**Fix:** Replaced `Positioned` with `Align(alignment: Alignment.center)` + `Transform.translate(offset: Offset(60, -58))`. This places the SizedBox(90,24) top-right corner (the pivot cap) at ≈(105, -70) from disc center — geometrically on the disc rim. The inner `Transform.rotate(alignment: Alignment.topRight)` still rotates about that pivot correctly.
+
+### Bug 2 — Double groove / sheen painting
+`CustomPaint` had both `painter: _GroovePainter(...)` and `foregroundPainter: _GroovePainter(...)`. Each instance runs its full `paint()` independently. The `painter:` copy draws behind the cover-art face (invisible) but still executes — meaning every groove ring and the 38° sheen arc were stamped twice at double opacity. The inline comment claiming "the arc only renders once" was incorrect.
+
+**Fix:** Removed the `painter:` argument entirely. Kept only `foregroundPainter:` so grooves/sheen render once, in front of the face image as intended.
+
+### Bug 3 — reset() in status listener
+`_spinDownCtrl.addStatusListener` called `_spinDownCtrl.reset()` synchronously when `status == AnimationStatus.completed`. `reset()` calls `notifyListeners()` internally, firing a second dispatch cycle while the first is still active.
+
+**Fix:** Deferred to `WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _spinDownCtrl.reset(); })`.
+
+**Commit:** `f59bebf`
+**CI:** pending → (update when confirmed)
