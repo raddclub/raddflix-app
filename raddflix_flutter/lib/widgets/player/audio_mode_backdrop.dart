@@ -644,26 +644,28 @@ class _Disc extends StatelessWidget {
             ),
           ),
 
-          // AB1: pause overlay — dark circle + custom bars instead of opacity dim.
-          if (!isPlaying)
-            AnimatedOpacity(
-              opacity: isPlaying ? 0.0 : 0.28,
-              duration: const Duration(milliseconds: 350),
-              child: Container(
-                width: outerD,
-                height: outerD,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.black,
-                ),
+          // AB1: pause overlay — dark circle + pause bars, animated by AnimatedOpacity.
+          // No if(!isPlaying) guard — that would add/remove the widget from the tree
+          // instantly, making the 350ms fade never fire. AnimatedOpacity drives the
+          // fade itself; the widget stays in the tree and animates to opacity 0.0
+          // while playing.
+          AnimatedOpacity(
+            opacity: isPlaying ? 0.0 : 0.28,
+            duration: const Duration(milliseconds: 350),
+            child: Container(
+              width: outerD,
+              height: outerD,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black,
               ),
             ),
-          if (!isPlaying)
-            AnimatedOpacity(
-              opacity: isPlaying ? 0.0 : 0.60,
-              duration: const Duration(milliseconds: 350),
-              child: const _PauseIcon(),
-            ),
+          ),
+          AnimatedOpacity(
+            opacity: isPlaying ? 0.0 : 0.60,
+            duration: const Duration(milliseconds: 350),
+            child: const _PauseIcon(),
+          ),
 
           // AB1: machined spindle cap.
           const _SpindleCap(),
@@ -1069,41 +1071,41 @@ class _GlassCard extends StatelessWidget {
                 ),
 
                 // ── Timestamps with slide+fade animation ────────────────
-                AnimatedBuilder(
-                  animation: thumbPulseCtrl,
-                  builder: (_, __) {
-                    return Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        AnimatedSlide(
-                          offset: seeking ? const Offset(0, -0.15) : Offset.zero,
-                          duration: const Duration(milliseconds: 200),
-                          child: AnimatedOpacity(
-                            opacity: seeking ? 1.0 : 0.6,
-                            duration: const Duration(milliseconds: 200),
-                            child: Text(
-                              _fmt(displayPos),
-                              style: const TextStyle(
-                                  color: Colors.white, fontSize: 11),
-                            ),
-                          ),
+                // No AnimatedBuilder(thumbPulseCtrl) wrapper needed — neither
+                // AnimatedSlide nor AnimatedOpacity uses thumbPulseCtrl.value.
+                // The wrapper caused ~60fps spurious rebuilds of this Row during
+                // every seek gesture. AnimatedSlide/AnimatedOpacity run their own
+                // transitions from the `seeking` prop change.
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    AnimatedSlide(
+                      offset: seeking ? const Offset(0, -0.15) : Offset.zero,
+                      duration: const Duration(milliseconds: 200),
+                      child: AnimatedOpacity(
+                        opacity: seeking ? 1.0 : 0.6,
+                        duration: const Duration(milliseconds: 200),
+                        child: Text(
+                          _fmt(displayPos),
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 11),
                         ),
-                        AnimatedSlide(
-                          offset: seeking ? const Offset(0, -0.15) : Offset.zero,
-                          duration: const Duration(milliseconds: 200),
-                          child: AnimatedOpacity(
-                            opacity: seeking ? 0.8 : 0.38,
-                            duration: const Duration(milliseconds: 200),
-                            child: Text(
-                              _fmt(duration),
-                              style: const TextStyle(
-                                  color: Colors.white, fontSize: 11),
-                            ),
-                          ),
+                      ),
+                    ),
+                    AnimatedSlide(
+                      offset: seeking ? const Offset(0, -0.15) : Offset.zero,
+                      duration: const Duration(milliseconds: 200),
+                      child: AnimatedOpacity(
+                        opacity: seeking ? 0.8 : 0.38,
+                        duration: const Duration(milliseconds: 200),
+                        child: Text(
+                          _fmt(duration),
+                          style: const TextStyle(
+                              color: Colors.white, fontSize: 11),
                         ),
-                      ],
-                    );
-                  },
+                      ),
+                    ),
+                  ],
                 ),
 
                 const SizedBox(height: 18),
@@ -1282,9 +1284,8 @@ class _GroovePainter extends CustomPainter {
     }
 
     // ── Sheen arc: 38° soft light sweep rotating with disc ────────────────
-    // This is drawn in foreground painter context (same painter used as both
-    // painter and foregroundPainter, but the arc only renders once since the
-    // disc rotates the whole widget).
+    // Drawn in foreground painter context (foregroundPainter only — the
+    // redundant painter: instance was removed to stop double-stamping).
     final sheenPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = maxR * 0.45
