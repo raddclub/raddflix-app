@@ -441,3 +441,63 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 | BGAUDIO-VID | **Drop video track (`vid=no`) when backgrounding with BG audio on; restore (`vid=auto`) on resume.** Added in `didChangeAppLifecycleState` in `player_screen.dart`. `_np.setProperty('vid','no')` on paused+bg; `_np.setProperty('vid','auto')` on resumed when `_isInBackground` was true. | ✅ DONE | 2026-07-30 | `321b78e` |
 | BGAUDIO-UI | **Remove duplicate BG audio button from top bar — keep sidebar only.** Deleted the headphones icon that lived in `_buildTopBar()` next to the battery/clock HUD. The sidebar `bgaudio` item and the lock-screen quick-toggle remain. | ✅ DONE | 2026-07-30 | `69fbe76e` |
 | INPUT-STYLE | **Standardise all non-exempt TextFields to login page style.** Five files patched: `live_tv_screen.dart` (search bar: `Container` → `AnimatedContainer` 52dp, `FocusNode` + animated focus border), `vault_screen.dart` (two dialog TextFields: `t.bg` → `t.surface`, `BorderRadius.circular(10)` → `RaddRadius.mdRadius`, add `enabledBorder`/`focusedBorder`), `vault_settings_screen.dart` (`_pinField`: same border + fill fix, keep `letterSpacing:8`), `local_folder_screen.dart` (`_buildSearchBar`: `BorderSide.none` → proper `t.border`/`AppColors.primary` pair), `local_media_screen.dart` (`_buildSearchBar` + URL dialog TextField: `smRadius` → `mdRadius`, consistent borders). | ✅ DONE | 2026-07-29 | `e3b828ea` |
+
+---
+
+## Subtitle Gray Screen + Player Performance + Thumbnail Performance + Vibe Modes (2026-07-30)
+
+> Full plan with root cause analysis and exact code-level fixes: `agent-hub/VIBE_BUGS_PLAN.md`
+> Phase 0 bugs are first priority — ship before any Vibe Modes work.
+
+### Phase 0 — Critical Bug Fixes
+
+| Task | Description | Status | Date | Commit |
+|---|---|---|---|---|
+| SUB-GRAY-SCREEN | **Subtitle overlay covers entire player with gray tint instead of showing subtitle text.** Root cause: `SubtitleOverlay.build()` returns `Positioned.fill(...)` internally but is already placed inside `Positioned.fill → IgnorePointer` by the parent. In release builds, `Positioned` outside a Stack fills its parent, causing the entire player to be covered. Additionally, whitespace-only lines (`" "`, `"\n"`) pass the `.isEmpty` guard and build an empty expanding Container. Fix: (1) remove inner `Positioned.fill` from `SubtitleOverlay.build()` — return `Align + Padding` directly; (2) change guard to `.trim().isEmpty`; (3) apply same fix to `DualSubtitleOverlay` if present. Files: `widgets/player/subtitle_overlay.dart`. | ⬜ OPEN | 2026-07-30 | — |
+| PLAYER-PERF | **Player is slow and hangs — far below MX Player smoothness.** Three root causes: (1) `_currentSubLine` set via `setState()` on every subtitle tick (1–10/s) → full rebuild; (2) Consumer blocks watch all of PlayerPrefs — any field change (even unrelated) rebuilds subtitle overlay, controls, entire Stack; (3) `RepaintBoundary` missing around subtitle overlay and seek bar. Fixes: (1) convert `_currentSubLine` to `ValueNotifier<String?>` + `ValueListenableBuilder`; (2) scope Consumer rebuilds with `ref.select()` to only subtitle-relevant fields; (3) wrap subtitle overlay Positioned.fill in `RepaintBoundary`; (4) debounce `_applySubtitleMargin()` to 16ms. Files: `_ps_subtitle_mixin.dart`, `_ps_ui_mixin.dart`, `_ps_playback_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |
+| THUMB-PERF | **Local tab folder and video thumbnails are extremely slow (1.5–4s per thumb).** Root cause: fallback path uses `MediaKitThumbnailExtractor` which creates a full libmpv `Player()` instance per thumbnail — format probing + seek + screenshot + dispose. For 30 videos: minimum 9–24 seconds. Fix: add `MediaMetadataRetriever.getFrameAtTime()` via Kotlin coroutine (off-thread) as the primary fallback — instant for MediaStore-cached files, 100–400ms for uncached. Remove MediaKit extractor from the main fallback chain. Also: reduce batch concurrency from 5 to 2; add visibility-gated loading; add shimmer placeholder. Files: `android/.../MediaStorePlugin.kt`, `services/thumb_service.dart`, `services/media_kit_thumbnail_extractor.dart`, `screens/local_folder_screen.dart`, `screens/local_media_screen.dart`. | ⬜ OPEN | 2026-07-30 | — |
+
+### Phase 1 — Vibe Modes Foundation
+
+| Task | Description | Status | Date | Commit |
+|---|---|---|---|---|
+| VIBE-1A | **Add `asetrate` and `apulsator` af-pipeline primitives to audiolab mixin.** Add `String _currentVibeAf = ''` state. Insert vibe af segment in `_buildMergedAfString()` after aformat, before reverb + lab chain. Files: `_ps_audiolab_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-1B | **Add `PlaybackVibeMode` enum + `vibeMode`/`rememberVibeMode` fields to PlayerPrefs.** Enum values: `none`, `slowed`, `slowedReverb`, `nightcore`, `lofi`, `eightD`, `phonk`, `club`. Persist as int index. Files: `core/player/player_prefs.dart`. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-1C | **Add `_applyVibeMode(PlaybackVibeMode)` method to audiolab mixin.** Handles speed changes, pitch correction toggle, af chain construction per mode, audio-only vs video branching. Calls `_applyAllAf()` and `_scheduleSavePrefs()`. Files: `_ps_audiolab_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-1D | **Subtitle sync compensation for speed-affecting vibe modes.** Set `sub-speed` MPV property to match vibe speed ratio so subtitles track slowed/sped audio. Reset to `'1'` on mode clear. Files: `_ps_subtitle_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-1E | **Reset vibe mode on new file load** (unless `rememberVibeMode` is true). Files: `_ps_playback_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |
+
+### Phase 2 — Core 4 Vibe Modes (Shippable MVP)
+
+| Task | Description | Status | Date | Commit |
+|---|---|---|---|---|
+| VIBE-2A | **Slowed mode.** 0.82× speed + pitch drops naturally. Audio-only: `asetrate=44100*0.82,aresample=44100`. Video: `_setSpeed(0.82)` + pitch correction off. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-2B | **Slowed + Reverb mode.** Slowed (above) + `aecho=0.8:0.88:300\|600\|900:0.4\|0.25\|0.12`. The most popular audio vibe format in South Asian streaming. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-2C | **NightCore mode.** 1.25× speed + pitch rises naturally. Audio-only: `asetrate=44100*1.25,aresample=44100`. Video: `_setSpeed(1.25)` + pitch correction off. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-2D | **Lofi mode.** 0.93× speed (barely visible on video) + `lowpass=f=9000` + soft `aecho=0.65:0.75:80\|200:0.2\|0.12`. Warm cassette feel. | ⬜ OPEN | 2026-07-30 | — |
+
+### Phase 3 — Extended Vibe Modes
+
+| Task | Description | Status | Date | Commit |
+|---|---|---|---|---|
+| VIBE-3A | **8D Audio mode.** `apulsator=hz=0.18:type=sine:width=1.0`. No speed change. Works safely on video. Headphones-only warning in UI. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-3B | **Phonk mode.** 0.90× speed + `aecho=0.78:0.88:200\|400:0.4\|0.2` + heavy bass EQ preset. Dark, menacing energy. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-3C | **Club Mix mode** (replaces "DJ Mode" concept). 1.0× speed + `extrastereo=m=2.5` + `acompressor=threshold=0.4:ratio=4:attack=20:release=250` + mild bass boost. Punchy, wide, energetic. | ⬜ OPEN | 2026-07-30 | — |
+
+### Phase 4 — Vibe Modes UI
+
+| Task | Description | Status | Date | Commit |
+|---|---|---|---|---|
+| VIBE-4A | **"Vibe" tab in Audio Effect panel.** 4th tab after Presets/Equalizer/Lab. 2-column GridView of mode cards. Files: `_ps_panels_audio.dart`. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-4B | **`_VibeModeCard` widget.** Icon + name + one-line description. Active: accent-red glow. Warning chips: "Video slows too" for speed modes on video; "🎧 Headphones" for 8D. Tap active card to deactivate. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-4C | **Quick bar integration.** Add `"vibe"` quick-bar item showing active mode name. Tap opens Audio panel at Vibe tab. Files: `_ps_ui_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-4D | **Audio-only (vinyl disc) Vibe button.** Cycle button on `AudioModeBackdrop` frosted-glass controls. Shows mode name label. Adjusts disc rotation speed to match vibe tempo. Files: `audio_mode_backdrop.dart`. | ⬜ OPEN | 2026-07-30 | — |
+
+### Phase 5 — Vibe Modes Polish
+
+| Task | Description | Status | Date | Commit |
+|---|---|---|---|---|
+| VIBE-5A | **"Remember Vibe" toggle in Settings.** Default: OFF (reset on new file). Files: `settings_screen.dart`. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-5B | **Vibe mode in player info HUD.** Show active mode name in diagnostics HUD when `showPlaybackInfo` is true. Files: `_ps_ui_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-5C | **Filter stacking safety rules.** Prevent double-echo (vibe reverb + manual reverb), double-extrastereo (club + lab stereo wide). Document in `_buildMergedAfString()`. Files: `_ps_audiolab_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-5D | **Voice command support for vibe modes.** "slowed", "nightcore", "lofi", "normal" etc. map to vibe mode activation. Files: `player_screen.dart`. | ⬜ OPEN | 2026-07-30 | — |
