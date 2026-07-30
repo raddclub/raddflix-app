@@ -1284,37 +1284,6 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                 ),
               ),
 
-            // Background audio toggle button — always visible so the user can
-            // turn BG audio on without opening the sidebar or switching to
-            // one-handed mode.  Orange headphones = active; dimmed outline =
-            // inactive.  Tapping while active also turns it off — one tap
-            // in either direction from the top bar.
-            GestureDetector(
-              onTap: () {
-                setState(() => _backgroundAudio = !_backgroundAudio);
-                _scheduleSavePrefs();
-              },
-              child: Container(
-                margin: const EdgeInsets.only(right: 2),
-                padding: const EdgeInsets.all(5),
-                decoration: BoxDecoration(
-                  color: _backgroundAudio
-                      ? Colors.orange.withOpacity(0.18)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(6),
-                  border: _backgroundAudio
-                      ? Border.all(color: Colors.orange.withOpacity(0.45), width: 0.8)
-                      : null,
-                ),
-                child: Icon(
-                  _backgroundAudio
-                      ? Icons.headphones_rounded
-                      : Icons.headphones_outlined,
-                  color: _backgroundAudio ? Colors.orange : Colors.white38,
-                  size: 18,
-                ),
-              ),
-            ),
 
           ],
         ),
