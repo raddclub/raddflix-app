@@ -2527,4 +2527,4 @@ Fix: in `didChangeAppLifecycleState` (`player_screen.dart`):
 **Fix:** Deferred to `WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) _spinDownCtrl.reset(); })`.
 
 **Commit:** `f59bebf`
-**CI:** pending → (update when confirmed)
+**CI:** `f59bebf` → `build-apk.yml` ✅ success.
