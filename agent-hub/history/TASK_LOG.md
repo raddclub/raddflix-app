@@ -2456,3 +2456,24 @@ This mirrors the exact pattern already used for `_applySubtitleMargin`, `_reappl
 
 **Commit:** `e3b828ea`
 **CI:** `e3b828ea` → `build-apk.yml` ✅ success.
+
+---
+
+## Session: 2026-07-30 — BGAUDIO-UI: remove duplicate background audio button
+
+**Task completed:** BGAUDIO-UI
+
+**Context:** User reported two background-play buttons visible in the player at the same time — one inside the sidebar (the intended location) and one in the top bar next to the battery/clock HUD. Also asked for a diagnosis of why background play doesn't work at all.
+
+### Change
+Removed the inline `GestureDetector` / headphones icon block from `_buildTopBar()` in `_ps_ui_mixin.dart` (was ~31 lines, lines 1287–1317 before deletion). The button that sits next to the battery badge and clock overlay is now gone.
+
+**What was kept (unchanged):**
+- Sidebar `'bgaudio'` item (the intended access point)
+- Lock-screen quick-toggle (top-left when screen is locked — different context, still useful)
+- One-handed side strip headphone button (only visible in one-handed mode)
+
+**Commit:** `69fbe76e`
+**CI:** Awaiting `build-apk.yml` (Rule 46).
+
+### Background play diagnosis — see user-facing message this session for full writeup.
