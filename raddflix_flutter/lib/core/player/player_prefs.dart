@@ -2,6 +2,20 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+// ── Phase Vibe — Playback Vibe Modes ─────────────────────────────────────────
+/// Audio mood/atmosphere preset applied on top of the standard EQ/Lab chain.
+/// Stored as its int index in SharedPreferences (`player_vibe_mode`).
+enum PlaybackVibeMode {
+  none,        // Original — no vibe processing
+  slowed,      // 0.82× speed (vinyl slowdown)
+  slowedReverb,// 0.82× + aecho (dreamy & deep)
+  nightcore,   // 1.25× speed (energetic & hyped)
+  lofi,        // 0.93× + lowpass + soft aecho (warm & muffled)
+  eightD,      // apulsator LFO panning (spatial / 8D)
+  phonk,       // 0.90× + heavy aecho + bass boost (dark & heavy)
+  club,        // extrastereo + acompressor + mild bass (club / DJ)
+}
+
 /// All player settings — loaded from SharedPreferences, saved on every change.
 /// Defaults are sensible for first-time users.
 class PlayerPrefs {
@@ -357,6 +371,13 @@ class PlayerPrefs {
   /// Size of the phonetic line relative to the primary subtitle fontSize.
   final double phoneticOverlayFontScale; // 0.55–0.85, default 0.72
 
+  // ── Phase Vibe — Vibe Mode ────────────────────────────────────────────────
+  /// Active audio vibe mode. Default: none (no processing).
+  final PlaybackVibeMode vibeMode;
+  /// When true the vibe mode persists across file changes; when false it
+  /// resets to [PlaybackVibeMode.none] on every new file load.
+  final bool rememberVibeMode;
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -536,6 +557,8 @@ class PlayerPrefs {
     this.subtitlePersonalityIntensity = 0.7,
     this.phoneticOverlayEnabled       = false,
     this.phoneticOverlayFontScale     = 0.72,
+    this.vibeMode                     = PlaybackVibeMode.none,
+    this.rememberVibeMode             = false,
   });
 
   PlayerPrefs copyWith({
@@ -650,6 +673,8 @@ class PlayerPrefs {
     double? subtitlePersonalityIntensity,
     bool?   phoneticOverlayEnabled,
     double? phoneticOverlayFontScale,
+    PlaybackVibeMode? vibeMode,
+    bool? rememberVibeMode,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -823,6 +848,8 @@ class PlayerPrefs {
       subtitlePersonalityIntensity: subtitlePersonalityIntensity ?? this.subtitlePersonalityIntensity,
       phoneticOverlayEnabled:       phoneticOverlayEnabled       ?? this.phoneticOverlayEnabled,
       phoneticOverlayFontScale:     phoneticOverlayFontScale     ?? this.phoneticOverlayFontScale,
+      vibeMode:                     vibeMode                     ?? this.vibeMode,
+      rememberVibeMode:             rememberVibeMode             ?? this.rememberVibeMode,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -1014,6 +1041,10 @@ class PlayerPrefs {
       subtitlePersonalityIntensity: s.getDouble('${_p}sub_personality_intensity') ?? 0.7,
       phoneticOverlayEnabled:       s.getBool('${_p}phonetic_overlay_enabled')    ?? false,
       phoneticOverlayFontScale:     s.getDouble('${_p}phonetic_overlay_scale')    ?? 0.72,
+      vibeMode:                     PlaybackVibeMode.values[
+                                      (s.getInt('${_p}vibe_mode') ?? 0)
+                                        .clamp(0, PlaybackVibeMode.values.length - 1)],
+      rememberVibeMode:             s.getBool('${_p}remember_vibe_mode')          ?? false,
     );
   }
 
@@ -1201,6 +1232,8 @@ class PlayerPrefs {
       s.setDouble('${_p}sub_personality_intensity',  subtitlePersonalityIntensity),
       s.setBool('${_p}phonetic_overlay_enabled',     phoneticOverlayEnabled),
       s.setDouble('${_p}phonetic_overlay_scale',     phoneticOverlayFontScale),
+      s.setInt('${_p}vibe_mode',                      vibeMode.index),
+      s.setBool('${_p}remember_vibe_mode',            rememberVibeMode),
     ]);
   }
 }
