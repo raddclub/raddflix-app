@@ -147,7 +147,7 @@ class _SubtitleOverlayState extends State<SubtitleOverlay>
 
   @override
   Widget build(BuildContext context) {
-    if (widget.currentLine == null || widget.currentLine!.isEmpty) {
+    if (widget.currentLine == null || widget.currentLine!.trim().isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -232,46 +232,50 @@ class _SubtitleOverlayState extends State<SubtitleOverlay>
     // AnimatedBuilder wraps the container so the scale-bounce animation
     // (if playing) is applied. When not animating, _scaleAnim.value == 1.0
     // and the transform is a no-op — no extra cost.
-    return Positioned.fill(
-      child: Align(
-        alignment: _alignment,
-        child: Padding(
-          padding: _padding,
-          child: GestureDetector(
-            onLongPress: () {
-              Clipboard.setData(ClipboardData(text: widget.currentLine!));
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Copied to clipboard'),
-                  duration: Duration(seconds: 2),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-            child: AnimatedBuilder(
-              animation: _scaleAnim,
-              builder: (_, child) => Transform.scale(
-                scale: _scaleAnim.value,
-                child: child,
+    //
+    // SUB-GRAY-SCREEN fix: do NOT wrap in Positioned.fill here. The parent
+    // already places this widget inside Positioned.fill → IgnorePointer.
+    // A nested Positioned outside a Stack fills its parent in release builds,
+    // causing the entire player area to be covered by a gray tint.
+    // Return Align + Padding directly so sizing comes from the text content.
+    return Align(
+      alignment: _alignment,
+      child: Padding(
+        padding: _padding,
+        child: GestureDetector(
+          onLongPress: () {
+            Clipboard.setData(ClipboardData(text: widget.currentLine!));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Copied to clipboard'),
+                duration: Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
               ),
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 24),
-                padding: (hasExplicitBg || personality.useGradientBg)
-                    ? const EdgeInsets.symmetric(horizontal: 10, vertical: 5)
-                    : EdgeInsets.zero,
-                decoration: containerDecoration,
-                // BB8: crossfade when subtitle line changes — 150ms FadeTransition.
-                // KeyedSubtree provides the key without changing _buildTappableText.
-                // Tier-gate: AnimatedSwitcher is lightweight — safe on all tiers.
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 150),
-                  transitionBuilder: (child, animation) =>
-                      FadeTransition(opacity: animation, child: child),
-                  child: KeyedSubtree(
-                    key: ValueKey(widget.currentLine),
-                    child: _buildContent(context, widget.currentLine!,
-                        baseStyle, phoneticLine, phoneticStyle),
-                  ),
+            );
+          },
+          child: AnimatedBuilder(
+            animation: _scaleAnim,
+            builder: (_, child) => Transform.scale(
+              scale: _scaleAnim.value,
+              child: child,
+            ),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 24),
+              padding: (hasExplicitBg || personality.useGradientBg)
+                  ? const EdgeInsets.symmetric(horizontal: 10, vertical: 5)
+                  : EdgeInsets.zero,
+              decoration: containerDecoration,
+              // BB8: crossfade when subtitle line changes — 150ms FadeTransition.
+              // KeyedSubtree provides the key without changing _buildTappableText.
+              // Tier-gate: AnimatedSwitcher is lightweight — safe on all tiers.
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 150),
+                transitionBuilder: (child, animation) =>
+                    FadeTransition(opacity: animation, child: child),
+                child: KeyedSubtree(
+                  key: ValueKey(widget.currentLine),
+                  child: _buildContent(context, widget.currentLine!,
+                      baseStyle, phoneticLine, phoneticStyle),
                 ),
               ),
             ),
