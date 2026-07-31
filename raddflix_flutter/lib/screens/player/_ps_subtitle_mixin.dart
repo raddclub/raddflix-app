@@ -37,10 +37,14 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
 
   double _subBottomMarginMain = 100.0;
 
-  /// Current subtitle text line, kept in sync with player.stream.subtitle.
-  /// Passed to SubtitleOverlay so it can render without polling.
-  /// Null when no subtitle is active for the current position.
-  String? _currentSubLine;
+  // 0B PLAYER-PERF: subtitle line is now a ValueNotifier<String?> so that
+  // SubtitleOverlay can be rebuilt via ValueListenableBuilder without calling
+  // setState() on every subtitle tick (1–10 calls/s depending on frame rate).
+  // The getter/setter pair keeps all cross-cluster references transparent —
+  // callers still write `_currentSubLine = line` and read `_currentSubLine`.
+  final ValueNotifier<String?> _currentSubLineNotifier = ValueNotifier(null);
+  String? get _currentSubLine => _currentSubLineNotifier.value;
+  set _currentSubLine(String? v) => _currentSubLineNotifier.value = v;
 
   double _subSync = 0.0; // seconds
   double _subSpeed = 1.0; // 0.5..2.0
@@ -49,6 +53,14 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
 
   List<SubtitleTrack> get _realSubtitleTracks =>
       _subtitleTracks.where((t) => t.id != null && int.tryParse(t.id!) != null).toList();
+
+  // 0B PLAYER-PERF: debounce state — collapses rapid back-to-back calls
+  // (show/hide transitions fire this multiple times per gesture) into a
+  // single MPV property write after 16 ms. The latest controlsVisible value
+  // is captured in _subMarginLastVisible so the timer always applies the
+  // most recent intent even if several ticks arrive before it fires.
+  bool? _subMarginLastVisible;
+  Timer?  _subMarginDebounce;
 
   void _applySubtitleMargin({required bool controlsVisible}) {
     // When controls are visible, push subs 140px above bottom controls so they
@@ -70,12 +82,18 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
     // Fix: 'sub-ass-override' must always be 'force' everywhere it's touched
     // (here, in `_loadSubPrefs`, on track selection, and on episode reset) —
     // never 'yes'. Do not reintroduce 'yes' in any of those call sites.
-    final base = _subBottomMarginMain;
-    final marginY = controlsVisible ? (base + 140).round() : base.round();
-    try {
-      _np.setProperty('sub-ass-override', 'force');
-      _np.setProperty('sub-margin-y', marginY.toString());
-    } catch (_) {}
+    _subMarginLastVisible = controlsVisible;
+    _subMarginDebounce?.cancel();
+    _subMarginDebounce = Timer(const Duration(milliseconds: 16), () {
+      if (!mounted) return;
+      final base = _subBottomMarginMain;
+      final cv = _subMarginLastVisible ?? controlsVisible;
+      final marginY = cv ? (base + 140).round() : base.round();
+      try {
+        _np.setProperty('sub-ass-override', 'force');
+        _np.setProperty('sub-margin-y', marginY.toString());
+      } catch (_) {}
+    });
   }
 
   void _adjustSubSync(double delta) {

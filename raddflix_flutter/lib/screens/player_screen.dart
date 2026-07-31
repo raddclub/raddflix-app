@@ -775,25 +775,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                 // instantly without any NativePlayer.setProperty() race condition.
                 // IgnorePointer lets taps fall through to the gesture layer when
                 // dict lookup is off, so play/pause taps still work normally.
+                //
+                // 0B PLAYER-PERF: ValueListenableBuilder drives rebuilds only
+                // when the subtitle *line* changes; Consumer handles PlayerPrefs
+                // (style edits). RepaintBoundary isolates the overlay layer.
                 if (!_isAudioOnly)
                   Positioned.fill(
-                    child: Consumer(
-                      builder: (ctx, ref, _) {
-                        final prefs = ref.watch(playerPrefsProvider);
-                        return IgnorePointer(
-                          ignoring: !prefs.dictEnabled,
-                          child: SubtitleOverlay(
-                            currentLine: _currentSubLine,
-                            prefs: prefs,
-                            onPausedForLookup: () {
-                              try { _player.pause(); } catch (_) {}
+                    child: RepaintBoundary(
+                      child: ValueListenableBuilder<String?>(
+                        valueListenable: _currentSubLineNotifier,
+                        builder: (ctx, currentLine, _) {
+                          return Consumer(
+                            builder: (ctx2, ref, _) {
+                              final prefs = ref.watch(playerPrefsProvider);
+                              return IgnorePointer(
+                                ignoring: !prefs.dictEnabled,
+                                child: SubtitleOverlay(
+                                  currentLine: currentLine,
+                                  prefs: prefs,
+                                  onPausedForLookup: () {
+                                    try { _player.pause(); } catch (_) {}
+                                  },
+                                  onResumedAfterLookup: () {
+                                    try { _player.play(); } catch (_) {}
+                                  },
+                                ),
+                              );
                             },
-                            onResumedAfterLookup: () {
-                              try { _player.play(); } catch (_) {}
-                            },
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
                   ),
 

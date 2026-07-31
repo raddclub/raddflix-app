@@ -66,6 +66,8 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   String get _currentTitle;
   // SUB-OVERLAY-FIX: declared in _PlayerSubtitleMixin; read here for SubtitleOverlay
   String? get _currentSubLine;
+  // 0B PLAYER-PERF: notifier for subtitle-tick-driven rebuilds (no setState).
+  ValueNotifier<String?> get _currentSubLineNotifier;
   String get _dubActiveLang;
   bool get _dubGenerating;
   String get _endAction; set _endAction(String v);
@@ -2718,25 +2720,37 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
 
                 // Flutter subtitle overlay — SUB-OVERLAY-FIX (portrait)
                 // Mirrors the landscape layer in player_screen.dart.
+                //
+                // 0B PLAYER-PERF: ValueListenableBuilder drives rebuilds only
+                // when the subtitle *line* changes; Consumer below handles
+                // PlayerPrefs changes (style edits). RepaintBoundary isolates
+                // the overlay from the rest of the player raster tree.
                 if (!_isAudioOnly)
                   Positioned.fill(
-                    child: Consumer(
-                      builder: (ctx, ref, _) {
-                        final prefs = ref.watch(playerPrefsProvider);
-                        return IgnorePointer(
-                          ignoring: !prefs.dictEnabled,
-                          child: SubtitleOverlay(
-                            currentLine: _currentSubLine,
-                            prefs: prefs,
-                            onPausedForLookup: () {
-                              try { _player.pause(); } catch (_) {}
+                    child: RepaintBoundary(
+                      child: ValueListenableBuilder<String?>(
+                        valueListenable: _currentSubLineNotifier,
+                        builder: (ctx, currentLine, _) {
+                          return Consumer(
+                            builder: (ctx2, ref, _) {
+                              final prefs = ref.watch(playerPrefsProvider);
+                              return IgnorePointer(
+                                ignoring: !prefs.dictEnabled,
+                                child: SubtitleOverlay(
+                                  currentLine: currentLine,
+                                  prefs: prefs,
+                                  onPausedForLookup: () {
+                                    try { _player.pause(); } catch (_) {}
+                                  },
+                                  onResumedAfterLookup: () {
+                                    try { _player.play(); } catch (_) {}
+                                  },
+                                ),
+                              );
                             },
-                            onResumedAfterLookup: () {
-                              try { _player.play(); } catch (_) {}
-                            },
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
                   ),
 

@@ -572,7 +572,10 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
         if (!mounted) return;
         final raw = lines.isNotEmpty ? lines.first : null;
         final line = (raw != null && raw.isNotEmpty) ? raw : null;
-        setState(() => _currentSubLine = line);
+        // 0B PLAYER-PERF: update the ValueNotifier directly — no setState().
+        // This avoids rebuilding the entire player tree on every subtitle tick
+        // (1–10/s). SubtitleOverlay rebuilds via ValueListenableBuilder only.
+        _currentSubLine = line;
       }),
     ]);
   }
