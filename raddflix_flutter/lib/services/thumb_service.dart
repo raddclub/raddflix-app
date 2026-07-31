@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:crypto/crypto.dart';
@@ -13,6 +14,30 @@ class ThumbService {
   static final _mem = <String, Uint8List>{};
   static const int _maxMemEntries = 100; // H-10: cap in-memory thumbnail cache
   static Directory? _cacheDir;
+
+  // 0C THUMB-PERF: Fast path via MediaMetadataRetriever in MediaStorePlugin.kt.
+  // MMR uses Android's built-in video codec — ~50–200 ms per frame vs the
+  // 1.5–4 s cost of spawning a full libmpv Player in MediaKitThumbnailExtractor.
+  // Only available on Android; returns null on failure so caller falls back.
+  static const _mediaStoreChannel = MethodChannel('com.raddflix.app/media_store');
+
+  static Future<Uint8List?> _getFrameAtTimeFast(
+    String path, {
+    required int timeMs,
+    required int maxWidth,
+  }) async {
+    if (!Platform.isAndroid) return null;
+    try {
+      final result = await _mediaStoreChannel.invokeMethod<Uint8List>('getFrameAtTime', {
+        'path': path,
+        'time_ms': timeMs,
+        'max_width': maxWidth,
+      });
+      return result;
+    } catch (_) {
+      return null;
+    }
+  }
 
   static Future<Directory> _getDir() async {
     _cacheDir ??= Directory(
@@ -52,11 +77,19 @@ class ThumbService {
         return bytes;
       }
 
-      // Generate (G3: media_kit frame extraction — see extractor for why)
-      final bytes = await MediaKitThumbnailExtractor.extractFrame(
+      // 0C THUMB-PERF: try fast path (MediaMetadataRetriever, ~50–200 ms)
+      // before the slow MediaKit path (full libmpv Player, 1.5–4 s).
+      var bytes = await _getFrameAtTimeFast(
+        videoPath, timeMs: timeMs, maxWidth: maxWidth);
+
+      // Slow fallback: MediaKit frame extraction (G3 — needed for formats
+      // that Android's built-in decoders don't handle, e.g. some MKV/H.265
+      // content on API 28 devices).
+      bytes ??= await MediaKitThumbnailExtractor.extractFrame(
         videoPath,
         timeMs: timeMs,
       );
+
       if (bytes != null) {
         await file.writeAsBytes(bytes); // H-10: async — was blocking main thread
         if (_mem.length >= _maxMemEntries) _mem.remove(_mem.keys.first);

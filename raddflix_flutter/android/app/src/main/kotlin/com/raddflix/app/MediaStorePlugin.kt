@@ -26,6 +26,13 @@ import android.provider.MediaStore
       private var activityBinding: ActivityPluginBinding? = null
       private var pendingResult: MethodChannel.Result? = null
 
+      // 0C THUMB-PERF: background executor for blocking MediaMetadataRetriever
+      // calls. CachedThreadPool reuses idle threads for concurrent thumb loads
+      // (e.g. grid scroll) without spawning a new Thread per file.
+      private val executor = java.util.concurrent.Executors.newCachedThreadPool()
+      // All MethodChannel.Result callbacks must be delivered on the main thread.
+      private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
       companion object {
           private const val CHANNEL = "com.raddflix.app/media_store"
           private const val PERMISSION_REQUEST_CODE = 9001
@@ -63,6 +70,7 @@ import android.provider.MediaStore
               "queryAudio"             -> queryAudio(result)
               "getThumbnail"           -> getThumbnail(call, result)
               "getAlbumArt"            -> getAlbumArt(call, result)
+              "getFrameAtTime"         -> getFrameAtTime(call, result)
               "openAppSettings"        -> { openAppSettings(); result.success(null) }
               else                     -> result.notImplemented()
           }
@@ -310,6 +318,50 @@ import android.provider.MediaStore
               result.success(bytes)
           } catch (e: Exception) {
               result.success(null)
+          }
+      }
+
+      // ── Frame extraction via MediaMetadataRetriever (0C THUMB-PERF) ──────────
+      // Replaces the MediaKit fallback path (full libmpv Player per thumb —
+      // 1.5–4 s each). MediaMetadataRetriever uses Android's built-in video
+      // codec to seek + decode a single frame — typically 50–200 ms for local
+      // files. The blocking call runs on ioExecutor; result is posted back to
+      // the Flutter/main thread via mainHandler.
+      private fun getFrameAtTime(call: MethodCall, result: MethodChannel.Result) {
+          val path   = call.argument<String>("path")
+          val timeMs = (call.argument<Any>("time_ms") as? Number)?.toLong() ?: 3000L
+          val maxW   = call.argument<Int>("max_width") ?: 240
+          if (path.isNullOrBlank()) { mainHandler.post { result.success(null) }; return }
+          executor.execute {
+              var mmr: android.media.MediaMetadataRetriever? = null
+              try {
+                  mmr = android.media.MediaMetadataRetriever()
+                  mmr.setDataSource(path)
+                  // OPTION_CLOSEST_SYNC: fast seek to nearest sync frame;
+                  // avoids long decode chain for non-key frames.
+                  val bmp = mmr.getFrameAtTime(
+                      timeMs * 1_000L, // μs
+                      android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC
+                  ) ?: mmr.getFrameAtTime() // fall back to default position
+                  if (bmp == null) {
+                      mainHandler.post { result.success(null) }
+                      return@execute
+                  }
+                  val scale  = if (bmp.width > maxW) maxW.toFloat() / bmp.width else 1f
+                  val scaledW = (bmp.width  * scale).toInt().coerceAtLeast(1)
+                  val scaledH = (bmp.height * scale).toInt().coerceAtLeast(1)
+                  val scaled  = if (scale < 1f)
+                      Bitmap.createScaledBitmap(bmp, scaledW, scaledH, true)
+                  else bmp
+                  val bytes = java.io.ByteArrayOutputStream().also { out ->
+                      scaled.compress(Bitmap.CompressFormat.JPEG, 75, out)
+                  }.toByteArray()
+                  mainHandler.post { result.success(bytes) }
+              } catch (e: Exception) {
+                  mainHandler.post { result.success(null) }
+              } finally {
+                  try { mmr?.release() } catch (_: Exception) {}
+              }
           }
       }
 
