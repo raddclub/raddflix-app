@@ -787,7 +787,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                         builder: (ctx, currentLine, _) {
                           return Consumer(
                             builder: (ctx2, ref, _) {
-                              final prefs = ref.watch(playerPrefsProvider);
+                              // 0B Fix 0B-2: scope rebuild to subtitle-relevant
+                              // fields only. Without select(), any PlayerPrefs
+                              // mutation (EQ, speed, nightMode, volume) rebuilds
+                              // this widget. The select tuple covers every field
+                              // read by SubtitleOverlay + the IgnorePointer gate.
+                              // ref.read() fetches full prefs at rebuild time —
+                              // safe because the select above already triggered
+                              // the rebuild before this line runs.
+                              ref.watch(playerPrefsProvider.select((p) => (
+                                p.subtitleFontSize,          p.subtitleTextColorValue,
+                                p.subtitleOutlineColorValue, p.subtitleBackgroundColorValue,
+                                p.subtitleBackgroundOpacity, p.subtitleOutlineThickness,
+                                p.subtitleBold,              p.subtitleItalic,
+                                p.subtitleFontFamily,        p.subtitlePosition,
+                                p.subtitleVerticalOffset,    p.dictEnabled,
+                                p.accentColorValue,          p.subtitlePersonalityEnabled,
+                                p.subtitlePersonalityIntensity, p.phoneticOverlayEnabled,
+                                p.phoneticOverlayFontScale,
+                              )));
+                              final prefs = ref.read(playerPrefsProvider);
                               return IgnorePointer(
                                 ignoring: !prefs.dictEnabled,
                                 child: SubtitleOverlay(
