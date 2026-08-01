@@ -500,4 +500,4 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 | VIBE-5A | **"Remember Vibe" toggle in Settings.** Default: OFF (reset on new file). Files: `settings_screen.dart`. | ⬜ OPEN | 2026-07-30 | — |
 | VIBE-5B | **Vibe mode in player info HUD.** Show active mode name in diagnostics HUD when `showPlaybackInfo` is true. Files: `_ps_ui_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |
 | VIBE-5C | **Filter stacking safety rules.** Prevent double-echo (vibe reverb + manual reverb), double-extrastereo (club + lab stereo wide). Document in `_buildMergedAfString()`. Files: `_ps_audiolab_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |
-| VIBE-5D | **Voice command support for vibe modes.** "slowed", "nightcore", "lofi", "normal" etc. map to vibe mode activation. Files: `player_screen.dart`. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-5D | **Voice command support for vibe modes.** Direct phrases `"slowed"`, `"nightcore"`, `"lofi"`, `"reverb"`, and `"no vibe"` map to vibe mode activation; aliases remain supported. | ✅ DONE | 2026-08-01 | local workspace |

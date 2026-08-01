@@ -38,6 +38,16 @@ class VoiceCommandsService {
 
   final _commandCtrl = StreamController<VoiceCommand>.broadcast();
 
+  // VIBE-5D direct voice phrases. Keep these exact phrases explicit so the
+  // spec's five required mappings cannot get lost among the optional aliases.
+  static const _directVibePhraseMappings = <String, VoiceCommand>{
+    'slowed': VoiceCommand.vibeSlowed,
+    'nightcore': VoiceCommand.vibeNightcore,
+    'lofi': VoiceCommand.vibeLofi,
+    'reverb': VoiceCommand.vibeSlowedReverb,
+    'no vibe': VoiceCommand.vibeNone,
+  };
+
   Stream<VoiceCommand> get commandStream => _commandCtrl.stream;
   bool get isListening => _listening;
   String get myId => 'local';
@@ -70,13 +80,14 @@ class VoiceCommandsService {
   static VoiceCommand parse(String text) {
     final t = text.toLowerCase().trim();
 
-    // ── Vibe modes — check multi-word phrases BEFORE single-word ones ─────
-    if (t == 'slowed reverb' || t == 'reverb')          return VoiceCommand.vibeSlowedReverb;
-    if (t == 'slowed')                                   return VoiceCommand.vibeSlowed;
-    if (t == 'nightcore'     || t == 'night core')       return VoiceCommand.vibeNightcore;
-    if (t == 'lofi'          || t == 'lo-fi' || t == 'lo fi') return VoiceCommand.vibeLofi;
+    // ── Vibe modes — direct spec phrases before optional aliases ─────────
+    final directVibeCommand = _directVibePhraseMappings[t];
+    if (directVibeCommand != null) return directVibeCommand;
+    if (t == 'slowed reverb')                             return VoiceCommand.vibeSlowedReverb;
+    if (t == 'night core')                                return VoiceCommand.vibeNightcore;
+    if (t == 'lo-fi' || t == 'lo fi')                    return VoiceCommand.vibeLofi;
     if (t == 'normal'        || t == 'original' ||
-        t == 'no vibe'       || t == 'vibe off')         return VoiceCommand.vibeNone;
+        t == 'vibe off')                                  return VoiceCommand.vibeNone;
     if (t == 'vibe next'     || t == 'next vibe')        return VoiceCommand.vibeNext;
 
     // ── Playback ─────────────────────────────────────────────────────────

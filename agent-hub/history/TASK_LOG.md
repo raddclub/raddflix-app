@@ -14,8 +14,18 @@
 |---|---|---|
 | June 2026 | [`2026-06.md`](2026-06.md) | 34 |
 | July 2026 | [`2026-07.md`](2026-07.md) | 16 |
+| August 2026 | [`2026-08.md`](2026-08.md) | 1 |
 
 ---
+
+### August 2026 — Session 1 — VIBE-5D direct voice phrase mappings
+
+**Task:** Make the five direct VIBE-5D voice phrases spec-complete in the command parser.
+
+**Result:** Added an explicit direct mapping table for `slowed`, `nightcore`, `lofi`, `reverb`,
+and `no vibe`, preserved the existing aliases, and added parser regression tests for the five
+phrases plus case/whitespace normalization. Static diff/preflight checks passed; Flutter/Dart
+was unavailable locally for executing the Dart test suite.
 
 ## Session index (title only — full detail in the linked archive)
 

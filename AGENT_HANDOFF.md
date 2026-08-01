@@ -10,6 +10,10 @@
 Phase 0 (critical bug fixes) and the full Vibe Modes feature (Phases 1–5, all 20 tasks) are
 complete. The entire `VIBE_BUGS_PLAN.md` is shipped.
 
+VIBE-5D is spec-complete: the live voice parser has explicit direct mappings for `slowed`,
+`nightcore`, `lofi`, `reverb`, and `no vibe`, with regression coverage for the five phrases
+and case/whitespace normalization. The remaining aliases are preserved separately.
+
 **Next session: pick up the FEATURES_ROADMAP.md — Phase A (Full UI Theme Engine) is the
 highest-priority unstarted work.** Start with A1 (Accent Color System) → A2 (Seek Bar Styles)
 → A5 (Saved Themes / "Sakura"). See `agent-hub/FEATURES_ROADMAP.md` for full spec.
@@ -79,7 +83,7 @@ highest-priority unstarted work.** Start with A1 (Accent Color System) → A2 (S
 | VIBE-5A — "Remember Vibe" toggle in Settings (default OFF) | ✅ DONE | `settings_screen.dart` |
 | VIBE-5B — Vibe mode HUD badge (purple pill when mode ≠ none) | ✅ DONE | `_ps_ui_mixin.dart` |
 | VIBE-5C — Filter stacking safety (skip reverb+extrastereo conflicts) | ✅ DONE | `_ps_audiolab_mixin.dart` |
-| VIBE-5D — Voice commands (`vibeNext` + `vibeOff`) | ✅ DONE | `voice_commands_service.dart` + `_ps_ui_mixin.dart` |
+| VIBE-5D — Voice commands (direct phrase mappings + `vibeNext`/`vibeOff`) | ✅ DONE | `voice_commands_service.dart` + `_ps_ui_mixin.dart` + parser tests |
 
 ---
 
