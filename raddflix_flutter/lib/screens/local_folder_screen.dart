@@ -61,7 +61,10 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
   }
 
   Future<void> _loadThumbnails() async {
-    const batchSize = 4;
+    // 0C Fix 0C-3: batch of 2 reduces peak parallel MMR decodes so the
+    // codec thread is not saturated; prior batch of 4 caused jank on mid-range
+    // devices when 4 MMR sessions ran concurrently.
+    const batchSize = 2;
     for (int i = 0; i < _videos.length; i += batchSize) {
       if (!mounted) return;
       final batch = _videos.skip(i).take(batchSize).toList();
@@ -507,6 +510,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
         itemBuilder: (_, i) => _VideoGridCard(
           video: sorted[i],
           thumb: _thumbCache[sorted[i].filePath],
+          isLoading: !_thumbCache.containsKey(sorted[i].filePath),
           selected: _selected.contains(sorted[i].filePath),
           selecting: _selecting,
           onTap: () => _selecting
@@ -527,6 +531,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
         itemBuilder: (_, i) => _VideoListTile(
           video: sorted[i],
           thumb: _thumbCache[sorted[i].filePath],
+          isLoading: !_thumbCache.containsKey(sorted[i].filePath),
           selected: _selected.contains(sorted[i].filePath),
           selecting: _selecting,
           onTap: () => _selecting
@@ -599,6 +604,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
                 child: _VideoListTile(
                   video: vid,
                   thumb: _thumbCache[vid.filePath],
+                  isLoading: !_thumbCache.containsKey(vid.filePath),
                   selected: _selected.contains(vid.filePath),
                   selecting: _selecting,
                   onTap: () => _selecting ? _toggleSelect(vid.filePath) : _playVideo(vid),
@@ -617,6 +623,7 @@ class _LocalFolderScreenState extends State<LocalFolderScreen> {
           _VideoListTile(
             video: vid,
             thumb: _thumbCache[vid.filePath],
+            isLoading: !_thumbCache.containsKey(vid.filePath),
             selected: _selected.contains(vid.filePath),
             selecting: _selecting,
             onTap: () => _selecting ? _toggleSelect(vid.filePath) : _playVideo(vid),
@@ -892,11 +899,15 @@ class _FolderSortSheetState extends State<_FolderSortSheet> {
 class _VideoListTile extends StatelessWidget {
   final LocalVideo video;
   final Uint8List? thumb;
+  // 0C Fix 0C-5: true while the thumbnail fetch is still in-flight so we
+  // can show a shimmer skeleton instead of a blank placeholder.
+  final bool isLoading;
   final bool selected;
   final bool selecting;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
   const _VideoListTile({required this.video, required this.thumb,
+      required this.isLoading,
       required this.selected, required this.selecting,
       required this.onTap, required this.onLongPress});
 
@@ -944,9 +955,16 @@ class _VideoListTile extends StatelessWidget {
                       )
                     : thumb != null
                         ? Image.memory(thumb!, fit: BoxFit.cover)
-                        : Container(color: t.surface,
-                            child: Icon(AppIcons.playCircle,
-                                color: t.textMuted, size: 32)),
+                        // 0C Fix 0C-5: shimmer skeleton while loading;
+                        // plain icon after failed extraction.
+                        : isLoading
+                            ? Shimmer.fromColors(
+                                baseColor: t.surface,
+                                highlightColor: t.textMuted.withOpacity(0.15),
+                                child: Container(color: Colors.white))
+                            : Container(color: t.surface,
+                                child: Icon(AppIcons.playCircle,
+                                    color: t.textMuted, size: 32)),
               ),
             ),
             // Duration badge (video only)
@@ -1214,11 +1232,14 @@ class _VideoListTile extends StatelessWidget {
 class _VideoGridCard extends StatelessWidget {
   final LocalVideo video;
   final Uint8List? thumb;
+  // 0C Fix 0C-5: true while the thumbnail fetch is still in-flight.
+  final bool isLoading;
   final bool selected;
   final bool selecting;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
   const _VideoGridCard({required this.video, required this.thumb,
+      required this.isLoading,
       required this.selected, required this.selecting,
       required this.onTap, required this.onLongPress});
 
@@ -1242,9 +1263,16 @@ class _VideoGridCard extends StatelessWidget {
                   ]))
               : thumb != null
                   ? Image.memory(thumb!, fit: BoxFit.cover)
-                  : Container(color: t.surface,
-                      child: Icon(AppIcons.playCircle,
-                          color: t.textMuted, size: 32)),
+                  // 0C Fix 0C-5: shimmer skeleton while loading;
+                  // plain icon after failed extraction.
+                  : isLoading
+                      ? Shimmer.fromColors(
+                          baseColor: t.surface,
+                          highlightColor: t.textMuted.withOpacity(0.15),
+                          child: Container(color: Colors.white))
+                      : Container(color: t.surface,
+                          child: Icon(AppIcons.playCircle,
+                              color: t.textMuted, size: 32)),
           // Scrim
           DecoratedBox(decoration: BoxDecoration(
             gradient: LinearGradient(
