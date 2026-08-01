@@ -89,10 +89,10 @@ class _DualSubtitleOverlayState extends State<DualSubtitleOverlay> {
     SubtitlePersonalityResult secP = SubtitlePersonalityResult.normal;
     if (widget.prefs.subtitlePersonalityEnabled) {
       final intensity = widget.prefs.subtitlePersonalityIntensity;
-      if (widget.primaryLine.isNotEmpty) {
+      if (widget.primaryLine.trim().isNotEmpty) {
         priP = SubtitlePersonality.analyze(widget.primaryLine, intensity);
       }
-      if (widget.secondaryLine.isNotEmpty) {
+      if (widget.secondaryLine.trim().isNotEmpty) {
         secP = SubtitlePersonality.analyze(widget.secondaryLine, intensity);
       }
     }
@@ -101,11 +101,11 @@ class _DualSubtitleOverlayState extends State<DualSubtitleOverlay> {
     String? priPhonetic;
     String? secPhonetic;
     if (widget.prefs.phoneticOverlayEnabled) {
-      if (widget.primaryLine.isNotEmpty) {
+      if (widget.primaryLine.trim().isNotEmpty) {
         final r = PhoneticSubtitle.romanize(widget.primaryLine);
         if (r.isNotEmpty) priPhonetic = r;
       }
-      if (widget.secondaryLine.isNotEmpty) {
+      if (widget.secondaryLine.trim().isNotEmpty) {
         final r = PhoneticSubtitle.romanize(widget.secondaryLine);
         if (r.isNotEmpty) secPhonetic = r;
       }
@@ -140,7 +140,7 @@ class _DualSubtitleOverlayState extends State<DualSubtitleOverlay> {
         children: [
           // Secondary track — smaller, slightly dimmer
           // BB8: AnimatedSwitcher wraps each track so line transitions crossfade.
-          if (widget.secondaryLine.isNotEmpty)
+          if (widget.secondaryLine.trim().isNotEmpty)
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 150),
               transitionBuilder: (child, anim) =>
@@ -174,10 +174,10 @@ class _DualSubtitleOverlayState extends State<DualSubtitleOverlay> {
                 ],
               ),
             ),
-          if (widget.secondaryLine.isNotEmpty && widget.primaryLine.isNotEmpty)
+          if (widget.secondaryLine.trim().isNotEmpty && widget.primaryLine.trim().isNotEmpty)
             const SizedBox(height: 4),
           // Primary track — full size
-          if (widget.primaryLine.isNotEmpty)
+          if (widget.primaryLine.trim().isNotEmpty)
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 150),
               transitionBuilder: (child, anim) =>
