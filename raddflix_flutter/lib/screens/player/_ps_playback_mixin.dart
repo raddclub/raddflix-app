@@ -906,6 +906,13 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
       _np.setProperty('audio-delay', '0');
       _np.setProperty('sub-speed', '1');
     } catch (_) {}
+    // VIBE-1E: Reset vibe mode between episodes unless the user has opted to
+    // carry it over. Without this, slowed+reverb (or any other vibe) bleeds
+    // into every subsequent episode for the remainder of the session.
+    // _applyVibeMode() also updates sub-speed (1D) and rebuilds the af chain,
+    // so calling it here is sufficient — no separate MPV property reset needed.
+    final _epVibePrefs = ref.read(playerPrefsProvider);
+    if (!_epVibePrefs.rememberVibeMode) _applyVibeMode(PlaybackVibeMode.none);
     // AUDIO-FIX-1: lavfi-complex and audio-file survive loadfile just like
     // sid/aid above. If the user activated AI Dub on any episode, these two
     // properties persist into every subsequent episode in the same session,
