@@ -19,6 +19,14 @@ enum VoiceCommand {
   speedDown,
   forward,
   back,
+  vibeNext,          // cycle forward through vibe modes (none → slowed → … → club → none)
+  vibeOff,           // immediately reset to PlaybackVibeMode.none
+  // VIBE-5D: direct mode-by-name commands ─────────────────────────────────
+  vibeSlowed,        // "slowed"
+  vibeSlowedReverb,  // "slowed reverb" | "reverb"
+  vibeNightcore,     // "nightcore" | "night core"
+  vibeLofi,          // "lofi" | "lo-fi"
+  vibeNone,          // "normal" | "original" | "no vibe"
   unknown,
 }
 
@@ -44,10 +52,47 @@ class VoiceCommandsService {
   Future<void> start() async {
     _listening = true;
     // TODO: wire a Flutter-3.22 / AGP-8-compatible STT package here.
-    // Emit via: _commandCtrl.add(VoiceCommand.play);
+    // When ready, recognise text and emit: _commandCtrl.add(parse(recognisedText));
   }
 
   void stop() => _listening = false;
 
   void dispose() => _commandCtrl.close();
+
+  // ── Phrase parser ─────────────────────────────────────────────────────────
+  // Called by the STT implementation to convert raw recognised text into a
+  // VoiceCommand.  All phrase matching is case-insensitive and trimmed.
+  //
+  // Usage (inside the future start() implementation):
+  //   final text = await stt.recognise();          // from whatever STT package
+  //   _commandCtrl.add(VoiceCommandsService.parse(text));
+  //
+  static VoiceCommand parse(String text) {
+    final t = text.toLowerCase().trim();
+
+    // ── Vibe modes — check multi-word phrases BEFORE single-word ones ─────
+    if (t == 'slowed reverb' || t == 'reverb')          return VoiceCommand.vibeSlowedReverb;
+    if (t == 'slowed')                                   return VoiceCommand.vibeSlowed;
+    if (t == 'nightcore'     || t == 'night core')       return VoiceCommand.vibeNightcore;
+    if (t == 'lofi'          || t == 'lo-fi' || t == 'lo fi') return VoiceCommand.vibeLofi;
+    if (t == 'normal'        || t == 'original' ||
+        t == 'no vibe'       || t == 'vibe off')         return VoiceCommand.vibeNone;
+    if (t == 'vibe next'     || t == 'next vibe')        return VoiceCommand.vibeNext;
+
+    // ── Playback ─────────────────────────────────────────────────────────
+    if (t == 'play'    || t == 'resume')                 return VoiceCommand.play;
+    if (t == 'pause'   || t == 'stop')                   return VoiceCommand.pause;
+    if (t == 'mute')                                     return VoiceCommand.mute;
+    if (t == 'unmute'  || t == 'volume on')              return VoiceCommand.unmute;
+    if (t == 'screenshot' || t == 'capture')             return VoiceCommand.screenshot;
+    if (t == 'next'    || t == 'next episode')           return VoiceCommand.nextEpisode;
+    if (t == 'previous'|| t == 'previous episode' ||
+        t == 'prev'    || t == 'prev episode')           return VoiceCommand.prevEpisode;
+    if (t == 'faster'  || t == 'speed up')               return VoiceCommand.speedUp;
+    if (t == 'slower'  || t == 'speed down')             return VoiceCommand.speedDown;
+    if (t == 'forward' || t == 'skip forward')           return VoiceCommand.forward;
+    if (t == 'back'    || t == 'skip back' || t == 'rewind') return VoiceCommand.back;
+
+    return VoiceCommand.unknown;
+  }
 }

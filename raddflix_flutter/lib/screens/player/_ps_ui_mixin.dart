@@ -272,7 +272,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   ];
 
   static const _allSidebarIds = [
-    'bgaudio','cc','audio','eq','speed','loop','rotate','lock','pip',
+    'bgaudio','cc','audio','eq','vibe','speed','loop','rotate','lock','pip',
     'screenshot','sleep','ab','episodes','settings','vivid',
     'mute','frame','onehanded','zoom','silence','more',
   ];
@@ -1236,6 +1236,30 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                   child: Text(
                     'A${_audioSync >= 0 ? '+' : ''}${_audioSync.toStringAsFixed(1)}',
                     style: const TextStyle(color: Colors.white70, fontSize: 10),
+                  ),
+                ),
+              ),
+
+            // VIBE-5B: Active vibe mode badge in the HUD
+            if (_currentVibe != PlaybackVibeMode.none)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF9C7BEF).withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(
+                        color: const Color(0xFF9C7BEF).withOpacity(0.45),
+                        width: 0.8),
+                  ),
+                  child: Text(
+                    '✦ ${_vibeLabel(_currentVibe)}',
+                    style: const TextStyle(
+                      color: Color(0xFFCEB8FF),
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
@@ -2326,7 +2350,16 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
           label: 'EQ',
           active: _eqEnabled,
           available: true,
-          onTap: _openAudioEffectPanel,
+          onTap: () => _openAudioEffectPanel(),
+        ),
+        'vibe': (
+          icon: Icons.music_note_rounded,
+          label: _currentVibe == PlaybackVibeMode.none
+              ? 'Vibe'
+              : _vibeLabel(_currentVibe),
+          active: _currentVibe != PlaybackVibeMode.none,
+          available: true,
+          onTap: () => _openAudioEffectPanel(initialTab: 3),
         ),
         'speed': (
           icon: Icons.speed_rounded,
@@ -2845,6 +2878,12 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                           : null,
                       onLoopToggle: _toggleLoop,
                       onShuffleToggle: _toggleShuffle,
+                      currentVibeMode: _currentVibe,
+                      onVibeCycle: () {
+                        final idx = _currentVibe.index;
+                        _applyVibeMode(PlaybackVibeMode.values[
+                            (idx + 1) % PlaybackVibeMode.values.length]);
+                      },
                     ),
                   ),
 
@@ -3552,7 +3591,7 @@ void _openPanel({
       _openPanel(panel: panel, title: 'Video Zoom', widthFactor: 0.30);
     }
 
-    void _openAudioEffectPanel() {
+    void _openAudioEffectPanel({int initialTab = 0}) {
       final panel = _AudioEffectPanel(
         selectedPreset: _selectedPreset,
         eqBands: _eqBands,
@@ -3610,6 +3649,11 @@ void _openPanel({
         initialReverbPreset: _reverbPreset,
         audioBalance: _audioBalance,
         onBalanceChanged: _applyBalance,
+        currentVibeMode: _currentVibe,
+        onVibeModeChanged: (m) {
+          _applyVibeMode(m);
+        },
+        initialTabIndex: initialTab,
       );
       _openPanel(panel: panel, title: 'Audio Effect', widthFactor: 0.44, maxHeightFraction: 0.90);
     }
@@ -4260,6 +4304,30 @@ void _openPanel({
         case VoiceCommand.back:
           _seekRelative(-30);
           label = '🎤 Back 30s';
+        case VoiceCommand.vibeNext:
+          final idx = _currentVibe.index;
+          _applyVibeMode(PlaybackVibeMode.values[
+              (idx + 1) % PlaybackVibeMode.values.length]);
+          label = '🎤 Vibe: ${_vibeLabel(_currentVibe)}';
+        case VoiceCommand.vibeOff:
+          _applyVibeMode(PlaybackVibeMode.none);
+          label = '🎤 Vibe Off';
+        // VIBE-5D: direct phrase-to-mode commands ─────────────────────────
+        case VoiceCommand.vibeSlowed:
+          _applyVibeMode(PlaybackVibeMode.slowed);
+          label = '🎤 Vibe: Slowed';
+        case VoiceCommand.vibeSlowedReverb:
+          _applyVibeMode(PlaybackVibeMode.slowedReverb);
+          label = '🎤 Vibe: Slowed + Reverb';
+        case VoiceCommand.vibeNightcore:
+          _applyVibeMode(PlaybackVibeMode.nightcore);
+          label = '🎤 Vibe: NightCore';
+        case VoiceCommand.vibeLofi:
+          _applyVibeMode(PlaybackVibeMode.lofi);
+          label = '🎤 Vibe: Lofi';
+        case VoiceCommand.vibeNone:
+          _applyVibeMode(PlaybackVibeMode.none);
+          label = '🎤 Vibe: Normal';
         default:
           break;
       }
