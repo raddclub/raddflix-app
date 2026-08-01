@@ -51,6 +51,62 @@ class ThumbService {
     return hash;
   }
 
+  // ── 0C Fix 0C-4: disk cache size / age limit ─────────────────────────────
+  // Runs at most once per process lifetime (fire-and-forget). Keeps the cache
+  // under 200 MB and removes files older than 30 days.
+  static bool _evictChecked = false;
+
+  static void _scheduleEviction() {
+    if (_evictChecked) return;
+    _evictChecked = true;
+    unawaited(_evictDiskCache());
+  }
+
+  static Future<void> _evictDiskCache() async {
+    try {
+      final dir = await _getDir();
+      final entries = dir.listSync().whereType<File>().toList();
+      final now = DateTime.now();
+      const maxAgeDays  = 30;
+      const maxBytes    = 200 * 1024 * 1024; // 200 MB hard limit
+      const targetBytes = 150 * 1024 * 1024; // 150 MB trim target
+
+      // Pass 1 — delete files older than maxAgeDays.
+      final alive = <File>[];
+      for (final f in entries) {
+        try {
+          if (now.difference(f.statSync().modified).inDays >= maxAgeDays) {
+            await f.delete();
+          } else {
+            alive.add(f);
+          }
+        } catch (_) { alive.add(f); }
+      }
+
+      // Pass 2 — if still over size limit, remove oldest-first.
+      int total = 0;
+      for (final f in alive) {
+        try { total += f.lengthSync(); } catch (_) {}
+      }
+      if (total > maxBytes) {
+        alive.sort((a, b) {
+          try {
+            return a.statSync().modified.compareTo(b.statSync().modified);
+          } catch (_) { return 0; }
+        });
+        for (final f in alive) {
+          if (total <= targetBytes) break;
+          try {
+            final size = f.lengthSync();
+            await f.delete();
+            total -= size;
+          } catch (_) {}
+        }
+      }
+    } catch (_) {} // never crash the app for a cache cleanup
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   /// Get thumbnail for a local video file.
   /// [timeMs] = position in milliseconds (default: 3000ms / 3 seconds).
   static Future<Uint8List?> getThumbnail(
@@ -60,6 +116,8 @@ class ThumbService {
     int quality = 70,
   }) async {
     if (videoPath.isEmpty) return null;
+    // Kick off disk cache eviction once per session (non-blocking).
+    _scheduleEviction();
     final key = _key(videoPath, timeMs);
 
     // Memory cache
