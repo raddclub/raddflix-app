@@ -461,8 +461,8 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 
 | Task | Description | Status | Date | Commit |
 |---|---|---|---|---|
-| VIBE-1A | **Add `asetrate` and `apulsator` af-pipeline primitives to audiolab mixin.** Add `String _currentVibeAf = ''` state. Insert vibe af segment in `_buildMergedAfString()` after aformat, before reverb + lab chain. Files: `_ps_audiolab_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |
-| VIBE-1B | **Add `PlaybackVibeMode` enum + `vibeMode`/`rememberVibeMode` fields to PlayerPrefs.** Enum values: `none`, `slowed`, `slowedReverb`, `nightcore`, `lofi`, `eightD`, `phonk`, `club`. Persist as int index. Files: `core/player/player_prefs.dart`. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-1A | **Add `asetrate` and `apulsator` af-pipeline primitives to audiolab mixin.** Add `String _currentVibeAf = ''` state. Insert vibe af segment in `_buildMergedAfString()` after aformat, before reverb + lab chain. Files: `_ps_audiolab_mixin.dart`. | ✅ DONE | 2026-08-01 | `0e338263` |
+| VIBE-1B | **Add `PlaybackVibeMode` enum + `vibeMode`/`rememberVibeMode` fields to PlayerPrefs.** Enum values: `none`, `slowed`, `slowedReverb`, `nightcore`, `lofi`, `eightD`, `phonk`, `club`. Persist as int index. Files: `core/player/player_prefs.dart`. | ✅ DONE | 2026-07-30 | `6064bf82` |
 | VIBE-1C | **Add `_applyVibeMode(PlaybackVibeMode)` method to audiolab mixin.** Handles speed changes, pitch correction toggle, af chain construction per mode, audio-only vs video branching. Calls `_applyAllAf()` and `_scheduleSavePrefs()`. Files: `_ps_audiolab_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |
 | VIBE-1D | **Subtitle sync compensation for speed-affecting vibe modes.** Set `sub-speed` MPV property to match vibe speed ratio so subtitles track slowed/sped audio. Reset to `'1'` on mode clear. Files: `_ps_subtitle_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |
 | VIBE-1E | **Reset vibe mode on new file load** (unless `rememberVibeMode` is true). Files: `_ps_playback_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |

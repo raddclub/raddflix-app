@@ -5,13 +5,13 @@
 
 ---
 
-## Current State (2026-08-01 — Phase 0 bugs DONE, VIBE-1B DONE)
+## Current State (2026-08-01 — VIBE-1A DONE)
 
-All three critical bug tasks from Phase 0 are fully implemented and pushed. VIBE-1B
-(PlaybackVibeMode enum + prefs) was also completed in the preceding session.
+Phase 0 complete. VIBE-1B (PlaybackVibeMode enum + prefs) was done in the prior session.
+VIBE-1A (`_currentVibeAf` state + vibe slot in `_buildMergedAfString()`) is now done.
 
-**Next session: pick up Vibe Modes foundation — VIBE-1A (VibeController + VibeEngine skeleton)
-or VIBE-1C (VibeTransitionManager). See `agent-hub/VIBE_BUGS_PLAN.md` §1.**
+**Next session: pick up VIBE-1C — `_applyVibeMode(PlaybackVibeMode)` in `_ps_audiolab_mixin.dart`.
+See `agent-hub/VIBE_BUGS_PLAN.md` §1C for the full method body.**
 
 ### Phase 0 — Completed (CI green)
 

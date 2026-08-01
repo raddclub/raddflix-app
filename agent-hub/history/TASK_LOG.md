@@ -2620,3 +2620,26 @@ Files changed: `raddflix_flutter/lib/screens/local_folder_screen.dart`,
 | `5e1ce080` | 0C Fix 0C-4: disk cache eviction — 30-day age limit + 200 MB size cap in ThumbService |
 
 **CI:** see Rule 46 check below.
+
+---
+
+## Session: 2026-08-01 — VIBE-1A
+
+**Task completed:** VIBE-1A ✅
+
+### What was done
+Added the af-pipeline slot for Vibe Modes in `_ps_audiolab_mixin.dart`:
+1. Added `String _currentVibeAf = '';` and `PlaybackVibeMode _currentVibe = PlaybackVibeMode.none;` state variables alongside the existing `_currentReverbAf` / `_currentLabAf`.
+2. In `_buildMergedAfString()`, inserted a `_currentVibeAf` segment after the EQ equalizer and before the reverb chain + lab chain, matching the required filter order: `aformat → EQ → vibe → reverb → lab → balance → silence`.
+
+Also corrected TASKS.md: VIBE-1B was already done at `6064bf82` by the prior session but was still marked ⬜ OPEN.
+
+Note: preflight_check.sh false-positive on `AppColors.primary` (pre-existing in file, imported via `part of` parent — heuristic doesn't understand Dart part files). SKIP_PREFLIGHT=1 used; stated in commit message.
+
+### Commit
+
+| SHA | Description |
+|---|---|
+| `0e338263` | VIBE-1A: add _currentVibeAf state + insert vibe af segment in _buildMergedAfString() |
+
+**CI:** build-apk.yml — checked after push (see below).
