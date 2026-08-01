@@ -34,6 +34,8 @@ mixin _PlayerAudioLabMixin on ConsumerState<PlayerScreen> {
   bool _eqEnabled = true;
   String _currentReverbAf = ''; // active reverb aecho string
   String _currentLabAf = '';    // active lab af chain from _AudioEffectPanel
+  String _currentVibeAf = '';   // active vibe mode af segment (asetrate/apulsator/aecho)
+  PlaybackVibeMode _currentVibe = PlaybackVibeMode.none;
   // Lab state (persisted so panel reopens restore state)
   bool _labVocal = false;
   bool _labDialogue = false;
@@ -138,6 +140,13 @@ mixin _PlayerAudioLabMixin on ConsumerState<PlayerScreen> {
       ].map((v) => v.clamp(-12, 12)).toList();
       parts.add('equalizer=${g.join(':')}');
     }
+
+    // Vibe af (asetrate / apulsator / aecho) — after EQ, before reverb + lab chain.
+    // Placed here so the vibe filter transforms the audio stream that all
+    // subsequent filters (reverb, lab chain, balance) receive. asetrate changes
+    // sample rate; vibe modes that use it pair with aresample=44100 immediately
+    // after so downstream filters always get a 44100 Hz input.
+    if (_currentVibeAf.isNotEmpty) parts.add(_currentVibeAf);
 
     // Reverb chain (aecho)
     if (_currentReverbAf.isNotEmpty) parts.add(_currentReverbAf);
