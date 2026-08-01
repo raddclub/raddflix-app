@@ -71,7 +71,7 @@ class _DualSubtitleOverlayState extends State<DualSubtitleOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.primaryLine.isEmpty && widget.secondaryLine.isEmpty) {
+    if (widget.primaryLine.trim().isEmpty && widget.secondaryLine.trim().isEmpty) {
       return const SizedBox.shrink();
     }
 
