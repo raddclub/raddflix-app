@@ -49,6 +49,7 @@ import '../providers/subscription_provider.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:android_intent_plus/android_intent.dart';
 import '../core/player/subtitle_dubber.dart';
+import '../core/player/player_prefs.dart';
 import '../core/player/player_prefs_provider.dart';
 import '../design_system/components/radd_sheet.dart';
 import '../design_system/radius/radd_radius.dart';
