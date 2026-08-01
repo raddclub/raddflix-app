@@ -5,50 +5,33 @@
 
 ---
 
-## Current State (2026-07-30 — task planning: bug fixes + Vibe Modes)
+## Current State (2026-08-01 — Phase 0 bugs DONE, VIBE-1B DONE)
 
-Full plan written to `agent-hub/VIBE_BUGS_PLAN.md`. Task rows added to `agent-hub/TASKS.md`.
-No code changes this session — planning only.
+All three critical bug tasks from Phase 0 are fully implemented and pushed. VIBE-1B
+(PlaybackVibeMode enum + prefs) was also completed in the preceding session.
 
-Three critical bugs identified and fully root-caused (Phase 0). Vibe Modes feature planned in
-detail (Phases 1–5). All 20 tasks are OPEN, ready to pick up.
+**Next session: pick up Vibe Modes foundation — VIBE-1A (VibeController + VibeEngine skeleton)
+or VIBE-1C (VibeTransitionManager). See `agent-hub/VIBE_BUGS_PLAN.md` §1.**
 
-**Next session: start with SUB-GRAY-SCREEN (0A) — it is the highest-priority single fix.**
+### Phase 0 — Completed (CI green)
 
-### Open Tasks Summary
-
-| Phase | Tasks | Count |
+| Task | Final Commit | Notes |
 |---|---|---|
-| 0 — Critical Bugs | SUB-GRAY-SCREEN, PLAYER-PERF, THUMB-PERF | 3 |
-| 1 — Vibe Foundation | VIBE-1A through VIBE-1E | 5 |
-| 2 — Core Vibe Modes | VIBE-2A through VIBE-2D | 4 |
-| 3 — Extended Modes | VIBE-3A through VIBE-3C | 3 |
-| 4 — Vibe UI | VIBE-4A through VIBE-4D | 4 |
-| 5 — Vibe Polish | VIBE-5A through VIBE-5D | 4 |
+| SUB-GRAY-SCREEN | `170a32d3` | `subtitle_overlay.dart`: removed inner `Positioned.fill`, guard uses `.trim()` |
+| PLAYER-PERF | `15edbb83` | ValueNotifier (`5ea2e8a2`) + RepaintBoundary + debounce (`5ea2e8a2`) + `ref.select()` scope (`15edbb83`) |
+| THUMB-PERF | `5e1ce080` | Kotlin MMR fast path (`39b1683e`) + batch→2 + shimmer (`2c7ad8a7`) + disk cache eviction (`5e1ce080`) |
 
-### Phase 0 Root Cause Summary (for next agent — read before touching files)
+### Phase 1 — Vibe Modes Foundation
 
-**SUB-GRAY-SCREEN:** `SubtitleOverlay.build()` returns `Positioned.fill(...)` itself, but
-the parent already wraps it in `Positioned.fill → IgnorePointer`. In release builds, a
-`Positioned` outside a Stack silently fills its parent — the entire player area becomes a
-gray-tinted overlay. Secondary: whitespace-only lines pass the `.isEmpty` guard. Fix is
-in `subtitle_overlay.dart` only — remove inner `Positioned.fill`, use `Align + Padding`
-directly; change guard to `.trim().isEmpty`. See `agent-hub/VIBE_BUGS_PLAN.md` §0A.
+| Task | Status |
+|---|---|
+| VIBE-1A — VibeController + VibeEngine skeleton | ⬜ OPEN |
+| VIBE-1B — PlaybackVibeMode enum + prefs | ✅ DONE `6064bf82` |
+| VIBE-1C — VibeTransitionManager | ⬜ OPEN |
+| VIBE-1D — VibePresetLibrary | ⬜ OPEN |
+| VIBE-1E — VibeOrchestrator | ⬜ OPEN |
 
-**PLAYER-PERF:** Three causes: `setState()` on every subtitle stream tick (use
-`ValueNotifier` instead), Consumer blocks rebuilding on unrelated PlayerPrefs changes
-(use `ref.select()`), missing `RepaintBoundary` around subtitle overlay. See §0B.
-
-**THUMB-PERF:** Fallback thumbnail path uses `MediaKitThumbnailExtractor` which spins up
-a full libmpv `Player()` per thumbnail (~2–4s each). Fix: add `MediaMetadataRetriever`
-via Kotlin coroutine in `MediaStorePlugin.kt` as the true fallback. See §0C.
-
-### Previously Completed (this session context)
-
-All audio disc UI bugs (AUDIO-DISC-BUGS, AUDIO-DISC-BUGS-2), background audio fixes
-(BGAUDIO-SESSION, BGAUDIO-VID, BGAUDIO-UI), and input style standardization (INPUT-STYLE)
-are ✅ DONE. CI green on `d5b93d29`. No Oracle deployment needed — Flutter only. No open
-tasks before this session's planning work.
+Phases 2–5 (VIBE-2A through VIBE-5D): all ⬜ OPEN — see `agent-hub/TASKS.md`.
 
 ### Blocked tasks (no agent can fix without external input)
 
@@ -56,23 +39,25 @@ tasks before this session's planning work.
 - **SEC-05:** APK tamper-detection placeholder. Needs `keytool` run against release APK.
 - **SEC-04:** Vault PIN SHA-256 static salt. Needs PBKDF2 migration decision from owner.
 
-### This Session's Commits
+### This Session's Commits (2026-08-01)
 
 | SHA | Description |
 |---|---|
-| _(pending)_ | Add VIBE_BUGS_PLAN.md + TASKS.md entries + AGENT_HANDOFF update |
-
-**CI:** No code changes this session — no CI run needed.
+| `15edbb83` | 0B Fix 0B-2: ref.select() on subtitle Consumer in landscape + portrait stacks |
+| `2c7ad8a7` | 0C Fix 0C-3+5: batch thumbnail loading 4→2, shimmer placeholder for unloaded thumbs |
+| `5e1ce080` | 0C Fix 0C-4: disk cache eviction — 30-day age limit + 200 MB size cap in ThumbService |
+| _(this commit)_ | DOCS: mark Phase 0 tasks DONE, update HANDOFF + TASK_LOG |
 
 ---
 
 ### Previous sessions (for full history see TASK_LOG.md)
+- `6064bf82` — VIBE-1B (PlaybackVibeMode enum + prefs)
+- `39b1683e` — 0C THUMB-PERF: Kotlin MMR + ThumbService fast path
+- `5ea2e8a2` — 0B PLAYER-PERF: ValueNotifier + RepaintBoundary + debounce
+- `170a32d3` — 0A SUB-GRAY-SCREEN: SubtitleOverlay fix
 - `d5b93d29` — AUDIO-DISC-BUGS-2 (CI ✅)
-- `f59bebf` — AUDIO-DISC-BUGS (CI ✅)
-- `321b78e` — BGAUDIO-SESSION + BGAUDIO-VID (CI ✅)
-- `e3b828ea` — INPUT-STYLE (CI ✅)
-- `fd21ebb6` — BUG-APPLYALLAF (CI ✅)
-- `defb61e` — SUB-OVERLAY-FIX (subtitle architecture overhaul)
+- `f59bebf`  — AUDIO-DISC-BUGS (CI ✅)
+- `321b78e`  — BGAUDIO-SESSION + BGAUDIO-VID (CI ✅)
 
 ---
 

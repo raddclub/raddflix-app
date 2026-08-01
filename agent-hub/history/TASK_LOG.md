@@ -2556,3 +2556,67 @@ The comment still said "same painter used as both painter and foregroundPainter,
 
 **Commit:** `d5b93d29`
 **CI:** `d5b93d29` → `build-apk.yml` ✅ success.
+
+---
+
+## Session: 2026-08-01 — Phase 0 completion: SUB-GRAY-SCREEN, PLAYER-PERF, THUMB-PERF
+
+**Tasks completed:** SUB-GRAY-SCREEN ✅, PLAYER-PERF ✅, THUMB-PERF ✅
+**Previous session commits already on GitHub (not this session):** `170a32d3` (0A), `5ea2e8a2` (0B partial), `39b1683e` (0C partial), `6064bf82` (VIBE-1B)
+
+### Context on entry
+Three Phase 0 bug tasks were marked OPEN in TASKS.md despite the core fixes already being
+committed by the prior session. This session audited each task against the full plan in
+`VIBE_BUGS_PLAN.md`, identified the remaining plan items not yet implemented, and completed them.
+
+### SUB-GRAY-SCREEN — already complete
+`subtitle_overlay.dart` fix (remove `Positioned.fill`, `.trim()` guard) was committed at
+`170a32d3`. `DualSubtitleOverlay` uses a regular `Positioned(left,right,bottom)`, not
+`Positioned.fill` — a different pattern that does not cause the gray-screen bug and is valid
+inside its parent Stack. No further code change needed.
+
+### PLAYER-PERF — Fix 0B-2 added (commit `15edbb83`)
+Prior session (`5ea2e8a2`) delivered ValueNotifier, RepaintBoundary (both landscape and
+portrait stacks), and debounced `_applySubtitleMargin`. Remaining plan item was **Fix 0B-2**:
+scope the `Consumer` inside the `ValueListenableBuilder` to subtitle-relevant fields only via
+`ref.select()`. Without this, any PlayerPrefs mutation (EQ, speed, nightMode, volume) triggers
+a Consumer rebuild even though the subtitle layer is isolated behind a RepaintBoundary.
+
+**Implementation pattern:** `ref.watch(playerPrefsProvider.select((p) => (...record of 17 fields...)))`
+to trigger rebuilds only on subtitle-related changes, then `ref.read(playerPrefsProvider)` to
+fetch the full prefs object for `SubtitleOverlay`. Applied identically in both landscape
+(`player_screen.dart`) and portrait (`_ps_ui_mixin.dart`) stacks.
+
+Files changed: `raddflix_flutter/lib/screens/player_screen.dart`,
+`raddflix_flutter/lib/screens/player/_ps_ui_mixin.dart`
+
+### THUMB-PERF — Fixes 0C-3, 0C-4, 0C-5 added (commits `2c7ad8a7`, `5e1ce080`)
+Prior session (`39b1683e`) added the Kotlin `getFrameAtTime` via `MediaMetadataRetriever` and
+wired `ThumbService` to use it as the primary fallback. Remaining plan items:
+
+**Fix 0C-3 — batch size 4→2** (`local_folder_screen.dart`): reduces peak parallel MMR decode
+sessions so the codec thread is not saturated on mid-range devices.
+
+**Fix 0C-5 — shimmer placeholder** (`local_folder_screen.dart`): both `_VideoGridCard` and
+`_VideoListTile` now accept an `isLoading` bool. When `isLoading == true && thumb == null`,
+a `Shimmer.fromColors` skeleton is shown instead of a static play-circle icon placeholder.
+Call sites pass `!_thumbCache.containsKey(filePath)` as `isLoading`, so shimmer disappears
+the moment the fetch resolves (success or failure).
+
+**Fix 0C-4 — disk cache eviction** (`thumb_service.dart`): `_evictDiskCache()` runs once per
+process lifetime (guarded by `_evictChecked` flag, fire-and-forget via `unawaited`). Pass 1
+deletes `.jpg` cache files older than 30 days. Pass 2 sorts remaining files oldest-first and
+deletes until total size ≤ 150 MB (kicks in only when total > 200 MB).
+
+Files changed: `raddflix_flutter/lib/screens/local_folder_screen.dart`,
+`raddflix_flutter/lib/services/thumb_service.dart`
+
+### Commits this session
+
+| SHA | Description |
+|---|---|
+| `15edbb83` | 0B Fix 0B-2: ref.select() on subtitle Consumer in landscape + portrait stacks |
+| `2c7ad8a7` | 0C Fix 0C-3+5: batch thumbnail loading 4→2, shimmer placeholder for unloaded thumbs |
+| `5e1ce080` | 0C Fix 0C-4: disk cache eviction — 30-day age limit + 200 MB size cap in ThumbService |
+
+**CI:** see Rule 46 check below.
