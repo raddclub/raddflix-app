@@ -22,6 +22,9 @@ mixin _PlayerAudioLabMixin on ConsumerState<PlayerScreen> {
   SubtitleTrack? get _selectedSubtitle;
   Duration get _duration;
   double get _audioSync; set _audioSync(double v);
+  bool get _isAudioOnly;                         // branch speed vs. asetrate (VIBE-1C)
+  Future<void> _setSpeed(double speed);          // defined in _PlayerPlaybackMixin (VIBE-1C)
+  void _adjustSubSyncForVibe(PlaybackVibeMode mode); // defined in _PlayerSubtitleMixin (VIBE-1D)
 
   double _audioBalance = 0.0;
   String _currentBalanceAf = '';
@@ -36,6 +39,10 @@ mixin _PlayerAudioLabMixin on ConsumerState<PlayerScreen> {
   String _currentLabAf = '';    // active lab af chain from _AudioEffectPanel
   String _currentVibeAf = '';   // active vibe mode af segment (asetrate/apulsator/aecho)
   PlaybackVibeMode _currentVibe = PlaybackVibeMode.none;
+  // VIBE-1C: per-vibe EQ bass-boost overlay (phonk/club). Merged into the main
+  // equalizer= segment in _buildMergedAfString() so there is only ever one
+  // equalizer filter in the chain (prevents double-equalizer conflict).
+  List<int> _vibeBassBoostGains = List.filled(10, 0);
   // Lab state (persisted so panel reopens restore state)
   bool _labVocal = false;
   bool _labDialogue = false;
@@ -127,16 +134,25 @@ mixin _PlayerAudioLabMixin on ConsumerState<PlayerScreen> {
 
     // A2+A3: Always emit equalizer= when EQ is enabled (even all-zero) so MPV
     // explicitly clears any previous non-zero state instead of leaving stale gains.
-    // Also emit when Lab has EQ gains (Dialogue/Bass Boost) so those effects work
-    // even when the main EQ toggle is off.
-    if (_eqEnabled || labEqGains.any((v) => v != 0)) {
+    // Also emit when Lab has EQ gains (Dialogue/Bass Boost) or vibe has bass
+    // boost (phonk/club) so those effects work even when the main EQ toggle is off.
+    // VIBE-1C: _vibeBassBoostGains is merged here so there is never a second
+    // equalizer= filter in the chain (double-equalizer conflict prevention).
+    if (_eqEnabled ||
+        labEqGains.any((v) => v != 0) ||
+        _vibeBassBoostGains.any((v) => v != 0)) {
       final b = _eqBands;
       final g = [
-        b[0].round() + labEqGains[0],  b[0].round() + labEqGains[1],   // 31.25, 62.5 → 60Hz
-        b[1].round() + labEqGains[2],  b[1].round() + labEqGains[3],   // 125, 250 → 230Hz
-        b[2].round() + labEqGains[4],  b[2].round() + labEqGains[5],   // 500, 1000 → 910Hz
-        b[3].round() + labEqGains[6],  b[3].round() + labEqGains[7],   // 2000, 4000 → 3600Hz
-        b[4].round() + labEqGains[8],  b[4].round() + labEqGains[9],   // 8000, 16000 → 14000Hz
+        b[0].round() + labEqGains[0] + _vibeBassBoostGains[0],
+        b[0].round() + labEqGains[1] + _vibeBassBoostGains[1],   // 31.25, 62.5 → 60Hz
+        b[1].round() + labEqGains[2] + _vibeBassBoostGains[2],
+        b[1].round() + labEqGains[3] + _vibeBassBoostGains[3],   // 125, 250 → 230Hz
+        b[2].round() + labEqGains[4] + _vibeBassBoostGains[4],
+        b[2].round() + labEqGains[5] + _vibeBassBoostGains[5],   // 500, 1000 → 910Hz
+        b[3].round() + labEqGains[6] + _vibeBassBoostGains[6],
+        b[3].round() + labEqGains[7] + _vibeBassBoostGains[7],   // 2000, 4000 → 3600Hz
+        b[4].round() + labEqGains[8] + _vibeBassBoostGains[8],
+        b[4].round() + labEqGains[9] + _vibeBassBoostGains[9],   // 8000, 16000 → 14000Hz
       ].map((v) => v.clamp(-12, 12)).toList();
       parts.add('equalizer=${g.join(':')}');
     }
@@ -224,6 +240,102 @@ mixin _PlayerAudioLabMixin on ConsumerState<PlayerScreen> {
     } catch (e) {
       if (kDebugMode) debugPrint('[AudioLab] _applyAllAf ERROR: $e | filter: $filterStr');
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  VIBE-1C — Vibe mode application
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Sets EQ bass-boost bands for phonk/club modes.  Does NOT call _applyAllAf()
+  // directly — the caller (_applyVibeMode) triggers the single merged apply at
+  // the end of the switch so the full chain is rebuilt in one MPV property write.
+  void _applyVibeBassBoost({required double intensity}) {
+    // Sub-bass (31.25, 62.5 Hz) up to +8 dB; bass (125, 250 Hz) up to +6 dB.
+    // Mid/treble bands (500 Hz and above) are left untouched so EQ presets
+    // and the user's custom EQ are not sonically overridden by the vibe.
+    final subBassDb = (intensity * 8).round().clamp(0, 12);
+    final bassDb    = (intensity * 6).round().clamp(0, 12);
+    _vibeBassBoostGains = [
+      subBassDb, subBassDb,  // 31.25 Hz, 62.5 Hz
+      bassDb,    bassDb,     // 125 Hz, 250 Hz
+      0, 0, 0, 0, 0, 0,     // 500 Hz → 16000 Hz — untouched
+    ];
+  }
+
+  // Applies a vibe mode: sets _currentVibeAf, adjusts playback speed (video
+  // files), rebuilds the merged af chain, and compensates subtitle timing.
+  // For audio-only files, asetrate+aresample replaces speed changes so the
+  // video track (absent) is unaffected and the pitch/tempo relationship is
+  // kept purely in the audio filter graph.
+  void _applyVibeMode(PlaybackVibeMode mode) {
+    setState(() => _currentVibe = mode);
+    // Reset the bass-boost overlay before each mode so switching phonk → lofi
+    // (or any non-boost mode) doesn't keep the previous boost in the EQ chain.
+    _vibeBassBoostGains = List.filled(10, 0);
+
+    switch (mode) {
+      case PlaybackVibeMode.none:
+        _currentVibeAf = '';
+        _setSpeed(1.0);
+        break;
+
+      case PlaybackVibeMode.slowed:
+        if (_isAudioOnly) {
+          _currentVibeAf = 'asetrate=44100*0.82,aresample=44100';
+        } else {
+          _currentVibeAf = '';
+          _setSpeed(0.82);
+        }
+        break;
+
+      case PlaybackVibeMode.slowedReverb:
+        final slowPart = _isAudioOnly
+            ? 'asetrate=44100*0.82,aresample=44100,'
+            : '';
+        _currentVibeAf = '${slowPart}aecho=0.8:0.88:300|600|900:0.4|0.25|0.12';
+        if (!_isAudioOnly) _setSpeed(0.82);
+        break;
+
+      case PlaybackVibeMode.nightcore:
+        if (_isAudioOnly) {
+          _currentVibeAf = 'asetrate=44100*1.25,aresample=44100';
+        } else {
+          _currentVibeAf = '';
+          _setSpeed(1.25);
+        }
+        break;
+
+      case PlaybackVibeMode.lofi:
+        // Very mild speed change (0.93×) — barely noticeable on video.
+        // lowpass=f=9000 gives the warm, slightly muffled cassette feel.
+        final lofiSlow = _isAudioOnly ? 'asetrate=44100*0.93,aresample=44100,' : '';
+        _currentVibeAf = '${lofiSlow}lowpass=f=9000,aecho=0.65:0.75:80|200:0.2|0.12';
+        if (!_isAudioOnly) _setSpeed(0.93);
+        break;
+
+      case PlaybackVibeMode.eightD:
+        // Pure panning LFO — no speed change. Works equally on video and audio.
+        _currentVibeAf = 'apulsator=hz=0.18:type=sine:width=1.0';
+        break;
+
+      case PlaybackVibeMode.phonk:
+        final phonkSlow = _isAudioOnly ? 'asetrate=44100*0.90,aresample=44100,' : '';
+        _currentVibeAf = '${phonkSlow}aecho=0.78:0.88:200|400:0.4|0.2';
+        if (!_isAudioOnly) _setSpeed(0.90);
+        _applyVibeBassBoost(intensity: 0.8);
+        break;
+
+      case PlaybackVibeMode.club:
+        // No speed change — pure audio effect.
+        _currentVibeAf =
+            'extrastereo=m=2.5,acompressor=threshold=0.4:ratio=4:attack=20:release=250';
+        _applyVibeBassBoost(intensity: 0.5);
+        break;
+    }
+
+    _applyAllAf();
+    _adjustSubSyncForVibe(mode); // VIBE-1D
+    _scheduleSavePrefs();
   }
 
   void _adjustAudioSync(double delta) {

@@ -109,6 +109,31 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
     _scheduleSavePrefs(); // was previously never persisted — reset to 0 on next open
   }
 
+  // VIBE-1D: Set MPV's sub-speed so subtitle timestamps stay in sync with
+  // a slowed or sped-up audio stream. Without this, subtitles indexed to
+  // real-time positions drift ahead of/behind the vibe-shifted audio.
+  // sub-speed is a multiplier on the subtitle's timestamp clock — setting it
+  // to the same ratio as the vibe speed makes the two streams re-align.
+  void _adjustSubSyncForVibe(PlaybackVibeMode mode) {
+    final double speedRatio;
+    switch (mode) {
+      case PlaybackVibeMode.slowed:
+      case PlaybackVibeMode.slowedReverb:
+        speedRatio = 0.82;
+      case PlaybackVibeMode.nightcore:
+        speedRatio = 1.25;
+      case PlaybackVibeMode.lofi:
+        speedRatio = 0.93;
+      case PlaybackVibeMode.phonk:
+        speedRatio = 0.90;
+      default: // none, eightD, club — no speed change
+        speedRatio = 1.0;
+    }
+    try {
+      _np.setProperty('sub-speed', speedRatio.toStringAsFixed(2));
+    } catch (_) {}
+  }
+
   // Called from _loadPrefs() at player startup so saved subtitle style/position
   // is applied to MPV immediately — without requiring the user to open the
   // subtitle panel first (which was the only place _loadSubPrefs() ran before).
