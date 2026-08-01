@@ -46,6 +46,12 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
   String? get _currentSubLine => _currentSubLineNotifier.value;
   set _currentSubLine(String? v) => _currentSubLineNotifier.value = v;
 
+  // DUAL-SUB: secondary subtitle line — from secondary-sid track (stream lines[1]).
+  // Kept alongside _currentSubLineNotifier so both notifiers live in the same mixin.
+  final ValueNotifier<String?> _currentSecondSubLineNotifier = ValueNotifier(null);
+  String? get _currentSecondSubLine => _currentSecondSubLineNotifier.value;
+  set _currentSecondSubLine(String? v) => _currentSecondSubLineNotifier.value = v;
+
   double _subSync = 0.0; // seconds
   double _subSpeed = 1.0; // 0.5..2.0
   String? _currentSubFile;

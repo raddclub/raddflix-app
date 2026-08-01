@@ -33,6 +33,10 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
   String? get _currentSubFile; set _currentSubFile(String? v);
   // SUB-OVERLAY-FIX: declared in _PlayerSubtitleMixin; written here in stream.subtitle.listen
   String? get _currentSubLine; set _currentSubLine(String? v);
+  // DUAL-SUB: secondary track line; declared in _PlayerSubtitleMixin
+  String? get _currentSecondSubLine; set _currentSecondSubLine(String? v);
+  // VIBE-1E: declared in _PlayerAudioLabMixin; called on episode navigation
+  void _applyVibeMode(PlaybackVibeMode mode);
   Timer? get _hideTimer; set _hideTimer(Timer? v);
   Timer? get _immersiveExitTimer;
   Duration? get _introEnd; set _introEnd(Duration? v);
@@ -576,6 +580,10 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
         // This avoids rebuilding the entire player tree on every subtitle tick
         // (1–10/s). SubtitleOverlay rebuilds via ValueListenableBuilder only.
         _currentSubLine = line;
+        // DUAL-SUB: secondary-sid track line arrives at index 1 when active.
+        // Trim guard prevents whitespace-only lines from triggering a render.
+        final raw2 = lines.length > 1 ? lines[1] : null;
+        _currentSecondSubLine = (raw2 != null && raw2.trim().isNotEmpty) ? raw2 : null;
       }),
     ]);
   }

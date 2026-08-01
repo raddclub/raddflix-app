@@ -58,6 +58,7 @@ import '../widgets/player/audio_mode_backdrop.dart';
 import '../core/player/word_dict.dart';
 import '../widgets/player/word_definition_sheet.dart';
 import '../widgets/player/subtitle_overlay.dart'; // SUB-OVERLAY-FIX
+import '../widgets/player/dual_subtitle_overlay.dart'; // DUAL-SUB
 import '../core/player/subtitle_style.dart';
 import '../core/utils/anim_config.dart';
 import '../core/utils/anim_durations.dart';
@@ -805,9 +806,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                 p.subtitleVerticalOffset,    p.dictEnabled,
                                 p.accentColorValue,          p.subtitlePersonalityEnabled,
                                 p.subtitlePersonalityIntensity, p.phoneticOverlayEnabled,
-                                p.phoneticOverlayFontScale,
+                                p.phoneticOverlayFontScale,  p.dualSubtitlesEnabled,
                               )));
                               final prefs = ref.read(playerPrefsProvider);
+                              // DUAL-SUB: when dual mode is on, the DualSubtitleOverlay
+                              // block below takes over rendering; suppress the single
+                              // overlay so lines don't render twice.
+                              if (prefs.dualSubtitlesEnabled) return const SizedBox.shrink();
                               return IgnorePointer(
                                 ignoring: !prefs.dictEnabled,
                                 child: SubtitleOverlay(
@@ -822,6 +827,42 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                                 ),
                               );
                             },
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+
+                // DUAL-SUB: dual-subtitle overlay — shown when dualSubtitlesEnabled.
+                // Uses two ValueListenableBuilders so each line's stream drives its
+                // own narrow rebuild without touching the rest of the player tree.
+                if (!_isAudioOnly)
+                  Positioned.fill(
+                    child: RepaintBoundary(
+                      child: Consumer(
+                        builder: (ctx, ref, _) {
+                          if (!ref.watch(playerPrefsProvider
+                              .select((p) => p.dualSubtitlesEnabled))) {
+                            return const SizedBox.shrink();
+                          }
+                          final prefs = ref.read(playerPrefsProvider);
+                          return ValueListenableBuilder<String?>(
+                            valueListenable: _currentSubLineNotifier,
+                            builder: (_, primary, __) =>
+                                ValueListenableBuilder<String?>(
+                              valueListenable: _currentSecondSubLineNotifier,
+                              builder: (_, secondary, __) => DualSubtitleOverlay(
+                                primaryLine:   primary  ?? '',
+                                secondaryLine: secondary ?? '',
+                                prefs: prefs,
+                                onPausedForLookup: () {
+                                  try { _player.pause(); } catch (_) {}
+                                },
+                                onResumedAfterLookup: () {
+                                  try { _player.play(); } catch (_) {}
+                                },
+                              ),
+                            ),
                           );
                         },
                       ),
