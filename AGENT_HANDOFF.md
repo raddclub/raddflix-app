@@ -5,59 +5,107 @@
 
 ---
 
-## Current State (2026-08-01 — VIBE-1A DONE)
+## Current State (2026-08-01 — ALL Vibe Phases 0–5 DONE)
 
-Phase 0 complete. VIBE-1B (PlaybackVibeMode enum + prefs) was done in the prior session.
-VIBE-1A (`_currentVibeAf` state + vibe slot in `_buildMergedAfString()`) is now done.
+Phase 0 (critical bug fixes) and the full Vibe Modes feature (Phases 1–5, all 20 tasks) are
+complete. The entire `VIBE_BUGS_PLAN.md` is shipped.
 
-**Next session: pick up VIBE-1C — `_applyVibeMode(PlaybackVibeMode)` in `_ps_audiolab_mixin.dart`.
-See `agent-hub/VIBE_BUGS_PLAN.md` §1C for the full method body.**
+**Next session: pick up the FEATURES_ROADMAP.md — Phase A (Full UI Theme Engine) is the
+highest-priority unstarted work.** Start with A1 (Accent Color System) → A2 (Seek Bar Styles)
+→ A5 (Saved Themes / "Sakura"). See `agent-hub/FEATURES_ROADMAP.md` for full spec.
 
-### Phase 0 — Completed (CI green)
+---
+
+### Phase 0 — Critical Bug Fixes — ALL DONE (CI green)
 
 | Task | Final Commit | Notes |
 |---|---|---|
 | SUB-GRAY-SCREEN | `170a32d3` | `subtitle_overlay.dart`: removed inner `Positioned.fill`, guard uses `.trim()` |
-| PLAYER-PERF | `15edbb83` | ValueNotifier (`5ea2e8a2`) + RepaintBoundary + debounce (`5ea2e8a2`) + `ref.select()` scope (`15edbb83`) |
-| THUMB-PERF | `5e1ce080` | Kotlin MMR fast path (`39b1683e`) + batch→2 + shimmer (`2c7ad8a7`) + disk cache eviction (`5e1ce080`) |
+| PLAYER-PERF | `15edbb83` | ValueNotifier + RepaintBoundary + debounce + `ref.select()` scope |
+| THUMB-PERF | `5e1ce080` | Kotlin MMR fast path + batch→2 + shimmer + disk cache eviction |
+| DUAL-SUB-TRIM | `52170dd2` | `dual_subtitle_overlay.dart`: `.isEmpty` → `.trim().isEmpty` |
+| DUAL-SUB-STACK | `204c7c3a` | `DualSubtitleOverlay` wired into both landscape+portrait stacks |
 
-### Phase 1 — Vibe Modes Foundation
+---
 
-| Task | Status |
-|---|---|
-| VIBE-1A — VibeController + VibeEngine skeleton | ⬜ OPEN |
-| VIBE-1B — PlaybackVibeMode enum + prefs | ✅ DONE `6064bf82` |
-| VIBE-1C — VibeTransitionManager | ⬜ OPEN |
-| VIBE-1D — VibePresetLibrary | ⬜ OPEN |
-| VIBE-1E — VibeOrchestrator | ⬜ OPEN |
+### Phase 1 — Vibe Modes Foundation — ALL DONE
 
-Phases 2–5 (VIBE-2A through VIBE-5D): all ⬜ OPEN — see `agent-hub/TASKS.md`.
+| Task | Status | Commit |
+|---|---|---|
+| VIBE-1A — af-pipeline slot for vibe | ✅ DONE | `0e338263` |
+| VIBE-1B — PlaybackVibeMode enum + prefs | ✅ DONE | `6064bf82` |
+| VIBE-1C — `_applyVibeMode()` + `_applyVibeBassBoost()` | ✅ DONE | `4c61c79a` |
+| VIBE-1D — `_adjustSubSyncForVibe()` sub-speed compensation | ✅ DONE | `4c61c79a` |
+| VIBE-1E — reset vibe on episode nav | ✅ DONE | `7ea55258` |
+
+---
+
+### Phase 2 — Core 4 Vibe Modes — ALL DONE
+
+| Task | Status | Notes |
+|---|---|---|
+| VIBE-2A — Slowed (0.82×, pitch natural) | ✅ DONE | in `_applyVibeMode()` (`4c61c79a`) |
+| VIBE-2B — Slowed + Reverb | ✅ DONE | in `_applyVibeMode()` (`4c61c79a`) |
+| VIBE-2C — NightCore (1.25×, pitch up) | ✅ DONE | in `_applyVibeMode()` (`4c61c79a`) |
+| VIBE-2D — Lofi (0.93×, lowpass + subtle reverb) | ✅ DONE | in `_applyVibeMode()` (`4c61c79a`) |
+
+---
+
+### Phase 3 — Extended Vibe Modes — ALL DONE
+
+| Task | Status | Notes |
+|---|---|---|
+| VIBE-3A — 8D Audio (apulsator panning) | ✅ DONE | in `_applyVibeMode()` (`4c61c79a`) |
+| VIBE-3B — Phonk (0.90×, heavy bass boost) | ✅ DONE | in `_applyVibeMode()` (`4c61c79a`) |
+| VIBE-3C — Club Mix (extra-stereo + slight speed) | ✅ DONE | in `_applyVibeMode()` (`4c61c79a`) |
+
+---
+
+### Phase 4 — Vibe Modes UI — ALL DONE
+
+| Task | Status | File |
+|---|---|---|
+| VIBE-4A — "Vibe" tab in Audio Effect panel (4-col GridView) | ✅ DONE | `_ps_panels_audio.dart` |
+| VIBE-4B — `_VibeModeCard` widget (icon + name + active glow border) | ✅ DONE | `_ps_panels_audio.dart` |
+| VIBE-4C — Quick bar integration (sidebar item shows active mode name) | ✅ DONE | `_ps_ui_mixin.dart` |
+| VIBE-4D — Audio-only backdrop Vibe chip (tap to cycle, shows name) | ✅ DONE | `audio_mode_backdrop.dart` |
+
+---
+
+### Phase 5 — Vibe Modes Polish — ALL DONE
+
+| Task | Status | File |
+|---|---|---|
+| VIBE-5A — "Remember Vibe" toggle in Settings (default OFF) | ✅ DONE | `settings_screen.dart` |
+| VIBE-5B — Vibe mode HUD badge (purple pill when mode ≠ none) | ✅ DONE | `_ps_ui_mixin.dart` |
+| VIBE-5C — Filter stacking safety (skip reverb+extrastereo conflicts) | ✅ DONE | `_ps_audiolab_mixin.dart` |
+| VIBE-5D — Voice commands (`vibeNext` + `vibeOff`) | ✅ DONE | `voice_commands_service.dart` + `_ps_ui_mixin.dart` |
+
+---
 
 ### Blocked tasks (no agent can fix without external input)
 
 - **SEC-01:** Plain HTTP API. Needs domain + TLS cert provisioned on Oracle.
-- **SEC-05:** APK tamper-detection placeholder. Needs `keytool` run against release APK.
 - **SEC-04:** Vault PIN SHA-256 static salt. Needs PBKDF2 migration decision from owner.
-
-### This Session's Commits (2026-08-01)
-
-| SHA | Description |
-|---|---|
-| `15edbb83` | 0B Fix 0B-2: ref.select() on subtitle Consumer in landscape + portrait stacks |
-| `2c7ad8a7` | 0C Fix 0C-3+5: batch thumbnail loading 4→2, shimmer placeholder for unloaded thumbs |
-| `5e1ce080` | 0C Fix 0C-4: disk cache eviction — 30-day age limit + 200 MB size cap in ThumbService |
-| _(this commit)_ | DOCS: mark Phase 0 tasks DONE, update HANDOFF + TASK_LOG |
+- **SEC-05:** APK tamper-detection placeholder. Needs `keytool` run against release keystore.
 
 ---
 
-### Previous sessions (for full history see TASK_LOG.md)
-- `6064bf82` — VIBE-1B (PlaybackVibeMode enum + prefs)
-- `39b1683e` — 0C THUMB-PERF: Kotlin MMR + ThumbService fast path
-- `5ea2e8a2` — 0B PLAYER-PERF: ValueNotifier + RepaintBoundary + debounce
-- `170a32d3` — 0A SUB-GRAY-SCREEN: SubtitleOverlay fix
-- `d5b93d29` — AUDIO-DISC-BUGS-2 (CI ✅)
-- `f59bebf`  — AUDIO-DISC-BUGS (CI ✅)
-- `321b78e`  — BGAUDIO-SESSION + BGAUDIO-VID (CI ✅)
+### Previous session commits (for full history see TASK_LOG.md)
+
+| SHA | Description |
+|---|---|
+| `52170dd2` | DUAL-SUB-TRIM: `.isEmpty` → `.trim().isEmpty` in DualSubtitleOverlay |
+| `204c7c3a` | DUAL-SUB: wire DualSubtitleOverlay into both player stacks |
+| `4c61c79a` | VIBE-1C/1D + Phases 2–3: all 7 modes in `_applyVibeMode()`, bass boost, sub-sync |
+| `7ea55258` | VIBE-1E: reset vibe mode on episode navigation |
+| `0e338263` | VIBE-1A: af-pipeline slot |
+| `6064bf82` | VIBE-1B: PlaybackVibeMode enum + prefs |
+| `15edbb83` | Phase 0B PLAYER-PERF: ref.select() on subtitle Consumer |
+| `5e1ce080` | Phase 0C THUMB-PERF: disk cache eviction |
+| `170a32d3` | Phase 0A SUB-GRAY-SCREEN: SubtitleOverlay fix |
+| `d5b93d29` | AUDIO-DISC-BUGS-2 (CI ✅) |
+| `f59bebf`  | AUDIO-DISC-BUGS (CI ✅) |
 
 ---
 
