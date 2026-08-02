@@ -338,6 +338,20 @@ mixin _PlayerAudioLabMixin on ConsumerState<PlayerScreen> {
     _scheduleSavePrefs();
   }
 
+  /// Human-readable name for a vibe mode (used in HUD badge and voice-cmd toast).
+  String _vibeLabel(PlaybackVibeMode mode) {
+    switch (mode) {
+      case PlaybackVibeMode.none:          return 'Normal';
+      case PlaybackVibeMode.slowed:        return 'Slowed';
+      case PlaybackVibeMode.slowedReverb:  return 'Slowed+Reverb';
+      case PlaybackVibeMode.nightcore:     return 'NightCore';
+      case PlaybackVibeMode.lofi:          return 'Lofi';
+      case PlaybackVibeMode.eightD:        return '8D';
+      case PlaybackVibeMode.phonk:         return 'Phonk';
+      case PlaybackVibeMode.club:          return 'Club Mix';
+    }
+  }
+
   void _adjustAudioSync(double delta) {
     _audioSync = (_audioSync + delta);
     try { _np.setProperty('audio-delay', _audioSync.toStringAsFixed(1)); } catch (_) {}

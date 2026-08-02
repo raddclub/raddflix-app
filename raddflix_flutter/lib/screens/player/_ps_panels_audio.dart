@@ -72,6 +72,10 @@ class _AudioEffectPanel extends StatefulWidget {
   final bool labStereoWide;
   final bool labNoise;
   final String initialReverbPreset;
+  // VIBE-4A: Vibe tab params
+  final PlaybackVibeMode currentVibeMode;
+  final void Function(PlaybackVibeMode) onVibeModeChanged;
+  final int initialTabIndex;
 
   const _AudioEffectPanel({
     required this.selectedPreset,
@@ -85,6 +89,8 @@ class _AudioEffectPanel extends StatefulWidget {
     required this.onLabStateChanged,
     required this.audioBalance,
     required this.onBalanceChanged,
+    required this.currentVibeMode,
+    required this.onVibeModeChanged,
     this.labVocal = false,
     this.labDialogue = false,
     this.labNorm = false,
@@ -95,6 +101,7 @@ class _AudioEffectPanel extends StatefulWidget {
     this.labStereoWide = false,
     this.labNoise = false,
     this.initialReverbPreset = 'None',
+    this.initialTabIndex = 0,
   });
 
   @override
@@ -102,7 +109,7 @@ class _AudioEffectPanel extends StatefulWidget {
 }
 
 class _AudioEffectPanelState extends State<_AudioEffectPanel> {
-  int _tab = 0; // 0=Presets 1=Equalizer 2=Lab
+  int _tab = 0; // 0=Presets 1=Equalizer 2=Lab 3=Vibe
   late List<double> _bands;
   late int _preset;
   late bool _eqEnabled;
@@ -157,9 +164,23 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
     Icons.library_music_rounded,
   ];
 
+  static String _vibeModeLabel(PlaybackVibeMode mode) {
+    switch (mode) {
+      case PlaybackVibeMode.none:          return 'Normal';
+      case PlaybackVibeMode.slowed:        return 'Slowed';
+      case PlaybackVibeMode.slowedReverb:  return 'Slowed+Reverb';
+      case PlaybackVibeMode.nightcore:     return 'NightCore';
+      case PlaybackVibeMode.lofi:          return 'Lofi';
+      case PlaybackVibeMode.eightD:        return '8D Audio';
+      case PlaybackVibeMode.phonk:         return 'Phonk';
+      case PlaybackVibeMode.club:          return 'Club Mix';
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    _tab = widget.initialTabIndex;
     _bands = List.from(widget.eqBands);
     _preset = widget.selectedPreset;
     _eqEnabled = widget.eqEnabled;
@@ -192,6 +213,7 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
                 (label: 'Presets', idx: 0),
                 (label: 'Equalizer', idx: 1),
                 (label: 'Lab', idx: 2),
+                (label: 'Vibe', idx: 3),
               ])
                 GestureDetector(
                   onTap: () => setState(() => _tab = entry.idx),
@@ -415,6 +437,53 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
                     ),
                   ],
                 ),
+              ],
+            ),
+          ),
+
+        // VIBE-4A/4B: Vibe tab
+        if (_tab == 3)
+          Expanded(
+            child: GridView.count(
+              padding: const EdgeInsets.all(RaddSpace.md),
+              crossAxisCount: 2,
+              childAspectRatio: 2.4,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              children: [
+                for (final mode in PlaybackVibeMode.values)
+                  GestureDetector(
+                    onTap: () => widget.onVibeModeChanged(mode),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: widget.currentVibeMode == mode
+                            ? const Color(0xFF9C7BEF).withOpacity(0.22)
+                            : AppColors.surfaceHigh,
+                        borderRadius: RaddRadius.smRadius,
+                        border: Border.all(
+                          color: widget.currentVibeMode == mode
+                              ? const Color(0xFF9C7BEF).withOpacity(0.70)
+                              : Colors.transparent,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          _vibeModeLabel(mode),
+                          style: TextStyle(
+                            color: widget.currentVibeMode == mode
+                                ? const Color(0xFFCEB8FF)
+                                : Colors.white70,
+                            fontSize: 12.5,
+                            fontWeight: widget.currentVibeMode == mode
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

@@ -49,6 +49,9 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   void _toggleLoop();
   void _toggleShuffle();
   void _toggleMute();
+  // VIBE modes — defined in _PlayerAudioLabMixin (VIBE-4C/5B)
+  void _applyVibeMode(PlaybackVibeMode mode);
+  String _vibeLabel(PlaybackVibeMode mode);
 
   // ── Cross-cluster fields (defined in other mixins) ────────────────────────
   Duration? get _abA; set _abA(Duration? v);
@@ -68,6 +71,10 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   String? get _currentSubLine;
   // 0B PLAYER-PERF: notifier for subtitle-tick-driven rebuilds (no setState).
   ValueNotifier<String?> get _currentSubLineNotifier;
+  // DUAL-SUB notifier — defined in _PlayerSubtitleMixin (DUAL-SUB)
+  ValueNotifier<String?> get _currentSecondSubLineNotifier;
+  // VIBE mode state — defined in _PlayerAudioLabMixin (VIBE-4C/5B)
+  PlaybackVibeMode get _currentVibe;
   String get _dubActiveLang;
   bool get _dubGenerating;
   String get _endAction; set _endAction(String v);

@@ -23,6 +23,7 @@ import 'package:flutter_media_metadata/flutter_media_metadata.dart';
 import 'package:palette_generator/palette_generator.dart';
 import 'package:path/path.dart' as p;
 import '../../core/player/haptic_service.dart';
+import '../../core/player/player_prefs.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Public widget
@@ -49,6 +50,10 @@ class AudioModeBackdrop extends StatefulWidget {
   final VoidCallback onLoopToggle;
   final VoidCallback onShuffleToggle;
 
+  // VIBE-4D: vibe mode chip
+  final PlaybackVibeMode currentVibeMode;
+  final VoidCallback? onVibeCycle;
+
   const AudioModeBackdrop({
     super.key,
     required this.isPlaying,
@@ -66,6 +71,8 @@ class AudioModeBackdrop extends StatefulWidget {
     this.shuffleEnabled = false,
     VoidCallback? onLoopToggle,
     VoidCallback? onShuffleToggle,
+    this.currentVibeMode = PlaybackVibeMode.none,
+    this.onVibeCycle,
   })  : onLoopToggle = onLoopToggle ?? _noop,
         onShuffleToggle = onShuffleToggle ?? _noop;
 
@@ -388,6 +395,32 @@ class _AudioModeBackdropState extends State<AudioModeBackdrop>
               child: _TitleRow(title: widget.title),
             ),
 
+            // VIBE-4D: vibe mode chip — shown when a mode is active
+            if (widget.currentVibeMode != PlaybackVibeMode.none)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: GestureDetector(
+                  onTap: widget.onVibeCycle,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF9C7BEF).withOpacity(0.18),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: const Color(0xFF9C7BEF).withOpacity(0.45), width: 1),
+                    ),
+                    child: Text(
+                      '✦ ${_vibeChipLabel(widget.currentVibeMode)}',
+                      style: const TextStyle(
+                        color: Color(0xFFCEB8FF),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
             // Glass controls card at the very bottom.
             SafeArea(
               top: false,
@@ -442,6 +475,20 @@ class _AudioModeBackdropState extends State<AudioModeBackdrop>
         ),
       ],
     );
+  }
+
+  // VIBE-4D: maps PlaybackVibeMode → display label for the chip.
+  static String _vibeChipLabel(PlaybackVibeMode mode) {
+    switch (mode) {
+      case PlaybackVibeMode.none:          return 'Normal';
+      case PlaybackVibeMode.slowed:        return 'Slowed';
+      case PlaybackVibeMode.slowedReverb:  return 'Slowed+Reverb';
+      case PlaybackVibeMode.nightcore:     return 'NightCore';
+      case PlaybackVibeMode.lofi:          return 'Lofi';
+      case PlaybackVibeMode.eightD:        return '8D';
+      case PlaybackVibeMode.phonk:         return 'Phonk';
+      case PlaybackVibeMode.club:          return 'Club Mix';
+    }
   }
 }
 
