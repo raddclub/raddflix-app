@@ -10,6 +10,7 @@
 //
 // Pull-to-refresh triggers a fresh fetch from Oracle.
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -18,6 +19,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants.dart';
 import '../core/theme/radd_theme.dart';
 import '../core/design/app_icons.dart';
+import '../core/services/poster_service.dart';
 import '../design_system/components/radd_button.dart';
 import '../design_system/components/radd_chip.dart';
 import '../design_system/radius/radd_radius.dart';
@@ -518,14 +520,11 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
                     children: [
                       SizedBox(
                         width: 38, height: 38,
-                        child: ch.logoUrl.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: ch.logoUrl,
-                                fit: BoxFit.contain,
-                                placeholder: (_, __) => Icon(AppIcons.tv, size: 20, color: t.textMuted.withOpacity(0.5)),
-                                errorWidget: (_, __, ___) => Icon(AppIcons.tv, size: 20, color: t.textMuted.withOpacity(0.5)),
-                              )
-                            : Icon(AppIcons.tv, size: 20, color: t.textMuted.withOpacity(0.5)),
+                        child: _ChannelLogo(
+                                channel: ch,
+                                iconSize: 20,
+                                fallback: Icon(AppIcons.tv, size: 20, color: t.textMuted.withOpacity(0.5)),
+                              ),
                       ),
                       const SizedBox(height: 5),
                       Padding(
@@ -628,14 +627,11 @@ class _FeaturedHero extends StatelessWidget {
                         ),
                         child: Padding(
                           padding: const EdgeInsets.all(10),
-                          child: channel.logoUrl.isNotEmpty
-                              ? CachedNetworkImage(
-                                  imageUrl: channel.logoUrl,
-                                  fit: BoxFit.contain,
-                                  placeholder: (_, __) => Icon(AppIcons.tv, color: Colors.white54, size: 32),
-                                  errorWidget: (_, __, ___) => Icon(AppIcons.tv, color: Colors.white54, size: 32),
-                                )
-                              : Icon(AppIcons.tv, color: Colors.white54, size: 32),
+                          child: _ChannelLogo(
+                                  channel: channel,
+                                  iconSize: 32,
+                                  fallback: Icon(AppIcons.tv, color: Colors.white54, size: 32),
+                                ),
                         ),
                       ),
 
@@ -884,14 +880,11 @@ class _HorizontalCard extends StatelessWidget {
                       child: Center(
                         child: Padding(
                           padding: const EdgeInsets.all(10),
-                          child: channel.logoUrl.isNotEmpty
-                              ? CachedNetworkImage(
-                                  imageUrl: channel.logoUrl,
-                                  fit: BoxFit.contain,
-                                  placeholder: (_, __) => Icon(AppIcons.tv, color: t.textMuted.withOpacity(0.5), size: 24),
-                                  errorWidget: (_, __, ___) => _SmallLogoFallback(name: channel.name, muted: t.textMuted),
-                                )
-                              : _SmallLogoFallback(name: channel.name, muted: t.textMuted),
+                          child: _ChannelLogo(
+                                  channel: channel,
+                                  iconSize: 24,
+                                  fallback: _SmallLogoFallback(name: channel.name, muted: t.textMuted),
+                                ),
                         ),
                       ),
                     ),
@@ -1026,15 +1019,11 @@ class _GridCard extends StatelessWidget {
                         child: Center(
                           child: Padding(
                             padding: const EdgeInsets.all(14),
-                            child: channel.logoUrl.isNotEmpty
-                                ? CachedNetworkImage(
-                                    imageUrl: channel.logoUrl,
-                                    fit: BoxFit.contain,
-                                    fadeInDuration: const Duration(milliseconds: 300),
-                                    placeholder: (_, __) => Icon(AppIcons.tv, color: t.textMuted.withOpacity(0.5), size: 34),
-                                    errorWidget: (_, __, ___) => _LogoFallback(name: channel.name, muted: t.textMuted),
-                                  )
-                                : _LogoFallback(name: channel.name, muted: t.textMuted),
+                            child: _ChannelLogo(
+                                    channel: channel,
+                                    iconSize: 34,
+                                    fallback: _LogoFallback(name: channel.name, muted: t.textMuted),
+                                  ),
                           ),
                         ),
                       ),
@@ -1138,6 +1127,103 @@ class _GridCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// ── Disk-first channel logo (I-03) ────────────────────────────────────────────
+//
+// Priority:
+//   1. Already cached on disk (logoPath from SQLite or PosterService check)  → instant
+//   2. Network download via CachedNetworkImage + trigger disk save in background
+//   3. Fallback icon + channel name initials on error / empty URL
+//
+// The widget is intentionally stateful so it can kick off a background
+// download without blocking the card render.  It never blocks the UI thread.
+
+class _ChannelLogo extends StatefulWidget {
+  final LiveChannel channel;
+  final double iconSize;
+  final Widget fallback;
+
+  const _ChannelLogo({
+    required this.channel,
+    required this.iconSize,
+    required this.fallback,
+  });
+
+  @override
+  State<_ChannelLogo> createState() => _ChannelLogoState();
+}
+
+class _ChannelLogoState extends State<_ChannelLogo> {
+  String? _diskPath;
+  bool _diskChecked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Use logoPath from the model first (zero-async — already in SQLite row).
+    if (widget.channel.logoPath != null) {
+      _diskPath = widget.channel.logoPath;
+      _diskChecked = true;
+    } else {
+      _checkDisk();
+    }
+  }
+
+  Future<void> _checkDisk() async {
+    final path = await PosterService.getChannelLogoPath(widget.channel.id);
+    if (!mounted) return;
+    setState(() {
+      _diskPath = path;
+      _diskChecked = true;
+    });
+    // If not on disk and URL available, download in the background.
+    if (path == null && widget.channel.logoUrl.isNotEmpty) {
+      PosterService.downloadAndCacheChannelLogo(
+        widget.channel.id,
+        widget.channel.logoUrl,
+      ).ignore();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Disk hit — render instantly with no network.
+    if (_diskPath != null) {
+      return Image.file(
+        File(_diskPath!),
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => widget.fallback,
+      );
+    }
+
+    // Not yet checked — show a placeholder to avoid a flash.
+    if (!_diskChecked) {
+      return widget.fallback;
+    }
+
+    // No disk copy yet — fall back to CachedNetworkImage which also triggers
+    // a background disk save once downloaded (handled in _checkDisk).
+    if (widget.channel.logoUrl.isNotEmpty) {
+      return CachedNetworkImage(
+        imageUrl: widget.channel.logoUrl,
+        fit: BoxFit.contain,
+        fadeInDuration: const Duration(milliseconds: 200),
+        placeholder: (_, __) => widget.fallback,
+        errorWidget: (_, __, ___) => widget.fallback,
+        imageBuilder: (ctx, imageProvider) {
+          // Trigger disk save once the network image is available.
+          PosterService.downloadAndCacheChannelLogo(
+            widget.channel.id,
+            widget.channel.logoUrl,
+          ).ignore();
+          return Image(image: imageProvider, fit: BoxFit.contain);
+        },
+      );
+    }
+
+    return widget.fallback;
   }
 }
 
