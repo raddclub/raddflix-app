@@ -5,24 +5,32 @@
 
 ---
 
-## Current State (2026-08-03 — Phase A Theme Engine wiring IN PROGRESS)
+## Current State (2026-08-03 — BG-play fix planned, ready to implement)
 
-2026-08-03 session fixes are CI-confirmed done (SHA `841470bb`, build-apk.yml: success):
-- Background audio ON by default, vibe in sidebar default, music permission timing bug fixed,
-  POST_NOTIFICATIONS requested at runtime, modern permission rationale screen.
+**Phase A (Full UI Theme Engine) — DONE (SHA `e4899225`, CI green):**
+- PHASE-A1: `_accentColor` getter wired to `PlayerPrefs.accentColor` ✅
+- PHASE-A2: seek bar wired to `PlayerPrefs.seekBarStyle` ✅
+- PHASE-A-ENTRY: `QuickSettingsPanel` accessible via 'style' sidebar shortcut ✅
 
-**Phase A (Full UI Theme Engine) — in progress this session:**
-- PHASE-A1, PHASE-A2, PHASE-A-ENTRY in TASKS.md — see below.
-- Root cause: `QuickSettingsPanel` (full Style tab with accent color, seek bar styles, themes)
-  existed but was never instantiated anywhere. `_accentColor` getter used old 4-color index
-  system, never reflecting PlayerPrefs. Seek bar used `_progressBarStyle` int, not PlayerPrefs.
-- Fix: wire `_accentColor` getter to `PlayerPrefs.accentColor`, seek bar to
-  `PlayerPrefs.seekBarStyle`, add `_openStylePanel()` + 'style' sidebar shortcut to surface
-  `QuickSettingsPanel`.
+**Current priority: BG-play deep fix (4 tasks across 3 phases)**
 
-**Next after Phase A:** Continue FEATURES_ROADMAP.md Phase A remaining (A3 button/icon styles,
-A4 controls background style are already in PlayerPrefs + QuickSettingsPanel — just need wiring
-to player rendering). Then Phase B (drag-drop layout editor).
+Research session (2026-08-03) identified 4 concrete bugs in the background-play stack via code
+audit + web research. Plan is now in TASKS.md under "BG-play Deep Fix". Tasks are ready to
+implement — waiting for approval to start coding.
+
+Root cause summary (see TASKS.md for full detail):
+1. media_kit internally pauses MPV when surface is destroyed; `_player.play()` is never called
+   to recover — audio dies immediately on background.
+2. Minimized-player path (playback_service.dart) never sets `vid=no` before starting the
+   foreground service — same surface-stall problem on a separate code path.
+3. `notifReceiver` in MainActivity is unregistered in `onStop()`, so notification play/pause/seek
+   buttons are dead while app is in background.
+4. `artworkUrl` is passed from Flutter but silently dropped in `startPlaybackService()` — no
+   poster art in the lock-screen notification (cosmetic).
+
+**Next after BG-play fix:** Resume FEATURES_ROADMAP.md Phase A remaining (A3 button/icon
+styles, A4 controls background style — already in PlayerPrefs + QuickSettingsPanel, just need
+wiring to player rendering). Then Phase B (drag-drop layout editor).
 
 ---
 

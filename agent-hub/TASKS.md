@@ -525,6 +525,45 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 
 | Task | Description | Status | Date | Commit |
 |---|---|---|---|---|
-| PHASE-A1 | **Wire accent color system to PlayerPrefs.** `_accentColor` getter in `_ps_ui_mixin.dart` used `_accentColors[_accentColorIdx]` (4-color index, never updated by QuickSettingsPanel). Fix: replace getter to use `ref.read(playerPrefsProvider).accentColor` so any accent color change via the Style panel is immediately reflected in every player element (seek bar fill, active icons, chip borders, mode indicators). | ⏳ IN PROGRESS | 2026-08-03 | — |
-| PHASE-A2 | **Wire seek bar style to PlayerPrefs.seekBarStyle.** Seek bar used `_progressBarStyle` int (0-5, never synced with PlayerPrefs). Fix: read `PlayerPrefs.seekBarStyle` string in `_buildHorizontalSeekBar()` and drive `SeekBarPainter` with the correct `SeekBarStyle` enum value. | ⏳ IN PROGRESS | 2026-08-03 | — |
-| PHASE-A-ENTRY | **Wire QuickSettingsPanel into the player via 'style' sidebar shortcut.** `QuickSettingsPanel` (full Style/Screen/Controls/Navigation/Text settings, PlayerPrefs-based) existed but was never instantiated. Add `_openStylePanel()` + 'style' entry in sidebar so users can reach it. | ⏳ IN PROGRESS | 2026-08-03 | — |
+| PHASE-A1 | **Wire accent color system to PlayerPrefs.** `_accentColor` getter in `_ps_ui_mixin.dart` used `_accentColors[_accentColorIdx]` (4-color index, never updated by QuickSettingsPanel). Fix: replace getter to use `ref.read(playerPrefsProvider).accentColor` so any accent color change via the Style panel is immediately reflected in every player element (seek bar fill, active icons, chip borders, mode indicators). | ✅ DONE | 2026-08-03 | `e4899225` |
+| PHASE-A2 | **Wire seek bar style to PlayerPrefs.seekBarStyle.** Seek bar used `_progressBarStyle` int (0-5, never synced with PlayerPrefs). Fix: read `PlayerPrefs.seekBarStyle` string in `_buildHorizontalSeekBar()` and drive `SeekBarPainter` with the correct `SeekBarStyle` enum value. | ✅ DONE | 2026-08-03 | `e4899225` |
+| PHASE-A-ENTRY | **Wire QuickSettingsPanel into the player via 'style' sidebar shortcut.** `QuickSettingsPanel` (full Style/Screen/Controls/Navigation/Text settings, PlayerPrefs-based) existed but was never instantiated. Add `_openStylePanel()` + 'style' entry in sidebar so users can reach it. | ✅ DONE | 2026-08-03 | `e4899225` |
+
+---
+
+## BG-play Deep Fix (planned 2026-08-03 — awaiting implementation approval)
+
+> **Research basis:** 2026-08-03 session audited `player_screen.dart`, `_ps_playback_mixin.dart`,
+> `playback_service.dart` (Flutter Dart service), `MainActivity.kt`, `PlaybackService.kt`, and
+> `AndroidManifest.xml` in full, plus web research on media_kit GitHub issues (#970, #560, #1198)
+> and Android background-play architecture (Media3, VLC, MX Player).
+>
+> **Root cause summary:** RaddFlix's `media_kit` player lives inside the Flutter widget tree (tied
+> to Activity lifecycle). The Kotlin `PlaybackService.kt` is only a notification keeper — it does
+> NOT host the player. When the app backgrounds, Android destroys the Surface; media_kit internally
+> pauses MPV at that point; our `vid=no` is set too late and `_player.play()` is never called to
+> recover. A second independent path (minimized player in `playback_service.dart`) has the same
+> problem without even the `vid=no` attempt. Notification controls are also broken in background
+> because the broadcast receiver is unregistered in `onStop()`.
+>
+> **Phase order:** Phase 1 → Phase 2 → Phase 3. Phase 1 is the critical audio fix. Phase 2 fixes
+> notification controls. Phase 3 is cosmetic. Do not skip Phase 1 to start Phase 2 or 3.
+
+### Phase 1 — Core Audio Fix (2 tasks) 🔴 Critical
+
+| Task | Description | Files | Status | Date | Commit |
+|---|---|---|---|---|---|
+| BG-FIX-1 | **Counteract media_kit auto-pause on Path A (fullscreen → background).** In `player_screen.dart`'s `didChangeAppLifecycleState(paused)` branch, the existing `_np.setProperty('vid', 'no')` tells MPV to drop video decode, but media_kit's `VideoController` fires `surfaceDestroyed()` at the same time and internally pauses MPV. Audio dies. Fix: after the `vid=no` call, immediately call `_player.play()` so even if media_kit paused the player, we restart it. This one-liner is the primary fix for "audio stops the instant I press Home." | `lib/screens/player_screen.dart` | ⬜ OPEN | 2026-08-03 | — |
+| BG-FIX-2 | **Add `vid=no` + `_player.play()` on Path B (minimized player → background).** When user taps "minimize", the live `Player` is handed off to `playback_service.dart` (Flutter Dart `ChangeNotifier`). When the user then backgrounds the app, `PlaybackService.didChangeAppLifecycleState(paused)` fires — but it starts the foreground service WITHOUT ever setting `vid=no`. The Surface is destroyed, MPV stalls on a dead surface, audio cuts. Fix: in `playback_service.dart`'s `AppLifecycleState.paused` branch, cast `_player.platform as NativePlayer` and call `setProperty('vid', 'no')`, then call `_player.play()`, before starting the foreground service notification — identical to what Path A now does after BG-FIX-1. | `lib/services/playback_service.dart` | ⬜ OPEN | 2026-08-03 | — |
+
+### Phase 2 — Notification Controls Fix (1 task) 🟡 High
+
+| Task | Description | Files | Status | Date | Commit |
+|---|---|---|---|---|---|
+| BG-FIX-3 | **Fix dead notification controls while app is in background.** `MainActivity.kt` registers `notifReceiver` (the BroadcastReceiver that forwards PlaybackService button-tap broadcasts to Flutter as `onNotificationAction`) in `onStart()` and **unregisters it in `onStop()`**. Once the app is background (`onStop()` has fired), tapping play/pause or seek in the notification shade sends the broadcast but nobody receives it — Flutter never gets the callback, nothing happens. Fix: move `registerReceiver(notifReceiver, filter)` to `onResume()` and `unregisterReceiver(notifReceiver)` to `onPause()`. This keeps the receiver registered while the app is in background (between `onPause()` and `onResume()`), which is exactly when it's needed. Note: verify the `IntentFilter` constructed in the `onStart()` block is extracted so it can be reused in `onResume()`. | `android/.../MainActivity.kt` | ⬜ OPEN | 2026-08-03 | — |
+
+### Phase 3 — Notification Polish (1 task) 🟢 Cosmetic
+
+| Task | Description | Files | Status | Date | Commit |
+|---|---|---|---|---|---|
+| BG-FIX-4 | **Pass `artworkUrl` through to `PlaybackService.kt` so the lock-screen notification shows the content poster.** Flutter's `_notifyBgState()` already sends `artworkUrl` in the `startBgPlayback` method call. `PlaybackService.kt` already has the `EXTRA_ARTWORK_URL` constant and async bitmap loader. The gap: `MainActivity.kt`'s `startPlaybackService()` only accepts `title`, `isPlaying`, `posMs`, `durMs` — it never extracts `artworkUrl` from the Flutter call arguments and never puts it in the service Intent. Fix: (1) add `artworkUrl: String` parameter to `startPlaybackService()`; (2) in the `startBgPlayback` and `updateBgNotification` channel cases, extract `call.argument<String>("artworkUrl") ?: ""` and pass it; (3) inside `startPlaybackService()`, add `putExtra(PlaybackService.EXTRA_ARTWORK_URL, artworkUrl)` to the Intent. | `android/.../MainActivity.kt` | ⬜ OPEN | 2026-08-03 | — |
