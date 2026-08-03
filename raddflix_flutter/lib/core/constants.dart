@@ -27,7 +27,7 @@ class AppConstants {
 
   static const Duration catalogSyncInterval = Duration(hours: 6);
   static const String catalogDbName = 'raddflix_catalog.db';
-  static const int catalogDbVersion = 27; // v27: live_channels DVR columns (has_dvr, dvr_window_seconds)
+  static const int catalogDbVersion = 28; // v28: live_channels logo_path column (permanent disk-cached logo)
   static const int streamCacheTtlSeconds = 6600; // 110 min
 
   // ── JazzDrive (zero-rated CDN) ─────────────────────────────────────────────

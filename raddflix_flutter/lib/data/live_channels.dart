@@ -21,6 +21,9 @@ class LiveChannel {
   final bool   isFree;        // false = paywalled channel
   final bool   hasDvr;        // true = stream supports DVR timeshift
   final int    dvrWindowSeconds; // max DVR window in seconds (0 if no DVR)
+  /// On-device path of the permanently cached logo image.
+  /// Null until PosterService has downloaded the logo at least once.
+  final String? logoPath;
 
   const LiveChannel({
     required this.id,
@@ -34,6 +37,7 @@ class LiveChannel {
     this.isFree           = true,  // all Oracle channels are free by default
     this.hasDvr           = false,
     this.dvrWindowSeconds = 0,
+    this.logoPath,
   });
 
   /// Parsed backdrop colour — safe fallback to deep navy.
@@ -63,19 +67,23 @@ class LiveChannel {
 
   // ── Serialise/deserialise for local SQLite ──────────────────────────────
 
-  factory LiveChannel.fromRow(Map<String, dynamic> r) => LiveChannel(
-    id:               r['channel_id']        as String? ?? '',
-    name:             r['name']              as String? ?? '',
-    genre:            r['genre_label']       as String? ?? '',
-    cat:              r['category']          as String? ?? 'entertainment',
-    logoUrl:          r['logo_url']          as String? ?? '',
-    streamUrl:        r['stream_url']        as String? ?? '',
-    backdropColor:    r['backdrop_color']    as String? ?? '#1A1A2E',
-    isFeatured:       (r['is_featured']      as int? ?? 0) == 1,
-    isFree:           (r['is_free']          as int? ?? 1) == 1,
-    hasDvr:           (r['has_dvr']          as int? ?? 0) == 1,
-    dvrWindowSeconds: r['dvr_window_seconds'] as int? ?? 0,
-  );
+  factory LiveChannel.fromRow(Map<String, dynamic> r) {
+    final lp = r['logo_path'] as String? ?? '';
+    return LiveChannel(
+      id:               r['channel_id']        as String? ?? '',
+      name:             r['name']              as String? ?? '',
+      genre:            r['genre_label']       as String? ?? '',
+      cat:              r['category']          as String? ?? 'entertainment',
+      logoUrl:          r['logo_url']          as String? ?? '',
+      streamUrl:        r['stream_url']        as String? ?? '',
+      backdropColor:    r['backdrop_color']    as String? ?? '#1A1A2E',
+      isFeatured:       (r['is_featured']      as int? ?? 0) == 1,
+      isFree:           (r['is_free']          as int? ?? 1) == 1,
+      hasDvr:           (r['has_dvr']          as int? ?? 0) == 1,
+      dvrWindowSeconds: r['dvr_window_seconds'] as int? ?? 0,
+      logoPath:         lp.isNotEmpty ? lp : null,
+    );
+  }
 
   Map<String, dynamic> toRow() => {
     'channel_id':          id,
@@ -89,6 +97,9 @@ class LiveChannel {
     'is_free':             isFree     ? 1 : 0,
     'has_dvr':             hasDvr     ? 1 : 0,
     'dvr_window_seconds':  dvrWindowSeconds,
+    // logo_path is NOT written by toRow — it is managed exclusively by
+    // PosterService and updated via LocalDb.saveChannelLogoPath().
+    // Writing it here would overwrite the cached path on every saveLiveChannels() call.
   };
 }
 

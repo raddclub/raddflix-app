@@ -293,7 +293,8 @@ class LocalDb {
         is_free              INTEGER NOT NULL DEFAULT 1,
         has_dvr              INTEGER NOT NULL DEFAULT 0,
         dvr_window_seconds   INTEGER NOT NULL DEFAULT 0,
-        updated_at           INTEGER NOT NULL DEFAULT 0
+        updated_at           INTEGER NOT NULL DEFAULT 0,
+        logo_path            TEXT NOT NULL DEFAULT ''
       )
     ''');
     await db.execute(
@@ -662,6 +663,15 @@ class LocalDb {
       try {
         await db.execute(
           'ALTER TABLE live_channels ADD COLUMN dvr_window_seconds INTEGER NOT NULL DEFAULT 0',
+        );
+      } catch (_) {}
+    }
+    if (oldV < 28) {
+      // v28: permanent on-disk logo path for live channels.
+      // Empty default — PosterService populates it lazily on first display.
+      try {
+        await db.execute(
+          "ALTER TABLE live_channels ADD COLUMN logo_path TEXT NOT NULL DEFAULT ''",
         );
       } catch (_) {}
     }
@@ -2146,6 +2156,34 @@ class LocalDb {
       {'key': 'live_channels_ts', 'value': now.toString()},
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  /// Persist the local disk path of a downloaded channel logo.
+  /// Called by PosterService after a successful download.
+  static Future<void> saveChannelLogoPath(String channelId, String localPath) async {
+    final db = await instance;
+    await db.update(
+      'live_channels',
+      {'logo_path': localPath},
+      where: 'channel_id = ?',
+      whereArgs: [channelId],
+    );
+  }
+
+  /// Return the cached on-disk logo path for [channelId], or null if not yet
+  /// downloaded. Callers should fall back to the network [logoUrl] when null.
+  static Future<String?> getChannelLogoPath(String channelId) async {
+    final db = await instance;
+    final rows = await db.query(
+      'live_channels',
+      columns: ['logo_path'],
+      where: 'channel_id = ?',
+      whereArgs: [channelId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    final path = rows.first['logo_path'] as String? ?? '';
+    return path.isNotEmpty ? path : null;
   }
 
   /// Read all live channels from local SQLite.
