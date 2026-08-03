@@ -2695,3 +2695,28 @@ nothing when audio plays in background.
 | pending | Fix music permission timing, bg audio defaults ON, vibe in sidebar, POST_NOTIFICATIONS request, Rule 44 in AGENT_PROMPT.md |
 
 **CI:** Checking after push.
+
+---
+
+## Session: 2026-08-03 (continued) — Phase A Theme Engine wiring
+
+**Tasks completed this continuation:** Marked 2026-08-03 tasks ✅ DONE (CI `841470bb` green). Starting Phase A.
+
+### Phase A diagnosis
+- `QuickSettingsPanel` (full Style/Screen/Controls/Navigation/Text panel, PlayerPrefs-based) existed
+  in `widgets/player/quick_settings_panel.dart` but was **never instantiated anywhere** — dead widget.
+- `_accentColor` getter in `_ps_ui_mixin.dart` read `_accentColors[_accentColorIdx]` (4-color
+  hardcoded array, index-based), never updated by `QuickSettingsPanel`'s color picker.
+- Seek bar used `_progressBarStyle` int (0-5), not `PlayerPrefs.seekBarStyle` string.
+- `quick_settings_panel.dart` NOT imported in `player_screen.dart`.
+
+### Phase A fix plan
+1. PHASE-A1: `_accentColor` getter → `ref.read(playerPrefsProvider).accentColor`
+2. PHASE-A2: Seek bar → `seekBarStyleFromString(ref.read(playerPrefsProvider).seekBarStyle)`
+3. PHASE-A-ENTRY: Add import + `_openStylePanel()` + 'style' sidebar item
+
+### Commits this session
+| SHA | Description |
+|---|---|
+| `841470bb` | BG play defaults, music permission fix, POST_NOTIFICATIONS (prev session, CI ✅) |
+| (in progress) | Phase A: accent color + seek bar style wired to PlayerPrefs; QuickSettingsPanel accessible |

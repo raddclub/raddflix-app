@@ -5,23 +5,24 @@
 
 ---
 
-## Current State (2026-08-03 — BG Play + Music Permission Fixes DONE)
+## Current State (2026-08-03 — Phase A Theme Engine wiring IN PROGRESS)
 
-Five bugs fixed and pushed in this session:
-- **Music permission timing bug fixed** — music tab no longer shows a false "permission required"
-  screen when video + audio permissions were just granted by the video tab's system dialog.
-- **Background audio ON by default** — `pref_bgaudio` now defaults to `true`; users get
-  YouTube-style background play immediately without hunting for a sidebar toggle.
-- **Vibe in default sidebar** — `'vibe'` added to the 10-item `_sidebarOrder` default list
-  (was missing; only accessible via manual sidebar customization).
-- **POST_NOTIFICATIONS requested at runtime** — `MainActivity.kt::onStart()` now requests this
-  on Android 13+ so the lock-screen / shade notification is actually visible.
-- **Modern permission rationale screen** — music tab shows a 3-bullet "Allow Access" layout
-  (Spotify-style) before showing the system dialog; "Allow Access" button triggers the request
-  directly; "Open Settings" kept as secondary for permanently-denied case.
+2026-08-03 session fixes are CI-confirmed done (SHA `841470bb`, build-apk.yml: success):
+- Background audio ON by default, vibe in sidebar default, music permission timing bug fixed,
+  POST_NOTIFICATIONS requested at runtime, modern permission rationale screen.
 
-**Next:** Pick up FEATURES_ROADMAP.md Phase A (Full UI Theme Engine) — highest-priority
-unstarted work. A1 (Accent Color System) → A2 (Seek Bar Styles) → A5 (Saved Themes).
+**Phase A (Full UI Theme Engine) — in progress this session:**
+- PHASE-A1, PHASE-A2, PHASE-A-ENTRY in TASKS.md — see below.
+- Root cause: `QuickSettingsPanel` (full Style tab with accent color, seek bar styles, themes)
+  existed but was never instantiated anywhere. `_accentColor` getter used old 4-color index
+  system, never reflecting PlayerPrefs. Seek bar used `_progressBarStyle` int, not PlayerPrefs.
+- Fix: wire `_accentColor` getter to `PlayerPrefs.accentColor`, seek bar to
+  `PlayerPrefs.seekBarStyle`, add `_openStylePanel()` + 'style' sidebar shortcut to surface
+  `QuickSettingsPanel`.
+
+**Next after Phase A:** Continue FEATURES_ROADMAP.md Phase A remaining (A3 button/icon styles,
+A4 controls background style are already in PlayerPrefs + QuickSettingsPanel — just need wiring
+to player rendering). Then Phase B (drag-drop layout editor).
 
 ---
 
