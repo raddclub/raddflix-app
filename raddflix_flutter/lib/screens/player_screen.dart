@@ -479,7 +479,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _oneHandedMode    = prefs.getBool('pref_onehanded') ?? false;
       _showSkipBtns     = prefs.getBool('pref_skip_btns') ?? true;     // J1: was never persisted
       _showPrevNextBtns = prefs.getBool('pref_prev_next_btns') ?? true; // J1: was never persisted
-      _backgroundAudio  = prefs.getBool('pref_bgaudio') ?? false;
+      _backgroundAudio  = prefs.getBool('pref_bgaudio') ?? true; // default ON — audio keeps playing when app is backgrounded
       _keepScreenOn = prefs.getBool('pref_screenon') ?? true;
       _showRemainingTime = prefs.getBool('pref_remaining') ?? false;
       _showSeekPositionLabel = prefs.getBool('pref_seek_pos_label') ?? true; // J2: was never persisted

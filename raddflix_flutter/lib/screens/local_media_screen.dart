@@ -130,6 +130,12 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
         setState(() { _loading = false; _permissionDenied = true; });
         return;
       }
+      // Permission just granted — the Music tab may have raced ahead and shown
+      // a permission error because audio wasn't granted yet when it ran.
+      // Retry it now; both permissions (video + audio) were requested together.
+      if (_audioPermissionDenied || _musicTracks.isEmpty) {
+        _loadMusic(refresh: true);
+      }
     }
     final videos  = await LocalMediaService.queryAllVideos();
     final folders = LocalMediaService.groupByFolder(videos);
@@ -177,10 +183,23 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
   Future<void> _loadMusic({bool refresh = false}) async {
     if (_musicLoading && !refresh) return;
     setState(() { _musicLoading = true; });
-    final hasAudio = await LocalMediaService.checkAudioPermission();
+    bool hasAudio = await LocalMediaService.checkAudioPermission();
     if (!hasAudio) {
-      setState(() { _musicLoading = false; _audioPermissionDenied = true; });
-      return;
+      if (_loading) {
+        // The Video tab's permission request dialog is still in progress —
+        // that request already covers READ_MEDIA_AUDIO too.  Bail silently
+        // here; _load() will call _loadMusic(refresh:true) once the user
+        // grants permission and both paths settle.
+        setState(() { _musicLoading = false; });
+        return;
+      }
+      // Video tab is settled (no dialog open).  Try requesting permission now.
+      final granted = await LocalMediaService.requestPermission();
+      if (granted) hasAudio = await LocalMediaService.checkAudioPermission();
+      if (!hasAudio) {
+        setState(() { _musicLoading = false; _audioPermissionDenied = true; });
+        return;
+      }
     }
     final tracks = await LocalMediaService.queryAllAudio();
     setState(() { _musicTracks = tracks; _musicLoading = false; _audioPermissionDenied = false; });
@@ -1284,45 +1303,118 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
   Widget _buildAudioPermissionError() {
     final t = RaddTheme.of(context);
     return Center(child: Padding(
-      padding: const EdgeInsets.all(40),
+      padding: const EdgeInsets.fromLTRB(32, 20, 32, 40),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(width: 80, height: 80,
-          decoration: BoxDecoration(shape: BoxShape.circle,
-              color: AppColors.primary.withOpacity(0.08)),
-          child: Icon(AppIcons.music, color: AppColors.primary, size: 40)),
-        const SizedBox(height: RaddSpace.lg),
-        Text('Music Permission Required',
-            style: TextStyle(color: t.textPrimary, fontSize: 18, fontWeight: FontWeight.w700),
+        // ── Hero icon ────────────────────────────────────────────────────
+        Stack(alignment: Alignment.bottomRight, children: [
+          Container(width: 90, height: 90,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [AppColors.primary.withOpacity(0.18),
+                         AppColors.primary.withOpacity(0.04)],
+                begin: Alignment.topLeft, end: Alignment.bottomRight),
+              border: Border.all(color: AppColors.primary.withOpacity(0.22), width: 1.5)),
+            child: Icon(AppIcons.music, color: AppColors.primary, size: 44)),
+          Container(width: 28, height: 28,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: t.surface,
+                border: Border.all(color: t.border, width: 1.5)),
+            child: Icon(Icons.lock_rounded, color: t.textMuted, size: 15)),
+        ]),
+        const SizedBox(height: 22),
+        // ── Heading ──────────────────────────────────────────────────────
+        Text('Allow Music Access',
+            style: TextStyle(color: t.textPrimary, fontSize: 20,
+                fontWeight: FontWeight.w800, letterSpacing: -0.3),
             textAlign: TextAlign.center),
         const SizedBox(height: 10),
-        Text('Allow RaddFlix to read audio files so your music appears here.',
-            style: TextStyle(color: t.textMuted, fontSize: 14, height: 1.6),
-            textAlign: TextAlign.center),
+        Text(
+          'RaddFlix needs access to your audio files to show your music library here.',
+          style: TextStyle(color: t.textMuted, fontSize: 14, height: 1.65),
+          textAlign: TextAlign.center),
+        const SizedBox(height: 22),
+        // ── Why we need it — 3 bullets ───────────────────────────────────
+        _PermissionBullet(
+          icon: Icons.library_music_rounded,
+          title: 'Your music, offline',
+          subtitle: 'Browse and play songs saved on your device — no internet needed.',
+          color: AppColors.primary,
+        ),
+        const SizedBox(height: 10),
+        _PermissionBullet(
+          icon: Icons.album_rounded,
+          title: 'Album art & metadata',
+          subtitle: 'See album covers, artist names, and track info while you play.',
+          color: const Color(0xFF8B5CF6),
+        ),
+        const SizedBox(height: 10),
+        _PermissionBullet(
+          icon: Icons.headphones_rounded,
+          title: 'Background listening',
+          subtitle: 'Keep music playing while you use other apps or lock the screen.',
+          color: const Color(0xFF10B981),
+        ),
         const SizedBox(height: 28),
+        // ── Primary CTA — Request permission ─────────────────────────────
         GestureDetector(
-          onTap: () => const MethodChannel('com.raddflix.app/media_store')
-              .invokeMethod('openAppSettings'),
+          onTap: () => _loadMusic(refresh: true),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 15),
             decoration: BoxDecoration(
               gradient: AppColors.primaryGradient,
               borderRadius: BorderRadius.circular(AppRadius.round),
               boxShadow: AppShadows.primary,
             ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(AppIcons.settings, size: 18, color: Colors.white),
-              const SizedBox(width: RaddSpace.sm),
-              const Text('Open Settings', style: TextStyle(color: Colors.white,
-                  fontWeight: FontWeight.w700, fontSize: 14)),
-            ]),
-          ),
+            child: const Text('Allow Access',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white,
+                    fontWeight: FontWeight.w700, fontSize: 15))),
         ),
         const SizedBox(height: 12),
-        TextButton(
-            onPressed: () => _loadMusic(refresh: true),
-            child: Text('Try Again', style: TextStyle(color: t.textSecondary))),
+        // ── Secondary — open Settings if permission was permanently denied ──
+        TextButton.icon(
+          onPressed: () => const MethodChannel('com.raddflix.app/media_store')
+              .invokeMethod('openAppSettings'),
+          icon: Icon(AppIcons.settings, size: 15, color: t.textSecondary),
+          label: Text('Open Settings',
+              style: TextStyle(color: t.textSecondary, fontSize: 13)),
+        ),
       ]),
     ));
+  }
+}
+
+// ── Permission bullet row — used in both audio + video permission rationale ───
+class _PermissionBullet extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  const _PermissionBullet({
+    required this.icon, required this.title,
+    required this.subtitle, required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = RaddTheme.of(context);
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(width: 38, height: 38,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          color: color.withOpacity(0.12)),
+        child: Icon(icon, size: 19, color: color)),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title,
+            style: TextStyle(color: t.textPrimary, fontSize: 13,
+                fontWeight: FontWeight.w700)),
+        const SizedBox(height: 2),
+        Text(subtitle,
+            style: TextStyle(color: t.textMuted, fontSize: 12, height: 1.5)),
+      ])),
+    ]);
   }
 }
 

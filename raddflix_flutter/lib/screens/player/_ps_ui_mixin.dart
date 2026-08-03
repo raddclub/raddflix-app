@@ -275,7 +275,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   bool _sidebarExpanded = true;
 
   List<String> _sidebarOrder = [
-    'bgaudio','cc','audio','eq','vivid','episodes','speed','loop','pip',
+    'bgaudio','cc','audio','eq','vibe','vivid','episodes','speed','loop','pip',
   ];
 
   static const _allSidebarIds = [
@@ -290,7 +290,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
 
   bool _oneHandedMode = false;
 
-  bool _backgroundAudio = false;
+  bool _backgroundAudio = true; // default ON; overwritten from prefs in initState
 
   int _accentColorIdx = 0;
 

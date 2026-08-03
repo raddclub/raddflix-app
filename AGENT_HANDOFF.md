@@ -5,7 +5,27 @@
 
 ---
 
-## Current State (2026-08-01 — ALL Vibe Phases 0–5 DONE)
+## Current State (2026-08-03 — BG Play + Music Permission Fixes DONE)
+
+Five bugs fixed and pushed in this session:
+- **Music permission timing bug fixed** — music tab no longer shows a false "permission required"
+  screen when video + audio permissions were just granted by the video tab's system dialog.
+- **Background audio ON by default** — `pref_bgaudio` now defaults to `true`; users get
+  YouTube-style background play immediately without hunting for a sidebar toggle.
+- **Vibe in default sidebar** — `'vibe'` added to the 10-item `_sidebarOrder` default list
+  (was missing; only accessible via manual sidebar customization).
+- **POST_NOTIFICATIONS requested at runtime** — `MainActivity.kt::onStart()` now requests this
+  on Android 13+ so the lock-screen / shade notification is actually visible.
+- **Modern permission rationale screen** — music tab shows a 3-bullet "Allow Access" layout
+  (Spotify-style) before showing the system dialog; "Allow Access" button triggers the request
+  directly; "Open Settings" kept as secondary for permanently-denied case.
+
+**Next:** Pick up FEATURES_ROADMAP.md Phase A (Full UI Theme Engine) — highest-priority
+unstarted work. A1 (Accent Color System) → A2 (Seek Bar Styles) → A5 (Saved Themes).
+
+---
+
+## Previous State (2026-08-01 — ALL Vibe Phases 0–5 DONE)
 
 Phase 0 (critical bug fixes) and the full Vibe Modes feature (Phases 1–5, all 20 tasks) are
 complete. The entire `VIBE_BUGS_PLAN.md` is shipped.

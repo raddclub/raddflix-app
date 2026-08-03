@@ -2653,3 +2653,45 @@ Note: preflight_check.sh false-positive on `AppColors.primary` (pre-existing in 
 | `0e338263` | VIBE-1A: add _currentVibeAf state + insert vibe af segment in _buildMergedAfString() |
 
 **CI:** build-apk.yml — checked after push (see below).
+
+---
+
+## Session 2026-08-03 — Background Play + Music Permission Fixes
+
+**Tasks completed:** BG-PLAY-DEFAULTS, VIBE-SIDEBAR, MUSIC-PERM-FIX, MUSIC-PERM-UI, POST-NOTIFICATIONS
+
+### Root causes diagnosed
+
+**Music permission timing bug:**
+`initState()` calls both `_load()` and `_loadMusic()` concurrently. `_load()` calls
+`requestPermission()` (shows system dialog, awaits response). Meanwhile `_loadMusic()` runs
+`checkAudioPermission()`, gets false (dialog still pending), sets `_audioPermissionDenied = true`
+and exits. User grants permission → video tab loads fine; music tab stays stuck on error.
+
+**Background play "not working":**
+The full foreground-service architecture (PlaybackService.kt, audio focus, lock-screen controls,
+notification with artwork) was already 100% implemented. The real bug: `_backgroundAudio` defaulted
+to `false`. Users never enabled the sidebar toggle. Pressing Home → immediate pause.
+
+**POST_NOTIFICATIONS missing:**
+Permission was declared in AndroidManifest.xml but never requested at runtime. On Android 13+
+the system dialog must be shown or the notification is invisible. No system dialog = user sees
+nothing when audio plays in background.
+
+### Changes made
+
+| File | Change |
+|---|---|
+| `lib/screens/local_media_screen.dart` | (1) `_load()` calls `_loadMusic(refresh:true)` after permission granted if music tab is stuck. (2) `_loadMusic()` bails silently when `_loading==true` (video dialog pending); requests permission itself when `_loading==false`. (3) Redesigned `_buildAudioPermissionError()` — 3-bullet rationale layout (icon+lock badge, feature pills, primary CTA → triggers request, secondary → Settings). (4) `_PermissionBullet` helper widget added. |
+| `lib/screens/player_screen.dart` | `pref_bgaudio` default: `false` → `true` |
+| `lib/screens/player/_ps_ui_mixin.dart` | `_sidebarOrder` default: added `'vibe'` (was absent). `_backgroundAudio` field init: `false` → `true`. |
+| `android/.../MainActivity.kt` | Added `POST_NOTIF_REQUEST_CODE = 9003` to companion. Added `POST_NOTIFICATIONS` runtime request in `onStart()` guarded by `checkSelfPermission`. |
+| `AGENT_PROMPT.md` | Added Rule 44: full background-play ground-truth reference (7 items) — covers service architecture, POST_NOTIFICATIONS, default state, audio-focus flow, wake-lock rules, and READ_MEDIA_AUDIO timing bug. |
+
+### Commit
+
+| SHA | Description |
+|---|---|
+| pending | Fix music permission timing, bg audio defaults ON, vibe in sidebar, POST_NOTIFICATIONS request, Rule 44 in AGENT_PROMPT.md |
+
+**CI:** Checking after push.

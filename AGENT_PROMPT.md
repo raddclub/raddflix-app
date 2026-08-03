@@ -259,6 +259,51 @@ intentionally-parked unshipped features). Full corrected inventory:
 
 Do this in the canonical files above — never create a new dated "handoff" or "status" file.
 
+## Android background play — what is correct in 2026 (Rule 44)
+
+> Added 2026-08-03. Do NOT rely on training-data knowledge about background play — this rule
+> is the ground truth for this project.
+
+**The full architecture is already in this repo and works.** Do NOT rewrite or replace it.
+Key facts every agent must know before touching background-play or notification code:
+
+1. **Foreground service (`PlaybackService.kt`) is already implemented and complete.**
+   It handles: MediaStyle notification, play/pause/seek transport controls, audio focus management
+   (gain/loss/transient/duck), headphone unplug detection, lock-screen artwork loading, and
+   broadcast forwarding to Flutter. Do NOT add a second foreground service.
+
+2. **`POST_NOTIFICATIONS` must be declared in `AndroidManifest.xml` AND requested at runtime.**
+   On Android 13+ (API 33+) the runtime request is required or the notification is invisible.
+   As of 2026-08-03, `MainActivity.kt::onStart()` requests it automatically on first launch.
+   The `<uses-permission>` is already in `AndroidManifest.xml` (line 28).
+
+3. **`_backgroundAudio` defaults to `true` (since 2026-08-03).**
+   Prior default was `false` — that was the root cause of "background play doesn't work".
+   Persisted under `pref_bgaudio`. Do not change the default back to `false`.
+
+4. **When app goes to background and `_backgroundAudio == true`:**
+   - Flutter drops the video track (`vid=no`) immediately
+   - `_notifyBgState()` calls `startBgPlayback` on the pip channel
+   - `MainActivity.kt` starts the foreground service with the current position, poster URL, and title
+   - `PlaybackService.kt` requests audio focus and begins a 1-second position refresh loop
+   - Audio continues playing; notification shows in shade and lock screen
+
+5. **On Android 13+ the foreground service type must be `mediaPlayback`.**
+   Already declared: `android:foregroundServiceType="mediaPlayback"` in `AndroidManifest.xml`.
+   Without this, `startForeground()` throws on API 34+.
+
+6. **Do NOT use `WakeLock` while audio-only play is active.** The `WakeLockService` holds a
+   screen wake lock only while the player is in foreground — it has an inactivity timeout.
+   For background audio (screen off), wake lock is NOT needed and wastes battery. Audio focus
+   + foreground service keeps audio alive with screen off on all modern Android versions.
+
+7. **`READ_MEDIA_AUDIO` is a separate Android 13+ permission from `READ_MEDIA_VIDEO`.**
+   `MediaStorePlugin.kt::requestPermission()` requests both together in a single system dialog.
+   The Music tab calls `checkAudioPermission()` independently and previously showed a permission
+   error when both `_load()` and `_loadMusic()` raced at `initState` (timing bug — fixed
+   2026-08-03). Do NOT add a separate `requestAudioPermission` channel method; call the
+   existing `requestMediaPermission` from the music tab if not granted.
+
 ## Before you end any session (mandatory self-audit)
 
 Run this check before your final message, every session:

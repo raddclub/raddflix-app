@@ -87,6 +87,11 @@ class MainActivity : FlutterActivity() {
         private val SUBTITLE_EXTS = setOf("srt", "ass", "ssa", "vtt", "sub")
         private val VIDEO_EXTS    = setOf("mp4", "mkv", "avi", "mov", "flv", "wmv", "m4v", "3gp", "ts", "webm", "m2ts", "mts")
         private const val DELETE_MEDIA_REQUEST_CODE = 9002
+        // POST_NOTIFICATIONS (Android 13+) — needed so the background-audio
+        // foreground-service notification is visible in the notification shade.
+        // Without this grant, the PlaybackService still runs but the lock-screen
+        // and shade controls are invisible to the user.
+        private const val POST_NOTIF_REQUEST_CODE   = 9003
     }
 
     private var intentMethodChannel: MethodChannel? = null
@@ -108,6 +113,20 @@ class MainActivity : FlutterActivity() {
 
     override fun onStart() {
         super.onStart()
+        // Request POST_NOTIFICATIONS on first launch on Android 13+ (API 33+).
+        // This is required for the media-playback foreground-service notification
+        // (background audio controls, lock-screen transport) to appear.
+        // The system only shows the rationale dialog once; subsequent calls
+        // short-circuit immediately because the permission is already granted.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission("android.permission.POST_NOTIFICATIONS") !=
+                    PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(
+                    arrayOf("android.permission.POST_NOTIFICATIONS"),
+                    POST_NOTIF_REQUEST_CODE
+                )
+            }
+        }
         val filter = IntentFilter().apply {
             addAction(PlaybackService.ACTION_PLAY_PAUSE)
             addAction(PlaybackService.ACTION_SEEK_BACK)
