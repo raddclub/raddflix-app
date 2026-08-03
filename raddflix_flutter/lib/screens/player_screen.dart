@@ -60,6 +60,7 @@ import '../widgets/player/word_definition_sheet.dart';
 import '../widgets/player/subtitle_overlay.dart'; // SUB-OVERLAY-FIX
 import '../widgets/player/dual_subtitle_overlay.dart'; // DUAL-SUB
 import '../core/player/subtitle_style.dart';
+import '../widgets/player/quick_settings_panel.dart'; // Phase A: Style panel
 import '../core/utils/anim_config.dart';
 import '../core/utils/anim_durations.dart';
 import '../providers/live_channel_provider.dart';

@@ -281,7 +281,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   static const _allSidebarIds = [
     'bgaudio','cc','audio','eq','vibe','speed','loop','rotate','lock','pip',
     'screenshot','sleep','ab','episodes','settings','vivid',
-    'mute','frame','onehanded','zoom','silence','more',
+    'mute','frame','onehanded','zoom','silence','more','style',
   ];
 
   String? _lastSkipRegion;
@@ -301,7 +301,9 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
     Color(0xFFFF2D55),
   ];
 
-  Color get _accentColor => _accentColors[_accentColorIdx];
+  // Phase A1: accent color reads from PlayerPrefs so the color picker in
+  // QuickSettingsPanel (Style tab) is immediately reflected everywhere.
+  Color get _accentColor => ref.read(playerPrefsProvider).accentColor;
 
   int _progressBarStyle = 0;
 
@@ -1507,9 +1509,15 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
               },
               child: LayoutBuilder(
                 builder: (ctx, bc) {
-                  // Style 0-2 → built-in painter (preserves A-B markers)
-                  // Style 3+  → SeekBarPainter (10 rich visual styles)
-                  final CustomPainter seekPainter = _progressBarStyle <= 2
+                  // Phase A2: seek bar style reads from PlayerPrefs.seekBarStyle.
+                  // Legacy path (_progressBarStyle 0-2) is preserved when the
+                  // user hasn't picked a style yet (PlayerPrefs defaults to
+                  // 'classic') so existing feel is unchanged after update.
+                  final _pbPrefs = ref.read(playerPrefsProvider);
+                  final _pbStyle = _pbPrefs.seekBarStyle;
+                  final bool _useLegacy =
+                      _pbStyle == 'classic' && _progressBarStyle <= 2;
+                  final CustomPainter seekPainter = _useLegacy
                       ? _HorizontalSeekPainter(
                           progress: progress,
                           buffered: _bufferedFraction,
@@ -1520,7 +1528,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                           accentColor: _accentColor,
                         )
                       : SeekBarPainter(
-                          style: _seekBarStyleFromIdx(_progressBarStyle),
+                          style: seekBarStyleFromString(_pbStyle),
                           progress: progress,
                           buffered: _bufferedFraction,
                           accentColor: _accentColor,
@@ -2450,6 +2458,13 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
           active: false,
           available: true,
           onTap: _openSettingsPanel,
+        ),
+        'style': (
+          icon: Icons.palette_rounded,
+          label: 'Style',
+          active: false,
+          available: true,
+          onTap: _openStylePanel,
         ),
         'vivid': (
           icon: Icons.auto_awesome_rounded,
@@ -4435,6 +4450,52 @@ void _openPanel({
         },
       );
       _openPanel(panel: panel, title: 'Settings', widthFactor: 0.42, maxHeightFraction: 0.90);
+    }
+
+    // Phase A: Style panel — opens QuickSettingsPanel (Style/Screen/Controls/
+    // Navigation/Text tabs). All accent-color and seek-bar-style changes go
+    // through PlayerPrefsNotifier.set(), which persists and triggers Consumers.
+    void _openStylePanel() {
+      final panel = QuickSettingsPanel(
+        prefs: ref.read(playerPrefsProvider),
+        onChanged: (next) async {
+          await ref.read(playerPrefsProvider.notifier).set(next);
+          if (mounted) setState(() {});
+        },
+        onDone: () => Navigator.of(context).pop(),
+        onOpenFullSettings: () {
+          Navigator.of(context).pop();
+          _openSettingsPanel();
+        },
+        onOpenGestureMap: () => _showGestureMapSheet(context),
+        onOpenPictureProfiles: () {},        // Phase D1 — to be wired later
+        onOpenAudioLab: () {
+          Navigator.of(context).pop();
+          _openAudioEffectPanel();
+        },
+        onOpenSkipEditor: () => _showSkipEditorSheet(context),
+        onOpenJumpTo: () => _showJumpToDialog(context),
+        onOpenSpeedPresets: () => _showSpeedPresetsSheet(context),
+        onOpenEndAction: () => _showEndActionSheet(context),
+        onOpenSilenceSkip: () => _showSilenceSkipSheet(context),
+        onOpenZoomCrop: () => _showZoomCropSheet(context),
+        onOpenWakeDnd: () {},               // Phase H4/H5 — to be wired later
+        onOpenLayoutDesigner: () => _showLayoutDesignerSheet(context),
+        subDelayMs: (_subSync * 1000).round(),
+        audioDelayMs: 0,
+        onSubDelay: (ms) {
+          setState(() => _subSync = ms / 1000.0);
+          _scheduleSavePrefs();
+        },
+        onAudioDelay: (_) {},
+        onOpenSubSync: () {},
+        onOpenAudioSync: () {},
+        speed: _speed,
+        onSpeedChanged: (v) => _setSpeed(v),
+        onFitChanged: (_) {},
+        onQualityChanged: (_) {},
+      );
+      _openPanel(panel: panel, title: 'Player Style', widthFactor: 0.46, maxHeightFraction: 0.94);
     }
 
     // ── LIVE-P7-A: Live quality selector helpers ────────────────────────────
