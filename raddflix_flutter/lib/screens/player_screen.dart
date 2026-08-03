@@ -213,17 +213,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    // Allow all orientations — video dimension auto-detects the right one
-    // Allow all 4 orientations so Flutter layout responds to any rotation.
-    SystemChrome.setPreferredOrientations([
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-      DeviceOrientation.portraitUp,
-      DeviceOrientation.portraitDown,
-    ]);
-    // Force sensor-based rotation via the native Android API — works even
-    // when the user's system auto-rotate toggle is disabled.
-    _setNativeOrientation('sensor');
+    // O-01: Live TV preserves whatever orientation the user is currently
+    // holding — forcing landscape on a vertical phone is jarring for
+    // channel-browsing. VOD/series gets the usual sensor-based auto-rotation
+    // so wide video fills the screen naturally.
+    if (widget.contentType != 'live') {
+      // Allow all 4 orientations so Flutter layout responds to any rotation.
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
+      // Force sensor-based rotation via the native Android API — works even
+      // when the user's system auto-rotate toggle is disabled.
+      _setNativeOrientation('sensor');
+    }
+    // Live TV: no orientation change — system remains in whatever mode the
+    // user was in on the channel list (usually portrait).
     WakelockPlus.enable();
     _currentEpIdx = widget.episodeIndex;
     _currentFileId = widget.fileId;
