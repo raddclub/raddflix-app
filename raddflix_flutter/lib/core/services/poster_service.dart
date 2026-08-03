@@ -153,9 +153,48 @@ class PosterService {
     }
   }
 
+  // ── Channel logo cache (I-02) ──────────────────────────────────────────────
+
+  /// Returns the local disk path for a channel logo if already cached,
+  /// or null when the logo has never been downloaded.
+  static Future<String?> getChannelLogoPath(String channelId) async {
+    await init();
+    final file = _channelLogoFile(channelId);
+    if (await file.exists()) return file.path;
+    return null;
+  }
+
+  /// Download the logo from [url] and persist it permanently on disk.
+  /// Also updates the SQLite `logo_path` column so the next cold launch
+  /// can render without a network hit.
+  ///
+  /// No-op when already cached. Safe to call from a StatefulWidget build.
+  static Future<String?> downloadAndCacheChannelLogo(
+    String channelId,
+    String url,
+  ) async {
+    if (channelId.isEmpty || url.isEmpty) return null;
+    await init();
+    final file = _channelLogoFile(channelId);
+    if (await file.exists()) return file.path;
+    try {
+      await _dio.download(url, file.path);
+      await LocalDb.saveChannelLogoPath(channelId, file.path);
+      DebugLogger.log('POSTER', 'Saved channel logo for $channelId');
+      return file.path;
+    } catch (e) {
+      DebugLogger.logError('POSTER', 'Channel logo download failed for $channelId', e);
+      try { await file.delete(); } catch (_) {}
+      return null;
+    }
+  }
+
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   static File _file(int titleId) => File('${_posterDir!.path}/title_$titleId.jpg');
+
+  static File _channelLogoFile(String channelId) =>
+      File('${_posterDir!.path}/ch_${channelId.replaceAll(RegExp(r'[^\w]'), '_')}.jpg');
 
   static bool _isOnlineSource(String url) {
     return url.contains('tmdb.org') ||
