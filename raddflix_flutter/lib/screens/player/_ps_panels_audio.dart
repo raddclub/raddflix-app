@@ -112,6 +112,7 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
   int _tab = 0; // 0=Presets 1=Equalizer 2=Lab 3=Vibe
   late List<double> _bands;
   late int _preset;
+  late PlaybackVibeMode _vibeMode; // Bug 1: local mirror so Vibe tab updates live
   late bool _eqEnabled;
   // P8: Lab state (initialized from widget props in initState)
   late bool _labVocal;
@@ -183,6 +184,7 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
     _tab = widget.initialTabIndex;
     _bands = List.from(widget.eqBands);
     _preset = widget.selectedPreset;
+    _vibeMode = widget.currentVibeMode;
     _eqEnabled = widget.eqEnabled;
     _labVocal = widget.labVocal;
     _labDialogue = widget.labDialogue;
@@ -453,16 +455,21 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
               children: [
                 for (final mode in PlaybackVibeMode.values)
                   GestureDetector(
-                    onTap: () => widget.onVibeModeChanged(mode),
-                    child: Container(
+                    onTap: () {
+                      setState(() => _vibeMode = mode); // Bug 1: update local mirror
+                      widget.onVibeModeChanged(mode);
+                    },
+                    child: AnimatedContainer( // Bug 6: animate transition
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       decoration: BoxDecoration(
-                        color: widget.currentVibeMode == mode
+                        color: _vibeMode == mode
                             ? const Color(0xFF9C7BEF).withOpacity(0.22)
                             : AppColors.surfaceHigh,
                         borderRadius: RaddRadius.smRadius,
                         border: Border.all(
-                          color: widget.currentVibeMode == mode
+                          color: _vibeMode == mode
                               ? const Color(0xFF9C7BEF).withOpacity(0.70)
                               : Colors.transparent,
                           width: 1.5,
@@ -472,11 +479,11 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
                         child: Text(
                           _vibeModeLabel(mode),
                           style: TextStyle(
-                            color: widget.currentVibeMode == mode
+                            color: _vibeMode == mode
                                 ? const Color(0xFFCEB8FF)
                                 : Colors.white70,
                             fontSize: 12.5,
-                            fontWeight: widget.currentVibeMode == mode
+                            fontWeight: _vibeMode == mode
                                 ? FontWeight.bold
                                 : FontWeight.normal,
                           ),
@@ -531,7 +538,7 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
                                       activeColor: Colors.white,
                                       inactiveColor: Colors.white24,
                                       onChanged: (v) {
-                                        setState(() => _bands[i] = v);
+                                        setState(() { _bands[i] = v; _preset = -1; }); // Bug 5: deselect preset on manual band drag
                                         widget.onEqBandChanged(i, v);
                                       },
                                     ),
@@ -1519,6 +1526,7 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
   late double _sync;
   late bool _useSW;
   late int _chIdx;
+  AudioTrack? _selectedTrack; // Bug 2: local mirror so radio dot moves immediately
 
   @override
   void initState() {
@@ -1526,6 +1534,7 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
     _sync = widget.audioSync;
     _useSW = widget.useSWDecoder;
     _chIdx = widget.initialChannelModeIdx;
+    _selectedTrack = widget.selectedTrack;
   }
 
   @override
@@ -1596,15 +1605,19 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
               // radio dot unlit even when a track really was selected. Index
               // matched by track id is robust regardless of instance identity.
               Builder(builder: (_) {
-                final selectedIdx = widget.selectedTrack?.id == null
+                final selectedIdx = _selectedTrack?.id == null // Bug 2: use local mirror
                     ? -1
-                    : widget.tracks.indexWhere((t) => t.id == widget.selectedTrack!.id);
+                    : widget.tracks.indexWhere((t) => t.id == _selectedTrack!.id);
                 return Column(children: [
                   for (int i = 0; i < widget.tracks.length; i++)
                     RadioListTile<int>(
                       value: i,
                       groupValue: selectedIdx,
-                      onChanged: (v) => v != null ? widget.onTrackSelected(widget.tracks[v]) : null,
+                      onChanged: (v) {
+                        if (v == null) return;
+                        setState(() => _selectedTrack = widget.tracks[v]); // Bug 2: update local mirror
+                        widget.onTrackSelected(widget.tracks[v]);
+                      },
                       title: Row(
                         children: [
                           Expanded(
@@ -1640,7 +1653,10 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
                   RadioListTile<int>(
                     value: -1,
                     groupValue: selectedIdx,
-                    onChanged: (_) => widget.onTrackSelected(null),
+                    onChanged: (_) {
+                      setState(() => _selectedTrack = null); // Bug 2: update local mirror
+                      widget.onTrackSelected(null);
+                    },
                     title: const Text('Disable', style: TextStyle(color: Colors.white, fontSize: 14)),
                     activeColor: Colors.white,
                     controlAffinity: ListTileControlAffinity.leading,

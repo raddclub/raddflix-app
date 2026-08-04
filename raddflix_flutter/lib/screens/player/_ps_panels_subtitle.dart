@@ -65,6 +65,9 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   int _tab = 0;
   late double _sync;
   late double _speed;
+  // Bugs 3 & 4: local mirrors so track selection highlights update live inside the modal
+  SubtitleTrack? _selectedSubtitle;
+  SubtitleTrack? _selectedSecondSub;
 
   // ── Style ─────────────────────────────────────────────────────────────────
   int    _subFontIdx   = 0;       // 0=Sans  1=Serif  2=Mono  3=Casual
@@ -115,6 +118,8 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     super.initState();
     _sync  = widget.subSync;
     _speed = widget.subSpeed;
+    _selectedSubtitle   = widget.selectedSubtitle;
+    _selectedSecondSub  = widget.selectedSecondSub;
     _searchController = TextEditingController(text: widget.title ?? '');
     if ((widget.title ?? '').isNotEmpty && !widget.isLocal) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -745,14 +750,20 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       _secLabel('Primary Track'),
       ...widget.embeddedTracks.asMap().entries.map((e) => _SubTrackTile(
         track: e.value, index: e.key,
-        selected: widget.selectedSubtitle == e.value,
+        selected: _selectedSubtitle == e.value, // Bug 3: use local mirror
         accentColor: Colors.white,
-        onTap: () => widget.onSubtitleTrackSelected(e.value),
+        onTap: () {
+          setState(() => _selectedSubtitle = e.value); // Bug 3: update local mirror
+          widget.onSubtitleTrackSelected(e.value);
+        },
       )),
       _SubTrackTile(track: null, index: -1, label: 'Off',
-        selected: widget.selectedSubtitle == null,
+        selected: _selectedSubtitle == null, // Bug 3
         accentColor: Colors.white,
-        onTap: () => widget.onSubtitleTrackSelected(null)),
+        onTap: () {
+          setState(() => _selectedSubtitle = null); // Bug 3
+          widget.onSubtitleTrackSelected(null);
+        }),
       const SizedBox(height: 10),
       const Divider(color: Colors.white12, height: 1),
       const SizedBox(height: 10),
@@ -762,14 +773,20 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
             style: TextStyle(color: Colors.white38, fontSize: 11))),
       ...widget.embeddedTracks.asMap().entries.map((e) => _SubTrackTile(
         track: e.value, index: e.key,
-        selected: widget.selectedSecondSub == e.value,
+        selected: _selectedSecondSub == e.value, // Bug 4: use local mirror
         accentColor: const Color(0xFF4A9EFF),
-        onTap: () => widget.onSecondSubSelected(e.value),
+        onTap: () {
+          setState(() => _selectedSecondSub = e.value); // Bug 4: update local mirror
+          widget.onSecondSubSelected(e.value);
+        },
       )),
       _SubTrackTile(track: null, index: -1, label: 'Off',
-        selected: widget.selectedSecondSub == null,
+        selected: _selectedSecondSub == null, // Bug 4
         accentColor: const Color(0xFF4A9EFF),
-        onTap: () => widget.onSecondSubSelected(null)),
+        onTap: () {
+          setState(() => _selectedSecondSub = null); // Bug 4
+          widget.onSecondSubSelected(null);
+        }),
       const SizedBox(height: 10),
       const Divider(color: Colors.white12, height: 1),
       const SizedBox(height: 10),
@@ -1471,7 +1488,9 @@ class _SubTrackTile extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
         child: Row(children: [
-          Container(
+          AnimatedContainer( // Bug 6: animate active indicator transition
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
             width: 20, height: 20,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
