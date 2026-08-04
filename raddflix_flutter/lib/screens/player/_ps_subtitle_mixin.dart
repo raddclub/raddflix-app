@@ -277,7 +277,8 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
         onDubRequested: _startDubGeneration,  // P59
         onStyleSynced: ({required fontIdx, required size, required bold,
             required color, required bgColor, required opacity,
-            required shadowIdx}) {
+            required shadowIdx,
+            italic, lineSpacing, letterSpacing, shadowBlurRadius, shadowDirection}) {
           const fontNames = ['Sans Serif', 'Serif', 'Monospace', 'Casual'];
           // Map shadow style index to the outline thickness used by the Flutter
           // subtitle overlay (SubtitleOverlay / DualSubtitleOverlay).
