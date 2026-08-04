@@ -5,7 +5,7 @@
 
 ---
 
-## Current State (2026-08-04 — Subtitle/Audio/Player/Live TV task plan created)
+## Current State (2026-08-04 — Phase A subtitle wiring complete)
 
 **BG-play Deep Fix — ALL DONE (SHA `27a07e20`, CI green):**
 - BG-FIX-1: `_player.play()` after `vid=no` on fullscreen→background path ✅
@@ -19,13 +19,19 @@
 **Phase A (Full UI Theme Engine) — DONE (SHA `e4899225`, CI green):**
 - PHASE-A1/A2/A-ENTRY: accent color + seek bar style + QuickSettingsPanel access via sidebar ✅
 
+**Phase A (Subtitle Positioning) — ALL 5 DONE (SHA `5bb40fec`, CI green):**
+- SUB-A1: Signed vertical offset in `subtitle_overlay.dart` (no more `abs()`) ✅
+- SUB-A2: Panel "Bottom Margin" slider now writes `player_sub_bottom_margin_px`; overlay reads it live ✅
+- SUB-A3: `controlsRaiseDp: _showControls ? 120.0 : 0.0` passed to both landscape + portrait `SubtitleOverlay` ✅
+- SUB-A4: `onPositionSynced` wired end-to-end; horizontal alignment updates `playerPrefsProvider` live ✅
+- SUB-A5: Edge padding now saved to `player_sub_edge_pad_px` and propagated to overlay live ✅
+- Phase B wiring (B4/B5): `_saveSubPrefs` now writes `player_sub_line_spacing`, `player_sub_letter_spacing`, `player_sub_shadow_blur`, `player_sub_shadow_dir`; `onStyleSynced` passes them through (partial — verify/add UI sliders next) ✅
+
 ---
 
-**Current priority: Subtitle, Audio, Player & Live TV Polish Plan**
+**Next priority: Phase B — Subtitle Style Presets & New Styles**
 
-Full phased task plan created 2026-08-04 from a full codebase audit. Plan is in
-`agent-hub/SUBTITLE_AND_POLISH_PLAN.md`. All tasks are in `agent-hub/TASKS.md` under
-"Subtitle, Audio, Player & Live TV Polish". **Start at Phase A (SUB-A1 first).**
+Start at SUB-B1 (`_applyPreset` incomplete) → then SUB-B2 (font wiring) → verify/add B4/B5 UI sliders → SUB-B3 (10 preset styles).
 
 ### Critical bugs confirmed by audit (Phase A — start here):
 

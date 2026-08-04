@@ -2808,6 +2808,30 @@ All tasks added to `agent-hub/TASKS.md`. `AGENT_HANDOFF.md` updated with new pri
 
 ---
 
+## Session 2026-08-04c — Phase A Subtitle Wiring (SUB-A1 through A5)
+
+**Tasks completed:** SUB-A1, SUB-A2, SUB-A3, SUB-A4, SUB-A5 (all ✅ DONE). Phase B4/B5 save/callback wiring (⏳ PARTIAL — UI sliders pre-exist, verify next session).
+
+### What was broken
+`SubtitleOverlay` already had the Phase A fields (`subtitleBottomMarginPx`, `subtitleHorizontalAlignment`, `subtitleEdgePaddingPx`, `controlsRaiseDp`) from a prior session. The gap was the full wiring chain between the panel and the overlay:
+- `_saveSubPrefs()` wrote to `pref_sub_margin`/`pref_sub_align_x`/`pref_sub_edge_pad` (old panel keys). `PlayerPrefs.load()` reads `player_sub_*` keys. Complete namespace mismatch — every position change was silently discarded.
+- `onPositionSynced` callback existed in the widget interface but was never called from `_saveSubPrefs()`.
+- `onPositionSynced` was not wired in `_ps_subtitle_mixin.dart` `_openSubtitlePanel()` — no handler passed.
+- Both `SubtitleOverlay` call sites (landscape `_ps_ui_mixin.dart` + portrait `player_screen.dart`) were missing `controlsRaiseDp` and the `select()` tuples were missing the 8 new fields, so overlay never rebuilt on position/spacing changes.
+
+### What was fixed (commit `5bb40fec`, CI green)
+- `_ps_panels_subtitle.dart` `_saveSubPrefs()`: adds writes to `player_sub_bottom_margin_px`, `player_sub_h_align`, `player_sub_edge_pad_px`, `player_sub_position`, `player_sub_line_spacing`, `player_sub_letter_spacing`, `player_sub_shadow_blur`, `player_sub_shadow_dir`; calls `onPositionSynced`; passes B4/B5 fields through `onStyleSynced`.
+- `_ps_subtitle_mixin.dart`: added `onPositionSynced` handler updating `playerPrefsProvider`; extended `onStyleSynced` handler with `italic` + B4/B5 fields.
+- `_ps_ui_mixin.dart` + `player_screen.dart`: `select()` extended with 8 new fields; `controlsRaiseDp: _showControls ? 120.0 : 0.0` added to `SubtitleOverlay`.
+
+### Commits
+
+| SHA | Description |
+|---|---|
+| `5bb40fec` | SUB-A1/A2/A3/A4/A5 + B4/B5: wire subtitle panel position/style to SubtitleOverlay via PlayerPrefs |
+
+---
+
 ## Session 2026-08-04b — Deep Audit Expanded Plan (Phases I–N)
 
 **Tasks completed:** 5 parallel subagent explorations + 2 follow-up targeted audits.
