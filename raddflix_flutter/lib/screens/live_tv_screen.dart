@@ -16,6 +16,8 @@ import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shimmer/shimmer.dart';
+import '../design_system/typography/radd_type.dart';
 import '../core/constants.dart';
 import '../core/theme/radd_theme.dart';
 import '../core/design/app_icons.dart';
@@ -221,29 +223,27 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
           ),
         ),
         const SizedBox(width: 8),
-        Text('LIVE', style: TextStyle(
-          color: AppColors.primary, fontSize: 11,
-          fontWeight: FontWeight.w800, letterSpacing: 1.5,
-        )),
+        // LTV-E10: use design-system type tokens instead of hardcoded TextStyles
+        Text('LIVE',
+          style: context.raddLabel.copyWith(
+            color: AppColors.primary, letterSpacing: 1.5, fontWeight: FontWeight.w800)),
         const SizedBox(width: 10),
-        Text('Live TV', style: TextStyle(
-          color: t.textPrimary, fontSize: 22,
-          fontWeight: FontWeight.w800, letterSpacing: -0.5,
-        )),
+        Text('Live TV',
+          style: context.raddHeadline.copyWith(
+            color: t.textPrimary, letterSpacing: -0.5)),
         const Spacer(),
+        // Channel-count badge — uses design-system label style
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
           decoration: BoxDecoration(
             color: AppColors.primary.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(7),
+            borderRadius: RaddRadius.smRadius,
             border: Border.all(color: AppColors.primary.withOpacity(0.35)),
           ),
           child: Text(
             lvState.channels.isEmpty ? '— CH' : '${lvState.channels.length} CH',
-            style: TextStyle(
-              color: AppColors.primary, fontSize: 11,
-              fontWeight: FontWeight.w700, letterSpacing: 0.5,
-            ),
+            style: context.raddLabel.copyWith(
+              color: AppColors.primary, letterSpacing: 0.5),
           ),
         ),
       ],
@@ -331,22 +331,40 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
 
   // ── Loading / error states ──────────────────────────────────────────────────
 
-  Widget _buildLoading(RaddTheme t) => SizedBox(
-    height: 300,
-    child: Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SizedBox(
-            width: 28, height: 28,
-            child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.primary),
-          ),
-          const SizedBox(height: 14),
-          Text('Loading channels…', style: TextStyle(color: t.textMuted, fontSize: 14)),
-        ],
+  // LTV-E6: shimmer skeleton grid — matches real _GridCard dimensions (aspect 0.78).
+  // Shown while channels load so the layout doesn't jump from empty → populated.
+  Widget _buildLoading(RaddTheme t) {
+    final baseColor  = t.surface;
+    final shineColor = t.surface.withOpacity(0.06) == Colors.transparent
+        ? const Color(0xFF2A2A3A)
+        : Color.lerp(t.surface, Colors.white, 0.06) ?? t.surface;
+    const cardAspect = 0.78;
+    const crossCount = 2;
+    final screenW = MediaQuery.sizeOf(context).width;
+    final cardW   = (screenW - 12 * 2 - 10) / crossCount;
+    final cardH   = cardW / cardAspect;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      child: Shimmer.fromColors(
+        baseColor:  baseColor,
+        highlightColor: shineColor,
+        child: Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: List.generate(6, (i) => SizedBox(
+            width: cardW, height: cardH,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: RaddRadius.lgRadius,
+              ),
+            ),
+          )),
+        ),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _buildError(RaddTheme t, LiveChannelState lvState) => SizedBox(
     height: 300,
@@ -422,7 +440,7 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
       return [
         SliverToBoxAdapter(
           child: SizedBox(
-            height: 240,
+            height: 260,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -431,6 +449,18 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
                 Text('No channels found', style: TextStyle(
                   color: t.textMuted, fontSize: 15, fontWeight: FontWeight.w500,
                 )),
+                // LTV-E5: show "Clear search" CTA when there is an active query
+                if (_searchQuery.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () {
+                      _searchCtrl.clear();
+                      FocusScope.of(context).unfocus();
+                    },
+                    child: Text('Clear search',
+                      style: TextStyle(color: AppColors.primary, fontSize: 13, fontWeight: FontWeight.w600)),
+                  ),
+                ],
               ],
             ),
           ),
