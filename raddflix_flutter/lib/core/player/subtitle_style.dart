@@ -4,15 +4,20 @@ import 'package:flutter/material.dart';
 /// Handles rendering parameters for subtitles.
 
 enum SubtitlePreset {
-  clean,       // White text, thin black outline
-  cinema,      // Large semi-bold, drop shadow
-  highContrast,// Black bg, white bold text
-  karaoke,     // Bottom-center, yellow accent
-  streaming,   // Netflix-style mid-bottom
-  minimal,     // Small, light text, no bg
-  neon,        // Coloured outline matching accent
-  broadcast,   // BB3: Bold white + thick outline, broadcast-TV look
-  custom,      // User-defined values
+  clean,        // White text, thin black outline
+  cinema,       // Large semi-bold, drop shadow
+  highContrast, // Black bg, white bold text
+  karaoke,      // Bottom-center, yellow accent
+  streaming,    // Netflix-style mid-bottom
+  minimal,      // Small, light text, no bg
+  neon,         // Coloured outline matching accent
+  broadcast,    // BB3: Bold white + thick outline, broadcast-TV look
+  // SUB-B3: new research-based presets
+  youtubeDef,   // YouTube Default — white, semi-black pill (0.75 opacity)
+  netflix,      // Netflix — white, outline + soft drop shadow
+  bbcIplayer,   // BBC iPlayer — yellow text, solid black box
+  largePrint,   // Large Print — 28pt bold, black box (accessibility)
+  custom,       // User-defined values
 }
 
 class SubtitleStyle {
@@ -157,6 +162,42 @@ final Map<SubtitlePreset, SubtitleStyle> kSubtitlePresets = {
     outlineColor: Colors.black, outlineWidth: 3.0,
     bgOpacity: 0.0, shadow: false),
 
+  // SUB-B3: YouTube Default — white text in a semi-transparent black pill.
+  // Matches YouTube's 2026 default caption style exactly.
+  SubtitlePreset.youtubeDef: const SubtitleStyle(
+    preset: SubtitlePreset.youtubeDef,
+    fontSize: 18, textColor: Colors.white,
+    outlineWidth: 0, bgColor: Colors.black, bgOpacity: 0.75,
+    shadow: false, lineSpacing: 1.4),
+
+  // SUB-B3: Netflix — white text, 1.5px black outline + soft drop shadow.
+  // No background pill — relies on outline + shadow for readability.
+  SubtitlePreset.netflix: const SubtitleStyle(
+    preset: SubtitlePreset.netflix,
+    fontSize: 20, textColor: Colors.white,
+    fontWeight: FontWeight.w500,
+    outlineColor: Colors.black, outlineWidth: 1.5,
+    bgOpacity: 0.0, shadow: true, shadowBlur: 4.0,
+    lineSpacing: 1.35),
+
+  // SUB-B3: BBC iPlayer — yellow text on solid black box. High contrast,
+  // widely used for accessibility and visually impaired viewers.
+  SubtitlePreset.bbcIplayer: const SubtitleStyle(
+    preset: SubtitlePreset.bbcIplayer,
+    fontSize: 20, textColor: Color(0xFFFFEB3B),
+    fontWeight: FontWeight.w600,
+    outlineWidth: 0, bgColor: Colors.black, bgOpacity: 1.0,
+    shadow: false),
+
+  // SUB-B3: Large Print — 28pt bold, solid black box for low-vision or
+  // TV-distance viewing. Maximum legibility, minimal decoration.
+  SubtitlePreset.largePrint: const SubtitleStyle(
+    preset: SubtitlePreset.largePrint,
+    fontSize: 28, textColor: Colors.white,
+    fontWeight: FontWeight.bold,
+    outlineWidth: 0, bgColor: Colors.black, bgOpacity: 0.9,
+    shadow: false, lineSpacing: 1.3),
+
   SubtitlePreset.custom: const SubtitleStyle(
     preset: SubtitlePreset.custom),
 };
@@ -172,6 +213,11 @@ String subtitlePresetName(SubtitlePreset p) {
     case SubtitlePreset.minimal:      return 'Minimal';
     case SubtitlePreset.neon:         return 'Neon';
     case SubtitlePreset.broadcast:    return 'Broadcast';
+    // SUB-B3: new presets
+    case SubtitlePreset.youtubeDef:   return 'YouTube';
+    case SubtitlePreset.netflix:      return 'Netflix';
+    case SubtitlePreset.bbcIplayer:   return 'BBC';
+    case SubtitlePreset.largePrint:   return 'Large Print';
     case SubtitlePreset.custom:       return 'Custom';
   }
 }

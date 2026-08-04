@@ -309,6 +309,13 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
       _subShadowIdx  = style.shadow
           ? 2
           : (style.outlineWidth > 0 ? 1 : 0);
+      // SUB-B1: Phase B fields — previously not applied by preset, causing
+      // half-applied styles (correct colour/size but wrong spacing/shadow).
+      _subLineSpacing   = style.lineSpacing;
+      _subLetterSpacing = style.letterSpacing;
+      _subShadowBlur    = style.shadow ? style.shadowBlur : 0.0;
+      // Map to direction idx: shadow with blur → down-right (1); else none (0).
+      _subShadowDirIdx  = (style.shadow && style.shadowBlur > 0) ? 1 : 0;
     });
     _setProp('sub-font',       _mpvFonts[_subFontIdx]);
     _setProp('sub-font-size',  style.fontSize.round().toString());
@@ -968,6 +975,36 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
         labels: _shadowLabels,
         selected: _subShadowIdx,
         onChanged: _applyShadow,
+      ),
+      // SUB-B5: Shadow blur radius + direction controls
+      const SizedBox(height: 14),
+      _secLabel('Shadow Details'),
+      _buildSliderRow(
+        label: 'Shadow Blur', valueLabel: '${_subShadowBlur.round()} px',
+        value: _subShadowBlur, min: 0, max: 12, divisions: 12,
+        onChanged: (v) { setState(() => _subShadowBlur = v); _saveSubPrefs(); },
+      ),
+      _buildSegment(
+        labels: const ['None', 'Down-right', 'Down', 'All Sides'],
+        selected: _subShadowDirIdx,
+        onChanged: (i) {
+          setState(() => _subShadowDirIdx = i);
+          HapticFeedback.selectionClick();
+          _saveSubPrefs();
+        },
+      ),
+      // SUB-B4: Line spacing + letter spacing
+      const SizedBox(height: 14),
+      _secLabel('Spacing'),
+      _buildSliderRow(
+        label: 'Line Spacing', valueLabel: '${_subLineSpacing.toStringAsFixed(1)}×',
+        value: _subLineSpacing, min: 1.0, max: 2.0, divisions: 10,
+        onChanged: (v) { setState(() => _subLineSpacing = v); _saveSubPrefs(); },
+      ),
+      _buildSliderRow(
+        label: 'Letter Spacing', valueLabel: '${_subLetterSpacing.toStringAsFixed(1)} px',
+        value: _subLetterSpacing, min: -1.0, max: 4.0, divisions: 10,
+        onChanged: (v) { setState(() => _subLetterSpacing = v); _saveSubPrefs(); },
       ),
       const SizedBox(height: RaddSpace.sm),
       ], // BB3: end custom-only sliders
