@@ -67,6 +67,8 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
   String _selectedCat = 'all';
   final TextEditingController _searchCtrl = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
+  // LTV-E4: dismiss keyboard when the user scrolls
+  final ScrollController _scrollCtrl = ScrollController();
   String _searchQuery = '';
   bool _searchFocused = false;
   late final AnimationController _pulseCtrl;
@@ -84,6 +86,13 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
     _searchFocusNode.addListener(() {
       setState(() => _searchFocused = _searchFocusNode.hasFocus);
     });
+    // LTV-E4: dismiss the search keyboard when the user scrolls
+    _scrollCtrl.addListener(() {
+      if (_scrollCtrl.hasClients &&
+          _scrollCtrl.position.userScrollDirection != ScrollDirection.idle) {
+        FocusScope.of(context).unfocus();
+      }
+    });
   }
 
   @override
@@ -91,6 +100,7 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
     _pulseCtrl.dispose();
     _searchCtrl.dispose();
     _searchFocusNode.dispose();
+    _scrollCtrl.dispose();
     super.dispose();
   }
 
@@ -99,9 +109,10 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
   bool get _isAllView => _selectedCat == 'all' && _searchQuery.isEmpty;
 
   List<LiveChannel> _filteredAll(List<LiveChannel> all) {
+    // LTV-E7: compare categories case-insensitively so "Sports" == "sports"
     final base = _selectedCat == 'all'
         ? all
-        : all.where((c) => c.cat == _selectedCat).toList();
+        : all.where((c) => c.cat.toLowerCase() == _selectedCat.toLowerCase()).toList();
     if (_searchQuery.isEmpty) return base;
     return base
         .where((c) =>
@@ -111,7 +122,7 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
   }
 
   List<LiveChannel> _forCategory(List<LiveChannel> all, String catId) =>
-      all.where((c) => c.cat == catId).toList();
+      all.where((c) => c.cat.toLowerCase() == catId.toLowerCase()).toList();
 
   // ── Navigation ─────────────────────────────────────────────────────────────
 
@@ -145,6 +156,8 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
         onRefresh: () => ref.read(liveChannelProvider.notifier).refresh(),
         child: SafeArea(
           child: CustomScrollView(
+            // LTV-E4: dismiss search keyboard on scroll
+            controller: _scrollCtrl,
             physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics(),
             ),
@@ -157,6 +170,12 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
 
               // ── Category chips ────────────────────────────────────────────
               SliverToBoxAdapter(child: _buildCategoryChips(t)),
+
+              // ── Stale-data banner (LTV-E8) ────────────────────────────────
+              // Shown when a refresh fails but cached channels are available,
+              // so the user knows the list may be outdated.
+              if (lvState.hasError && all.isNotEmpty)
+                SliverToBoxAdapter(child: _buildStaleDataBanner(t, lvState)),
 
               // ── Loading state ─────────────────────────────────────────────
               if (lvState.isLoading && all.isEmpty)
@@ -256,6 +275,9 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
             child: TextField(
               controller: _searchCtrl,
               focusNode: _searchFocusNode,
+              // LTV-E4: show "Search" action key + dismiss on submit
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => FocusScope.of(context).unfocus(),
               style: TextStyle(color: t.textPrimary, fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Search channels…',
@@ -353,6 +375,34 @@ class _LiveTvScreenState extends ConsumerState<LiveTvScreen>
         ),
       ),
     ),
+  );
+
+  // LTV-E8: shown when a refresh fails but cached channels are still displayed.
+  Widget _buildStaleDataBanner(RaddTheme t, LiveChannelState lvState) => Container(
+    margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+    decoration: BoxDecoration(
+      color: AppColors.primary.withOpacity(0.10),
+      borderRadius: RaddRadius.smRadius,
+      border: Border.all(color: AppColors.primary.withOpacity(0.30)),
+    ),
+    child: Row(children: [
+      Icon(AppIcons.refresh, size: 15, color: AppColors.primary),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Text(
+          'Couldn\'t refresh — showing cached channels',
+          style: TextStyle(color: t.textPrimary, fontSize: 12),
+        ),
+      ),
+      const SizedBox(width: 8),
+      GestureDetector(
+        onTap: () => ref.read(liveChannelProvider.notifier).refresh(),
+        child: Text('Retry', style: TextStyle(
+          color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600,
+        )),
+      ),
+    ]),
   );
 
   // ── Content dispatcher ─────────────────────────────────────────────────────

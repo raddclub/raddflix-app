@@ -1406,6 +1406,9 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
 
   void _applyAutoOrientation() {
     if (_orientMode != 0) return;
+    // LTV-E2: live streams retain whatever orientation the user is holding;
+    // never auto-rotate on video dimension changes for live channels.
+    if (widget.contentType == 'live') return;
     // Smart orientation: read actual video pixel dimensions and silently force
     // the right orientation — no user action needed, works like MX Player.
     // Falls back to sensor if dimensions not yet known.
