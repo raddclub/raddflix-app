@@ -2747,3 +2747,61 @@ to rebuild — the panel is frozen at the state it was opened with.
 | SHA | Description |
 |---|---|
 | `94e1ee0b` | Fix panel active-state bugs 1-6 (CI ⏳) |
+
+---
+
+## Session 2026-08-04 — Subtitle/Audio/Player/Live TV Polish Plan (task creation only)
+
+**Tasks completed:** Plan created, TASKS.md updated, AGENT_HANDOFF.md updated. No code changes.
+
+### Audit scope
+
+Full parallel code audit (4 subagents) across: `subtitle_overlay.dart`, `player_prefs.dart`,
+`_ps_panels_subtitle.dart`, `_ps_panels_audio.dart`, `audio_mode_backdrop.dart`,
+`_ps_audiolab_mixin.dart`, `_ps_ui_mixin.dart` (seekbar + sidebar + call sites),
+`quick_settings_panel.dart`, `settings_screen.dart`, `live_tv_screen.dart`, `LIVE_TV_FIXES.md`,
+`FEATURES_ROADMAP.md`, `TEN_POINT_PLAN.md`. Supplemented with online research (August 2026)
+on subtitle styles across YouTube, Netflix, MX Player, VLC, BBC iPlayer, PotPlayer, Disney+.
+
+### Key findings
+
+**Subtitle system (P0 — all 5 margin/position settings are broken):**
+- Bottom margin slider writes `pref_sub_margin` (px); SubtitleOverlay reads `subtitleVerticalOffset`
+  (different key). Complete disconnect — slider does nothing.
+- `abs(offset)` in `_padding()` strips the sign of vertical offset — direction lost.
+- SubtitleOverlay has no logic to raise when seekbar appears. `_applySubtitleMargin()` only
+  targeted MPV (disabled per Rule 51). Subtitles always sit over the seekbar.
+- Horizontal alignment and edge padding both write to MPV-only properties; overlay ignores them.
+- `subtitleFont` and `subtitleStyleData` declared in PlayerPrefs, never read by SubtitleOverlay.
+
+**Audio player:**
+- Vibe chip only renders for non-none modes — no entry point to activate vibe from disc UI.
+- `_AudioTrackPanelState` and `_AudioEffectPanelState` both missing `didUpdateWidget` — all
+  local state stales when parent changes while panel is mounted.
+- `onAudioDelay`, `onOpenSubSync`, `onOpenAudioSync` are `{}` no-ops at call site.
+- Title parser truncates filenames containing dots (strips from last dot regardless of extension length).
+
+**Player settings:**
+- `onOpenPictureProfiles` and `onOpenWakeDnd` are `{}` no-ops — both rows do nothing.
+- Style/Frame/Controls density/Progress settings in QuickSettings write local state only — never
+  persist, never affect rendering.
+- `immersive` absent from `_allSidebarIds` — impossible to add via customiser.
+- `pictureProfile[0]` can throw RangeError on first launch.
+
+**Live TV:**
+- Orientation unconditionally set to sensor for all content; live channels rotate unexpectedly.
+- `_generateLink()` called unnecessarily for live streams with direct HLS URL.
+- Search keyboard persists on scroll; no Clear CTA on empty results; spinner-only loading state.
+
+### Plan created
+
+`agent-hub/SUBTITLE_AND_POLISH_PLAN.md` — 8 phases, 39 tasks, full root-cause + file/line refs.
+All tasks added to `agent-hub/TASKS.md`. `AGENT_HANDOFF.md` updated with new priority.
+
+### Commits
+
+| SHA | Description |
+|---|---|
+| `94e1ee0b` | Panel active-state bugs 1-6 (prev session — CI ✅ confirmed this session) |
+| `27a07e20` | BG-play deep fix all 4 phases (prev session — CI ✅ confirmed this session) |
+| `423ceae9` | Add Subtitle/Audio/Player/Live TV Polish Plan; update TASKS.md + AGENT_HANDOFF.md |
