@@ -25,6 +25,7 @@ import '../core/utils/anim_config.dart';
 import '../services/app_lock_service.dart';
 import 'app_lock_screen.dart';
 import '../widgets/theme_picker_sheet.dart'; // UX4-05
+import '../providers/auth_provider.dart'; // APP-F1: guest gating
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -282,6 +283,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
+    final isGuest = ref.watch(authProvider).user?.isGuest ?? true; // APP-F1
     final animConfig = ref.watch(animConfigProvider);
 
     return Scaffold(
@@ -416,20 +418,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         ),
                       ),
                     ),
-                    _divider(t),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: RaddSpace.md),
-                      child: SettingsRow(
-                        icon: AppIcons.folder2,
-                        label: 'Manage Downloads',
-                        subtitle:
-                            'View, delete and manage downloaded content',
-                        onTap: () => Navigator.of(context)
-                            .pushNamed(AppRoutes.downloads),
-                        iconColor: context.signalPrimary,
+                    if (!isGuest) ...[  // APP-F1: guests cannot download
+                      _divider(t),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: RaddSpace.md),
+                        child: SettingsRow(
+                          icon: AppIcons.folder2,
+                          label: 'Manage Downloads',
+                          subtitle:
+                              'View, delete and manage downloaded content',
+                          onTap: () => Navigator.of(context)
+                              .pushNamed(AppRoutes.downloads),
+                          iconColor: context.signalPrimary,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: RaddSpace.lg),
@@ -446,16 +450,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: RaddSpace.md),
-                      child: _syncing
-                          ? _SyncingRow(signalColor: context.signalPrimary)
-                          : SettingsRow(
-                              icon: AppIcons.refresh,
-                              label: 'Refresh Catalog',
-                              subtitle:
-                                  'Force download the latest movies and shows',
-                              onTap: _syncNow,
-                              iconColor: context.signalPrimary,
-                            ),
+                      child: isGuest // APP-F1: guests cannot sync
+                          ? _GuestLockedRow(t: t, label: 'Sign in to sync catalog')
+                          : _syncing
+                              ? _SyncingRow(signalColor: context.signalPrimary)
+                              : SettingsRow(
+                                  icon: AppIcons.refresh,
+                                  label: 'Refresh Catalog',
+                                  subtitle:
+                                      'Force download the latest movies and shows',
+                                  onTap: _syncNow,
+                                  iconColor: context.signalPrimary,
+                                ),
                     ),
                   ],
                 ),
@@ -512,7 +518,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 const SizedBox(height: RaddSpace.lg),
 
                 // ── App Lock ────────────────────────────────────────────────
-                _SettingsSection(
+                // APP-F1: App Lock requires an account — guests have no persistent data to protect
+                if (!isGuest) _SettingsSection(
                   t: t,
                   animConfig: animConfig,
                   title: 'App Lock',
@@ -640,6 +647,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 }
 
 // ── Shared section widgets ────────────────────────────────────────────────────
+
+/// APP-F1: Locked row shown in place of account-linked settings rows for guests.
+class _GuestLockedRow extends StatelessWidget {
+  final RaddTheme t;
+  final String label;
+  const _GuestLockedRow({required this.t, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 52,
+      child: Row(children: [
+        Icon(AppIcons.lock, size: 20, color: t.textMuted),
+        const SizedBox(width: RaddSpace.md),
+        Expanded(child: Text(
+          label,
+          style: TextStyle(color: t.textMuted, fontSize: 14),
+        )),
+        TextButton(
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            minimumSize: Size.zero,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          onPressed: () => Navigator.of(context).pushNamed(AppRoutes.login),
+          child: Text('Sign in',
+              style: TextStyle(color: AppColors.primary, fontSize: 13,
+                  fontWeight: FontWeight.w600)),
+        ),
+      ]),
+    );
+  }
+}
 
 class _SyncingRow extends StatelessWidget {
   final Color signalColor;

@@ -1273,6 +1273,32 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                 ),
               ),
 
+            // APP-F6: Mic active indicator — shown while voice commands are listening
+            if (_voiceCommandsEnabled && VoiceCommandsService.instance.isListening)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF26A69A).withOpacity(0.20),
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(
+                        color: const Color(0xFF26A69A).withOpacity(0.55),
+                        width: 0.8),
+                  ),
+                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.mic_rounded, size: 10, color: Color(0xFF80CBC4)),
+                    SizedBox(width: 3),
+                    Text('Listening',
+                        style: TextStyle(
+                          color: Color(0xFF80CBC4),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                        )),
+                  ]),
+                ),
+              ),
+
             // Battery HUD (icon + % + charging pulse) — mirrors the device
             // status bar so viewers can track charge without leaving the video.
             _buildBatteryBadge(),
@@ -4444,6 +4470,7 @@ void _openPanel({
         voiceCommandsEnabled: _voiceCommandsEnabled,
         onVoiceCommandsChanged: (v) async {
           if (v) {
+            HapticFeedback.lightImpact(); // APP-F6: haptic on mic activate
             final granted = await VoiceCommandsService.instance.requestPermission();
             if (!granted) {
               _showInfoSnackbar('Microphone permission required for voice commands');
@@ -4451,6 +4478,7 @@ void _openPanel({
             }
             VoiceCommandsService.instance.start();
             _voiceSub = VoiceCommandsService.instance.commandStream.listen(_onVoiceCommand);
+            setState(() {}); // APP-F6: refresh HUD to show mic badge
             // Fix #6: STT engine is not yet wired — be transparent about it.
             _showInfoSnackbar('🎤 Voice commands are in development — stay tuned!');
           } else {
