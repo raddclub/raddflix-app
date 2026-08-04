@@ -54,25 +54,43 @@ class _CastPanelState extends State<CastPanel> {
         if (widget.connected != null)
           _ConnectedCard(device: widget.connected!, accent: acc, onDisconnect: widget.onDisconnect),
         const Divider(color: Colors.white10, height: 1),
-        Flexible(child: widget.devices.isEmpty
-          ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.cast_connected_rounded, color: Colors.white24, size: 48),
-              const SizedBox(height: 12),
-              const Text('No devices found', style: TextStyle(color: Colors.white38, fontSize: 14)),
-              const SizedBox(height: 4),
-              const Text('Make sure your TV is on the same Wi-Fi',
-                  style: TextStyle(color: Colors.white24, fontSize: 11)),
-            ]))
-          : ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-              itemCount: widget.devices.length,
-              itemBuilder: (_, i) => _DeviceRow(
-                device: widget.devices[i],
-                isConnected: widget.connected?.id == widget.devices[i].id,
-                accent: acc,
-                onTap: () { widget.onConnect(widget.devices[i]); Navigator.pop(context); },
-              ),
-            )),
+        Flexible(child: Builder(builder: (context) {
+          // CAST-J6: filter connected device out of the available-devices list
+          // so it doesn't appear twice (once in the connected card, once in the list).
+          final availableDevices = widget.connected == null
+              ? widget.devices
+              : widget.devices.where((d) => d.id != widget.connected!.id).toList();
+
+          if (availableDevices.isEmpty) {
+            // CAST-J5: differentiate "actively scanning" from "scan finished, nothing found"
+            return Center(child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.cast_connected_rounded, color: Colors.white24, size: 48),
+                const SizedBox(height: 12),
+                Text(
+                  widget.scanning ? 'Searching for devices…' : 'No devices found',
+                  style: const TextStyle(color: Colors.white38, fontSize: 14),
+                ),
+                const SizedBox(height: 4),
+                if (!widget.scanning)
+                  const Text('Make sure your TV is on the same Wi-Fi',
+                      style: TextStyle(color: Colors.white24, fontSize: 11)),
+              ]),
+            ));
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+            itemCount: availableDevices.length,
+            itemBuilder: (_, i) => _DeviceRow(
+              device: availableDevices[i],
+              isConnected: widget.connected?.id == availableDevices[i].id,
+              accent: acc,
+              onTap: () { widget.onConnect(availableDevices[i]); Navigator.pop(context); },
+            ),
+          );
+        })),
       ]),
     ).animate().slideY(begin: 0.1, end: 0, duration: 240.ms, curve: Curves.easeOutCubic)
                .fadeIn(duration: 180.ms);
