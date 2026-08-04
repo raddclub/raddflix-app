@@ -175,7 +175,8 @@ class _DeviceRow extends StatelessWidget {
           Row(children: List.generate(4, (i) => Container(
             width: 4, height: 8 + i * 3.0, margin: const EdgeInsets.only(left: 2),
             decoration: BoxDecoration(
-              color: i < device.signalStrength ? accent : Colors.white24,
+              // CAST-J7: clamp to 0–4 so out-of-range values don't draw wrong bar count
+              color: i < device.signalStrength.clamp(0, 4) ? accent : Colors.white24,
               borderRadius: BorderRadius.circular(2))))),
           if (isConnected)
             Padding(padding: const EdgeInsets.only(left: 8),
