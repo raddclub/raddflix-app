@@ -1034,6 +1034,19 @@ class _SettingsPanelState extends State<_SettingsPanel> {
   late bool _showSeekPosition;
   // Screen tab brightness
   double _screenBrightness = 0.5;
+  // Screen tab — local mirrors so toggles update live inside the modal (same frozen-state bug as Bugs 1-6)
+  late bool _showClockInTitle;
+  late int  _clockFormat;
+  late bool _showBatteryInTitle;
+  late bool _batteryChargeAnim;
+  late bool _nightModeEnabled;
+  late double _nightWarmth;
+  // Controls tab — local mirrors for gesture / voice toggles
+  late bool _doubleTapSeekEnabled;
+  late bool _longPressSpeedEnabled;
+  late bool _swipeSeekEnabled;
+  late bool _swipeBVEnabled;
+  late bool _voiceCommandsEnabled;
 
   @override
   void initState() {
@@ -1049,6 +1062,17 @@ class _SettingsPanelState extends State<_SettingsPanel> {
     _showSkipBtns = widget.showSkipBtns;
     _showPrevNextBtns = widget.showPrevNextBtns;
     _showSeekPosition = widget.showSeekPosition;
+    _showClockInTitle     = widget.showClockInTitle;
+    _clockFormat          = widget.clockFormat;
+    _showBatteryInTitle   = widget.showBatteryInTitle;
+    _batteryChargeAnim    = widget.batteryChargeAnim;
+    _nightModeEnabled     = widget.nightModeEnabled;
+    _nightWarmth          = widget.nightWarmth;
+    _doubleTapSeekEnabled = widget.doubleTapSeekEnabled;
+    _longPressSpeedEnabled= widget.longPressSpeedEnabled;
+    _swipeSeekEnabled     = widget.swipeSeekEnabled;
+    _swipeBVEnabled       = widget.swipeBVEnabled;
+    _voiceCommandsEnabled = widget.voiceCommandsEnabled;
   }
 
   @override
@@ -1237,12 +1261,12 @@ class _SettingsPanelState extends State<_SettingsPanel> {
 
         SwitchListTile(
           title: const Text('Show clock / time', style: TextStyle(color: Colors.white, fontSize: 14)),
-          value: widget.showClockInTitle,
-          onChanged: widget.onClockToggle,
+          value: _showClockInTitle,
+          onChanged: (v) { setState(() => _showClockInTitle = v); widget.onClockToggle(v); },
           activeColor: Colors.white,
           contentPadding: EdgeInsets.zero,
         ),
-        if (widget.showClockInTitle)
+        if (_showClockInTitle)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Row(
@@ -1256,8 +1280,8 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                       ButtonSegment(value: 1, label: Text('12h')),
                       ButtonSegment(value: 2, label: Text('24h')),
                     ],
-                    selected: {widget.clockFormat},
-                    onSelectionChanged: (s) => widget.onClockFormatChanged(s.first),
+                    selected: {_clockFormat},
+                    onSelectionChanged: (s) { setState(() => _clockFormat = s.first); widget.onClockFormatChanged(s.first); },
                     style: SegmentedButton.styleFrom(
                       backgroundColor: Colors.white.withOpacity(0.06),
                       selectedBackgroundColor: Colors.white.withOpacity(0.18),
@@ -1275,17 +1299,17 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         SwitchListTile(
           title: const Text('Show battery %', style: TextStyle(color: Colors.white, fontSize: 14)),
           subtitle: const Text('Battery icon + percentage in the top bar', style: TextStyle(color: Colors.white38, fontSize: 11)),
-          value: widget.showBatteryInTitle,
-          onChanged: widget.onBatteryToggle,
+          value: _showBatteryInTitle,
+          onChanged: (v) { setState(() => _showBatteryInTitle = v); widget.onBatteryToggle(v); },
           activeColor: Colors.white,
           contentPadding: EdgeInsets.zero,
         ),
-        if (widget.showBatteryInTitle)
+        if (_showBatteryInTitle)
           SwitchListTile(
             title: const Text('Charging animation', style: TextStyle(color: Colors.white, fontSize: 14)),
             subtitle: const Text('Pulsing bolt icon while plugged in', style: TextStyle(color: Colors.white38, fontSize: 11)),
-            value: widget.batteryChargeAnim,
-            onChanged: widget.onBatteryAnimToggle,
+            value: _batteryChargeAnim,
+            onChanged: (v) { setState(() => _batteryChargeAnim = v); widget.onBatteryAnimToggle(v); },
             activeColor: Colors.white,
             contentPadding: EdgeInsets.zero,
           ),
@@ -1325,11 +1349,11 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         SwitchListTile(
           title: const Text('Night mode (eye comfort)', style: TextStyle(color: Colors.white, fontSize: 14)),
           subtitle: const Text('Warm filter — reduces blue light', style: TextStyle(color: Colors.white38, fontSize: 11)),
-          value: widget.nightModeEnabled,
-          onChanged: widget.onNightModeToggle,
+          value: _nightModeEnabled,
+          onChanged: (v) { setState(() => _nightModeEnabled = v); widget.onNightModeToggle(v); },
           activeColor: AppColors.orange,
         ),
-        if (widget.nightModeEnabled) ...[
+        if (_nightModeEnabled) ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
             child: Column(
@@ -1339,9 +1363,9 @@ class _SettingsPanelState extends State<_SettingsPanel> {
                 Row(children: [
                   const Icon(Icons.wb_sunny_outlined, color: Colors.white38, size: 16),
                   Expanded(child: Slider(
-                    value: widget.nightWarmth, min: 0.1, max: 1.0, divisions: 9,
+                    value: _nightWarmth, min: 0.1, max: 1.0, divisions: 9,
                     activeColor: AppColors.orange, inactiveColor: Colors.white24,
-                    onChanged: widget.onNightWarmthChanged,
+                    onChanged: (v) { setState(() => _nightWarmth = v); widget.onNightWarmthChanged(v); },
                   )),
                   const Icon(Icons.wb_sunny_rounded, color: AppColors.orange, size: 16),
                 ]),
@@ -1381,23 +1405,23 @@ class _SettingsPanelState extends State<_SettingsPanel> {
         const SizedBox(height: 10),
         _stgSection('Gestures', items: [
           _stgSwitch(Icons.touch_app_rounded,         'Double-tap seek',
-              'Double-tap left/right to rewind/forward', widget.doubleTapSeekEnabled,
-              widget.onDoubleTapSeekChanged),
+              'Double-tap left/right to rewind/forward', _doubleTapSeekEnabled,
+              (v) { setState(() => _doubleTapSeekEnabled = v); widget.onDoubleTapSeekChanged(v); }),
           _stgSwitch(Icons.speed_rounded,             'Long press speed boost',
-              'Hold to play at 2× speed',             widget.longPressSpeedEnabled,
-              widget.onLongPressSpeedChanged),
+              'Hold to play at 2× speed',             _longPressSpeedEnabled,
+              (v) { setState(() => _longPressSpeedEnabled = v); widget.onLongPressSpeedChanged(v); }),
           _stgSwitch(Icons.swipe_rounded,             'Swipe to seek',
-              'Horizontal swipe jumps through video', widget.swipeSeekEnabled,
-              widget.onSwipeSeekChanged),
+              'Horizontal swipe jumps through video', _swipeSeekEnabled,
+              (v) { setState(() => _swipeSeekEnabled = v); widget.onSwipeSeekChanged(v); }),
           _stgSwitch(Icons.tune_rounded,              'Swipe brightness / volume',
-              'Left edge: brightness  •  Right edge: volume', widget.swipeBVEnabled,
-              widget.onSwipeBVChanged),
+              'Left edge: brightness  •  Right edge: volume', _swipeBVEnabled,
+              (v) { setState(() => _swipeBVEnabled = v); widget.onSwipeBVChanged(v); }),
         ]),
         const SizedBox(height: 10),
         _stgSection('Voice', items: [
           _stgSwitch(Icons.mic_rounded,               'Voice commands',
-              'Say "Pause", "Play", "Forward 30" hands-free', widget.voiceCommandsEnabled,
-              widget.onVoiceCommandsChanged),
+              'Say "Pause", "Play", "Forward 30" hands-free', _voiceCommandsEnabled,
+              (v) { setState(() => _voiceCommandsEnabled = v); widget.onVoiceCommandsChanged(v); }),
         ]),
       ],
     );
