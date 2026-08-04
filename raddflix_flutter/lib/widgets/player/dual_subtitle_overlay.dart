@@ -138,10 +138,34 @@ class _DualSubtitleOverlayState extends State<DualSubtitleOverlay> {
             ? widget.prefs.accentColor.withOpacity(0.28)
             : base;
 
+    // SUB-G3: resolve font family from PlayerPrefs — mirrors SubtitleOverlay._resolvedFontFamily
+    String? resolvedFontFamily;
+    switch (widget.prefs.subtitleFont) {
+      case 'atkinson':
+        resolvedFontFamily = GoogleFonts.atkinsonHyperlegible().fontFamily;
+        break;
+      case 'lexie_readable':
+        resolvedFontFamily = GoogleFonts.lexend().fontFamily;
+        break;
+      case 'roboto':
+        resolvedFontFamily = GoogleFonts.roboto().fontFamily;
+        break;
+      default:
+        final fam = widget.prefs.subtitleFontFamily;
+        if (fam == 'Sans-Serif' || fam == 'Sans Serif' || fam == 'Default') {
+          resolvedFontFamily = null;
+        } else if (fam == 'Lexend') {
+          resolvedFontFamily = GoogleFonts.lexend().fontFamily;
+        } else {
+          resolvedFontFamily = fam;
+        }
+    }
+
     return Positioned(
       left: 8, right: 8,
+      // SUB-G2: raise above seekbar/controls when visible, same as SubtitleOverlay.
       bottom: (MediaQuery.of(context).size.height * widget.prefs.subtitleVerticalOffset)
-          .clamp(48.0, 200.0),
+          .clamp(48.0, 200.0) + widget.controlsRaiseDp,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -169,6 +193,7 @@ class _DualSubtitleOverlayState extends State<DualSubtitleOverlay> {
                     accentColor: widget.prefs.accentColor,
                     tappedWord: _tappedWord,
                     onWordTap: (word) => _onWordTap(context, word, widget.secondaryLine),
+                    fontFamily: resolvedFontFamily, // SUB-G3
                   ),
                   // IDEA-08: phonetic row below secondary line (if applicable).
                   if (secPhonetic != null) ...[
@@ -206,6 +231,7 @@ class _DualSubtitleOverlayState extends State<DualSubtitleOverlay> {
                     accentColor: widget.prefs.accentColor,
                     tappedWord: _tappedWord,
                     onWordTap: (word) => _onWordTap(context, word, widget.primaryLine),
+                    fontFamily: resolvedFontFamily, // SUB-G3
                   ),
                   // IDEA-08: phonetic row below primary line (if applicable).
                   if (priPhonetic != null) ...[
@@ -232,6 +258,8 @@ class _SubLine extends StatelessWidget {
   final Color accentColor;
   final String? tappedWord;
   final void Function(String)? onWordTap;
+  // SUB-G3: resolved font family from PlayerPrefs (null = system default)
+  final String? fontFamily;
 
   static final _reTokenize = RegExp(r"[\w']+|[^\w']+");
   static final _reWord     = RegExp(r"^[\w']+$");
@@ -251,6 +279,7 @@ class _SubLine extends StatelessWidget {
     required this.accentColor,
     this.tappedWord,
     this.onWordTap,
+    this.fontFamily,
   });
 
   @override
@@ -258,6 +287,7 @@ class _SubLine extends StatelessWidget {
     final baseStyle = TextStyle(
       color: textColor,
       fontSize: fontSize,
+      fontFamily: fontFamily, // SUB-G3
       fontWeight: bold ? FontWeight.bold : FontWeight.normal,
       fontStyle: italic ? FontStyle.italic : FontStyle.normal,
       height: 1.3,

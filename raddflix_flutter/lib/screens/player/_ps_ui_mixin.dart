@@ -2890,6 +2890,8 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                                 primaryLine:   primary  ?? '',
                                 secondaryLine: secondary ?? '',
                                 prefs: prefs,
+                                // SUB-G2: raise both tracks when seekbar is visible
+                                controlsRaiseDp: _showControls ? 120.0 : 0.0,
                                 onPausedForLookup: () {
                                   try { _player.pause(); } catch (_) {}
                                 },
