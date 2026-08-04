@@ -5,32 +5,59 @@
 
 ---
 
-## Current State (2026-08-04 — Panel active-state & animation fixes shipped)
+## Current State (2026-08-04 — Subtitle/Audio/Player/Live TV task plan created)
+
+**BG-play Deep Fix — ALL DONE (SHA `27a07e20`, CI green):**
+- BG-FIX-1: `_player.play()` after `vid=no` on fullscreen→background path ✅
+- BG-FIX-2: `vid=no` + `_player.play()` on minimized player→background path ✅
+- BG-FIX-3: `notifReceiver` moved to `onResume()`/`onPause()` so controls work in background ✅
+- BG-FIX-4: `artworkUrl` now passed through to lock-screen notification ✅
+
+**Panel active-state & animation bugs — ALL DONE (SHA `94e1ee0b`, CI green):**
+- 6 panel freeze bugs fixed (vibe chip, audio track, primary/secondary subtitle highlights, EQ preset deselect, snap→AnimatedContainer animations) ✅
 
 **Phase A (Full UI Theme Engine) — DONE (SHA `e4899225`, CI green):**
-- PHASE-A1: `_accentColor` getter wired to `PlayerPrefs.accentColor` ✅
-- PHASE-A2: seek bar wired to `PlayerPrefs.seekBarStyle` ✅
-- PHASE-A-ENTRY: `QuickSettingsPanel` accessible via 'style' sidebar shortcut ✅
+- PHASE-A1/A2/A-ENTRY: accent color + seek bar style + QuickSettingsPanel access via sidebar ✅
 
-**Current priority: BG-play deep fix (4 tasks across 3 phases)**
+---
 
-Research session (2026-08-03) identified 4 concrete bugs in the background-play stack via code
-audit + web research. Plan is now in TASKS.md under "BG-play Deep Fix". Tasks are ready to
-implement — waiting for approval to start coding.
+**Current priority: Subtitle, Audio, Player & Live TV Polish Plan**
 
-Root cause summary (see TASKS.md for full detail):
-1. media_kit internally pauses MPV when surface is destroyed; `_player.play()` is never called
-   to recover — audio dies immediately on background.
-2. Minimized-player path (playback_service.dart) never sets `vid=no` before starting the
-   foreground service — same surface-stall problem on a separate code path.
-3. `notifReceiver` in MainActivity is unregistered in `onStop()`, so notification play/pause/seek
-   buttons are dead while app is in background.
-4. `artworkUrl` is passed from Flutter but silently dropped in `startPlaybackService()` — no
-   poster art in the lock-screen notification (cosmetic).
+Full phased task plan created 2026-08-04 from a full codebase audit. Plan is in
+`agent-hub/SUBTITLE_AND_POLISH_PLAN.md`. All tasks are in `agent-hub/TASKS.md` under
+"Subtitle, Audio, Player & Live TV Polish". **Start at Phase A (SUB-A1 first).**
 
-**Next after BG-play fix:** Resume FEATURES_ROADMAP.md Phase A remaining (A3 button/icon
-styles, A4 controls background style — already in PlayerPrefs + QuickSettingsPanel, just need
-wiring to player rendering). Then Phase B (drag-drop layout editor).
+### Critical bugs confirmed by audit (Phase A — start here):
+
+1. **Subtitle margin slider completely broken** — panel "Bottom Margin" slider writes
+   `pref_sub_margin` (px int); `SubtitleOverlay` reads `subtitleVerticalOffset` (different
+   key entirely). Changing the slider has zero visible effect. (SUB-A2)
+2. **Subtitle vertical offset sign stripped** — `abs(offset)` discards direction; slider
+   appears to work in one direction only. (SUB-A1)
+3. **Subtitles never raise when seekbar appears** — existing `_applySubtitleMargin()` only
+   targeted MPV (disabled, Rule 51); Flutter overlay is `Positioned.fill` with a fixed
+   `bottom: 80` — never moves. Subtitles sit on top of the seekbar. (SUB-A3)
+4. **Horizontal alignment broken** — panel writes MPV `sub-align-x`; overlay always centers. (SUB-A4)
+5. **Edge padding broken** — panel writes MPV `sub-margin-x`; overlay uses hardcoded 24px. (SUB-A5)
+6. **`onAudioDelay`, `onOpenSubSync`, `onOpenAudioSync` are dead no-ops** at call site —
+   audio/subtitle delay UI rows render but do nothing. (AUDIO-C6)
+7. **`onOpenPictureProfiles` and `onOpenWakeDnd` are dead no-ops** — buttons do nothing. (PLAYER-D1)
+
+### Phase summary:
+
+| Phase | Topic | Priority |
+|---|---|---|
+| **A** | **Subtitle positioning & margin — 5 fixes (all settings broken)** | 🔴 P0 |
+| **B** | Subtitle style presets — 5 tasks (fix apply, wire font/style, add 10 new styles) | 🟡 P1 |
+| **C** | Audio player & panel — 6 fixes (vibe entry, stale state, dead callbacks) | 🟡 P1 |
+| **D** | Player settings & Quick Settings — 7 fixes (dead no-ops, immersive missing, etc.) | 🟡 P1–P2 |
+| **E** | Live TV — 10 fixes (orientation, HLS bypass, UX polish, skeleton loading) | 🟡 P1–P2 |
+| **F** | General app (guest/free/subscribed/admin perspective) — 6 tasks | 🟢 P2–P3 |
+| **G** | Dual subtitles consistency — 3 tasks | 🟢 P2 |
+| **H** | Production hygiene tweaks — 3 tasks | 🟢 P2–P3 |
+
+**After this plan:** Resume `FEATURES_ROADMAP.md` Phase A remaining (A3 button/icon styles,
+A4 controls background style). Then Phase B (drag-drop layout editor).
 
 ---
 

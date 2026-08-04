@@ -568,3 +568,97 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 | Task | Description | Files | Status | Date | Commit |
 |---|---|---|---|---|---|
 | BG-FIX-4 | **Pass `artworkUrl` through to `PlaybackService.kt` so the lock-screen notification shows the content poster.** Flutter's `_notifyBgState()` already sends `artworkUrl` in the `startBgPlayback` method call. `PlaybackService.kt` already has the `EXTRA_ARTWORK_URL` constant and async bitmap loader. The gap: `MainActivity.kt`'s `startPlaybackService()` only accepts `title`, `isPlaying`, `posMs`, `durMs` — it never extracts `artworkUrl` from the Flutter call arguments and never puts it in the service Intent. Fix: (1) add `artworkUrl: String` parameter to `startPlaybackService()`; (2) in the `startBgPlayback` and `updateBgNotification` channel cases, extract `call.argument<String>("artworkUrl") ?: ""` and pass it; (3) inside `startPlaybackService()`, add `putExtra(PlaybackService.EXTRA_ARTWORK_URL, artworkUrl)` to the Intent. | `android/.../MainActivity.kt` | ✅ DONE | 2026-08-04 | `27a07e20` |
+
+---
+
+## Subtitle, Audio, Player & Live TV Polish (planned 2026-08-04)
+
+> Full plan with root-cause analysis, exact file/line references, and implementation
+> notes: `agent-hub/SUBTITLE_AND_POLISH_PLAN.md`. Read that file before starting any task
+> in this section. Phase order: A → B → C → D → E → F → G → H.
+> All tasks are ⬜ OPEN unless marked otherwise.
+
+### Phase A — Subtitle Positioning & Margin 🔴 P0 Critical
+
+| Task | Description | Files | Status | Date | Commit |
+|---|---|---|---|---|---|
+| SUB-A1 | **Fix sign-stripped `abs()` in vertical offset.** Both branches call `offset.abs()`, discarding direction — the margin slider moves subtitles in one direction only. Fix: use signed offset directly (`bottom: max(4, 80 + offset)`, top: `20 - offset`, center: `top: offset` padding). | `subtitle_overlay.dart` L99–106 | ⬜ OPEN | 2026-08-04 | — |
+| SUB-A2 | **Fix bottom-margin slider disconnect.** Panel "Bottom Margin" slider writes `pref_sub_margin` (px int). `SubtitleOverlay` reads `subtitleVerticalOffset` (float, different key). Complete disconnect — slider has zero visible effect. Fix: either map the px value to `subtitleVerticalOffset`, or add `subtitleBottomMarginPx` to PlayerPrefs and read it in the overlay. Remove dead MPV `sub-margin-y` setProperty call (Rule 51). | `_ps_panels_subtitle.dart`, `subtitle_overlay.dart`, `player_prefs.dart` | ⬜ OPEN | 2026-08-04 | — |
+| SUB-A3 | **Auto-raise subtitles when seekbar/controls visible (MX Player / YouTube behaviour).** Flutter overlay never moves when controls appear; existing `_applySubtitleMargin()` only targeted MPV (disabled). Fix: add `ValueNotifier<double> subtitleRaiseNotifier`; when `_showControls` → raise ~120dp (seekbar 48 + transport 52 + padding 10 + 8 gap); animate 200ms easeOut; pass `controlsRaiseDp` param to SubtitleOverlay and DualSubtitleOverlay; apply in both landscape and portrait stacks. | `_ps_ui_mixin.dart`, `subtitle_overlay.dart`, `dual_subtitle_overlay.dart` | ⬜ OPEN | 2026-08-04 | — |
+| SUB-A4 | **Wire horizontal alignment (Left/Center/Right) to SubtitleOverlay.** Panel writes MPV `sub-align-x` only; overlay always centers. Fix: add `subtitleHorizontalAlignment` field to PlayerPrefs (`pref_sub_align_x`); overlay maps it to `Alignment.bottomLeft/Center/Right` + matching edge padding. Remove MPV call. | `subtitle_overlay.dart`, `player_prefs.dart`, `_ps_panels_subtitle.dart` | ⬜ OPEN | 2026-08-04 | — |
+| SUB-A5 | **Wire edge padding to SubtitleOverlay.** Panel writes MPV `sub-margin-x`; overlay uses hardcoded `horizontal: 24`. Fix: add `subtitleEdgePaddingPx` to PlayerPrefs (`pref_sub_edge_pad`); overlay reads it. Remove MPV call. | `subtitle_overlay.dart`, `player_prefs.dart`, `_ps_panels_subtitle.dart` | ⬜ OPEN | 2026-08-04 | — |
+
+### Phase B — Subtitle Style Presets & New Styles 🟡 P1
+
+| Task | Description | Files | Status | Date | Commit |
+|---|---|---|---|---|---|
+| SUB-B1 | **Fix `_applyPreset` incomplete application.** Currently only applies font size, weight, text/bg color, outline boolean. Does NOT apply: position, verticalOffset, italic, shadowBlur, shadowColor, shadowOffset, line/letter spacing. Extend `_applyPreset` to fully apply all `SubtitleStyle` fields via `copyWith`. | `_ps_panels_subtitle.dart` | ⬜ OPEN | 2026-08-04 | — |
+| SUB-B2 | **Wire `subtitleFont` and `subtitleStyleData` to SubtitleOverlay.** Both PlayerPrefs fields declared and saved but never consumed by the overlay. Font picker and style data have zero visual effect. Fix: map `subtitleFont` to `GoogleFonts.*` in `_buildTextStyle()`; decode `subtitleStyleData` via `SubtitleStyle.decode()` and apply shadow blur, color, letter/line spacing. | `subtitle_overlay.dart` | ⬜ OPEN | 2026-08-04 | — |
+| SUB-B3 | **Add 10 popular preset subtitle styles.** YouTube Default (white + black pill), Netflix (white + soft shadow outline), BBC (yellow + black box), Cinema Dark (warm white + heavy outline), High Contrast/Accessibility (Atkinson Hyperlegible, white on black box), Minimal (white + single shadow), Night Mode (gold + dark outline), Karaoke Ready (bold white + pill), Urdu/Hindi Optimized (Noto Nastaliq Urdu, large, pill), Large Print (28sp bold, black box). Each preset fully populates all `SubtitleStyle` fields. Add live mini-preview render inside each preset card. Full spec in `SUBTITLE_AND_POLISH_PLAN.md` Phase B. | `_ps_panels_subtitle.dart`, `subtitle_overlay.dart` | ⬜ OPEN | 2026-08-04 | — |
+| SUB-B4 | **Add letter spacing and line spacing controls.** New sliders in Style tab: line spacing 1.0–2.0 (default 1.2) → `subtitleLineSpacing` double; letter spacing −1–4 px (default 0) → `subtitleLetterSpacing` double. Apply in overlay via `TextStyle.height` and `letterSpacing`. | `_ps_panels_subtitle.dart`, `subtitle_overlay.dart`, `player_prefs.dart` | ⬜ OPEN | 2026-08-04 | — |
+| SUB-B5 | **Add subtitle shadow blur + direction controls.** Outline thickness exists; no shadow blur or direction. Add: shadow blur slider 0–12 px → `subtitleShadowBlur` double; direction selector None/Down-right/Down/All-sides → `subtitleShadowDirection` string. Apply via `TextStyle.shadows`. | `_ps_panels_subtitle.dart`, `subtitle_overlay.dart`, `player_prefs.dart` | ⬜ OPEN | 2026-08-04 | — |
+
+### Phase C — Audio Player & Panel Fixes 🟡 P1
+
+| Task | Description | Files | Status | Date | Commit |
+|---|---|---|---|---|---|
+| AUDIO-C1 | **Vinyl disc player: add vibe entry when mode is None.** Vibe chip only renders for non-none modes — no affordance to start a vibe from the audio disc UI. Fix: always render a vibe row; when mode is none show dim ghost `"+ Vibe"` chip that opens Audio Effect panel at Vibe tab. | `audio_mode_backdrop.dart` L398–420 | ⬜ OPEN | 2026-08-04 | — |
+| AUDIO-C2 | **`_AudioTrackPanelState` missing `didUpdateWidget`.** `_selectedTrack`, `_sync`, `_useSW`, `_chIdx` init once; external track/state changes while panel is mounted are not reflected. Add `didUpdateWidget` to sync all four. | `_ps_panels_audio.dart` ~L1553 | ⬜ OPEN | 2026-08-04 | — |
+| AUDIO-C3 | **`_AudioEffectPanelState` missing `didUpdateWidget`.** `_bands`, `_preset`, `_vibeMode`, `_eqEnabled`, and all lab flags init once. External vibe/EQ changes while panel is open not reflected. Add `didUpdateWidget` to re-sync all fields. | `_ps_panels_audio.dart` ~L181 | ⬜ OPEN | 2026-08-04 | — |
+| AUDIO-C4 | **SW decoder toggle: disable during active playback.** `SwitchListTile.onChanged` always enabled despite panel comment saying it should be disabled during playback. Fix: `onChanged: _isPlaying ? null : (val) { ... }` + add `"Seek or restart to apply"` subtitle when disabled. | `_ps_panels_audio.dart` L1693–1707 | ⬜ OPEN | 2026-08-04 | — |
+| AUDIO-C5 | **Audio backdrop title parser: dots in filenames cause truncation.** Any dot in the title is treated as extension separator; `"Dr. Who S01E01.mkv"` → `"Dr"`. Fix: only strip extension if the substring after the last dot is a known short video/audio extension (≤4 chars). Also recognise em-dash and en-dash as artist separators. | `audio_mode_backdrop.dart` L985–995 | ⬜ OPEN | 2026-08-04 | — |
+| AUDIO-C6 | **Wire dead `onAudioDelay`, `onOpenSubSync`, `onOpenAudioSync` callbacks.** All three are `{}` no-ops at the call site in `_ps_ui_mixin.dart`. Audio/sub delay UI rows render but do nothing. Fix: wire `onAudioDelay` to `_audioDelay` state + MPV `audio-delay`; wire sync openers to their respective panels. | `_ps_ui_mixin.dart` ~L4484–4492 | ⬜ OPEN | 2026-08-04 | — |
+
+### Phase D — Player Settings & Quick Settings Panel Fixes 🟡 P1–P2
+
+| Task | Description | Files | Status | Date | Commit |
+|---|---|---|---|---|---|
+| PLAYER-D1 | **Wire `onOpenPictureProfiles` and `onOpenWakeDnd` (dead no-ops).** Both callbacks are `() {}` at call site. Tapping Picture Profiles or Wake/DnD rows does nothing. Fix: wire to `PictureProfilesSheet` bottom sheet and wake/DnD section respectively; add `pictureProfile.isNotEmpty` guard. | `_ps_ui_mixin.dart` ~L4470–4483 | ⬜ OPEN | 2026-08-04 | — |
+| PLAYER-D2 | **Style/Frame/Controls density/Progress settings not persisted.** These QuickSettings controls write to local widget state only, reset on close, and never affect rendering. Fix: map each to PlayerPrefs fields, write on change, apply in player rendering. | `quick_settings_panel.dart` | ⬜ OPEN | 2026-08-04 | — |
+| PLAYER-D3 | **Add `immersive` to `_allSidebarIds`.** Immersive mode action exists but `_allSidebarIds` omits it, making it impossible to add via the sidebar customiser. Fix: add `'immersive'` to the list. | `_ps_ui_mixin.dart` ~L281–285 | ⬜ OPEN | 2026-08-04 | — |
+| PLAYER-D4 | **Hide CC sidebar button when no subtitle tracks available.** CC button always shown even with zero subtitle tracks; opening it shows an empty panel. Fix: gate on `_subtitleTracks.isNotEmpty`; show dimmed disabled state rather than hiding entirely. | `_ps_ui_mixin.dart` ~L2350–2355 | ⬜ OPEN | 2026-08-04 | — |
+| PLAYER-D5 | **Guard `pictureProfile[0]` against empty list.** Can throw `RangeError` on first launch. Fix: `_p.pictureProfile.isNotEmpty ? _p.pictureProfile[0] : null` with a `"Default"` fallback label. | `quick_settings_panel.dart` ~L693–694 | ⬜ OPEN | 2026-08-04 | — |
+| PLAYER-D6 | **Remove unused imports (`wake_lock_service.dart`, `voice_commands_service.dart`) from audio panel.** Likely flagged by Dart analyzer. Verify no symbol is used before removing. | `_ps_panels_audio.dart` | ⬜ OPEN | 2026-08-04 | — |
+| PLAYER-D7 | **Wire `_showFwdBtn` / `_showPrevNext` or remove them.** Declared and persisted but never affect rendering. Either wire to transport row visibility logic or remove the fields and their settings rows. | `_ps_ui_mixin.dart` | ⬜ OPEN | 2026-08-04 | — |
+
+### Phase E — Live TV Screen Fixes 🟡 P1–P2
+
+| Task | Description | Files | Status | Date | Commit |
+|---|---|---|---|---|---|
+| LTV-E1 | **O-01: Live TV retains current device orientation.** `initState` unconditionally calls `_setNativeOrientation('sensor')` for all content; live channel tap rotates to landscape. Fix: gate on content type — live skips orientation change, VOD/series keeps sensor. | `player_screen.dart` | ⬜ OPEN | 2026-08-04 | — |
+| LTV-E2 | **O-02: Dimension listener auto-rotate gate for live.** `videoParams` listener calls `_autoSelectOrientation()` for live streams, forcing landscape. Fix: add `if (_isLive) return;` guard. | `_ps_playback_mixin.dart` | ⬜ OPEN | 2026-08-04 | — |
+| LTV-E3 | **V-01: Bypass `_generateLink()` for live streams with direct URL.** Live streams call the full proxy/auth/media chain unnecessarily. Fix: early branch in `_openMedia()` — if `widget.streamUrl != null && _isLive`, call `_player.open(Media(widget.streamUrl!))` directly. | `_ps_playback_mixin.dart` | ⬜ OPEN | 2026-08-04 | — |
+| LTV-E4 | **Search keyboard not dismissed on scroll.** No `textInputAction: search`, no `onSubmitted`, no scroll listener. Fix: add all three to the search TextField + scroll controller. | `live_tv_screen.dart` ~L256–270 | ⬜ OPEN | 2026-08-04 | — |
+| LTV-E5 | **No "Clear search" CTA in empty results.** Empty state only shows text. Fix: add a `TextButton("Clear search")` that resets `_searchQuery`. | `live_tv_screen.dart` ~L371–388 | ⬜ OPEN | 2026-08-04 | — |
+| LTV-E6 | **Loading state → channel skeleton cards.** Spinner in a 300dp box gives no layout preview. Fix: replace with shimmer skeleton grid matching real card dimensions. | `live_tv_screen.dart` ~L312–327 | ⬜ OPEN | 2026-08-04 | — |
+| LTV-E7 | **Category filtering: case-sensitive match drops mis-cased entries.** Fix: normalise both sides to lowercase before comparison. | `live_tv_screen.dart` L104, 114 | ⬜ OPEN | 2026-08-04 | — |
+| LTV-E8 | **No error banner when refresh fails with stale data.** Errors only shown when list is empty. Fix: add top "Couldn't refresh — showing cached" banner with retry button when `hasError && all.isNotEmpty`. | `live_tv_screen.dart` ~L165–167 | ⬜ OPEN | 2026-08-04 | — |
+| LTV-E9 | **Per-card `_pulseCtrl` causes full list rebuild each frame.** 50+ concurrent 60fps timers on simultaneous list rebuild. Fix: hoist one `AnimationController` to the outer list widget and pass animation value to each card. | `live_tv_screen.dart` | ⬜ OPEN | 2026-08-04 | — |
+| LTV-E10 | **Live TV header hardcoded typography + bespoke badge.** Fix: replace with `RaddType`/`AppTextStyle` tokens; replace channel-count badge with design-system chip. | `live_tv_screen.dart` ~L205–227 | ⬜ OPEN | 2026-08-04 | — |
+
+### Phase F — General App Fixes (Guest / Free / Subscribed / Admin) 🟢 P2–P3
+
+| Task | Description | Files | Status | Date | Commit |
+|---|---|---|---|---|---|
+| APP-F1 | **Guest user: settings screen shows paid sections with no guard.** Subscription-dependent rows visible to guests do nothing or throw. Fix: gate subscription sections behind `!isGuest`; show "Sign in to access" prompt. | `settings_screen.dart` | ⬜ OPEN | 2026-08-04 | — |
+| APP-F2 | **Free user: verify subscription gate fires on ALL premium content entry points.** Gate fires on player but check: home shelf, search results, detail screen, continue-watching strip, mini player. Ensure all paths show "Subscribe to unlock" bottom sheet with plans CTA. | `home_screen.dart`, `show_detail_screen.dart`, `mini_player_bar.dart`, `player_screen.dart` | ⬜ OPEN | 2026-08-04 | — |
+| APP-F3 | **Admin: bulk scan/metadata operations lack progress feedback.** Admins assume operations stalled after initial toast. Fix: add SSE or polling endpoint; push periodic progress updates to admin panel during scan/bulk-refresh. | `radd-hub/hub/routes/scan.py`, `admin.html` | ⬜ OPEN | 2026-08-04 | — |
+| APP-F4 | **Subscribed user: no subscription expiry date visible in-app.** Users discover expiry only when content stops. Fix: add expiry date line to Profile screen under plan badge (from existing API response). | `profile_screen.dart` | ⬜ OPEN | 2026-08-04 | — |
+| APP-F5 | **Normal user: home shelf scroll position lost after Show Detail → back.** Verify `AutomaticKeepAliveClientMixin` correctly applied to Home tab in IndexedStack after UX4-01. | `home_screen.dart` | ⬜ OPEN | 2026-08-04 | — |
+| APP-F6 | **Voice commands: no visual indicator when system is listening.** No haptic or overlay on long-press activation. Fix: brief haptic + small animated mic icon overlay during listen window. | `_ps_ui_mixin.dart`, voice overlay widget | ⬜ OPEN | 2026-08-04 | — |
+
+### Phase G — Dual Subtitles & Overlay Consistency 🟢 P2
+
+| Task | Description | Files | Status | Date | Commit |
+|---|---|---|---|---|---|
+| SUB-G1 | **Dual subtitle secondary track highlight — verify PANEL-ACTIVESTATE-FIX is complete.** `94e1ee0b` added `_selectedSecondSub` local state. Verify secondary track selection actually persists across reopen and the active highlight is correct. | `_ps_panels_subtitle.dart` | ⬜ OPEN | 2026-08-04 | — |
+| SUB-G2 | **Apply auto-raise (SUB-A3) to DualSubtitleOverlay.** Both subtitle tracks must raise when seekbar visible. Primary track uses same raise; secondary track raises additional fixed offset above primary. | `dual_subtitle_overlay.dart` | ⬜ OPEN | 2026-08-04 | — |
+| SUB-G3 | **Dual subtitle primary track inherits Phase B font/style.** After SUB-B2 done, verify `DualSubtitleOverlay` primary track also reads `subtitleFont` and `subtitleStyleData`. | `dual_subtitle_overlay.dart` | ⬜ OPEN | 2026-08-04 | — |
+
+### Phase H — Production Hygiene Tweaks 🟢 P2–P3
+
+| Task | Description | Files | Status | Date | Commit |
+|---|---|---|---|---|---|
+| PROD-H1 | **Remove dead MPV subtitle-property calls after Phase A confirms they are no-ops.** `_applySubtitleStylePrefs()`, `_applySubtitleMargin()` in `_ps_subtitle_mixin.dart`. Read call sites carefully first — only remove pure `setProperty` lines with no other side-effects. | `_ps_subtitle_mixin.dart` | ⬜ OPEN | 2026-08-04 | — |
+| PROD-H2 | **Clean stale sidebar IDs from persisted prefs on startup.** Unknown IDs silently filtered on render but never removed from persisted list. Fix: `_sidebarOrder.removeWhere(!_allSidebarIds.contains)` on `_loadPrefs`, then `_scheduleSavePrefs()` if any removed. | `_ps_ui_mixin.dart` ~L2530 | ⬜ OPEN | 2026-08-04 | — |
+| PROD-H3 | **DropdownButton wake timeout assert on unknown prefs value.** Value from old version not in items list causes assertion. Fix: `wakeTimeoutSeconds.contains(val) ? val : defaultTimeout` guard before passing to `DropdownButton.value`. | `quick_settings_panel.dart` ~L796–810 | ⬜ OPEN | 2026-08-04 | — |
