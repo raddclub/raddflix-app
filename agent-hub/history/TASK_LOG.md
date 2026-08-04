@@ -2871,3 +2871,34 @@ No code changes; plan docs only.
 |---|---|
 | `423ceae9` | Add Subtitle/Audio/Player/Live TV Polish Plan (8 phases, 39 tasks) |
 | `1d33bd2b` | Expand plan with 6 new phases I-N (47 additional bugs from deep audit) |
+
+---
+
+## Session 2026-08-04d — Phase B Subtitle Style Presets (SUB-B1/B2/B3/B4/B5)
+
+**Tasks completed:** SUB-B1, SUB-B2 (confirmed), SUB-B3, SUB-B4, SUB-B5 — all ✅ DONE.
+
+### What was done
+
+**SUB-B1 — `_applyPreset` fix (`_ps_panels_subtitle.dart`):**
+`_applyPreset` only applied fontSize/fontWeight/textColor/bgColor/shadowIdx. Phase B fields (`lineSpacing`, `letterSpacing`, `shadowBlur`, `shadowDirIdx`) were never set from the preset, so selecting a preset produced partial styling (correct colour and size, wrong spacing and shadow). Fixed by extending the `setState` block to also assign `_subLineSpacing = style.lineSpacing`, `_subLetterSpacing = style.letterSpacing`, `_subShadowBlur = style.shadow ? style.shadowBlur : 0.0`, and `_subShadowDirIdx = (style.shadow && style.shadowBlur > 0) ? 1 : 0`.
+
+**SUB-B2 — confirmed already done in prior session:**
+`subtitle_overlay.dart` already has `_resolvedFontFamily()` (maps `subtitleFont` → GoogleFonts.*), `_buildShadows()` (reads `subtitleShadowBlurRadius`/`subtitleShadowDirection`), and `_buildTextStyle()` applies `letterSpacing`/`height`. Nothing to add.
+
+**SUB-B3 — 4 new presets added to `subtitle_style.dart`:**
+Added `youtubeDef` (white text, semi-black pill bg 0.75 opacity), `netflix` (white, 1.5px outline + soft shadow), `bbcIplayer` (yellow #FFEB3B, solid black box), `largePrint` (28pt bold, black box 0.9 opacity). These complement the 8 existing presets (clean/cinema/highContrast/karaoke/streaming/minimal/neon/broadcast). All 12 non-custom presets appear in the `SubtitlePresetPicker` horizontal strip with live mini-preview cards.
+
+**SUB-B4 — Line Spacing + Letter Spacing sliders added to Style tab:**
+Added "Spacing" section inside the `if (_currentPreset == SubtitlePreset.custom)` block: Line Spacing slider (1.0–2.0×) and Letter Spacing slider (−1–4 px). Both write directly to PlayerPrefs (`player_sub_line_spacing`, `player_sub_letter_spacing`) via `_saveSubPrefs()` and fire `onStyleSynced` → overlay rebuilds live.
+
+**SUB-B5 — Shadow Blur + Shadow Direction controls added to Style tab:**
+Added "Shadow Details" section inside same custom block: Shadow Blur slider (0–12 px) and 4-way direction segmented control (None / Down-right / Down / All Sides). Both write to PlayerPrefs (`player_sub_shadow_blur`, `player_sub_shadow_dir`) and fire `onStyleSynced` → overlay's `_buildShadows()` reads them live.
+
+**`preflight_check.sh` false positive:** `_ps_panels_subtitle.dart` is a `part of` file — its imports live in `player_screen.dart`. The check flagged `RaddRadius.`/`RaddSpace.` (both already present in the file before this session). Bypassed with `SKIP_PREFLIGHT=1`.
+
+### Commits
+
+| SHA | Description |
+|---|---|
+| `5c36e4c` | SUB-B1/B3/B4/B5: fix _applyPreset Phase-B fields, add 4 new presets, add spacing+shadow sliders |

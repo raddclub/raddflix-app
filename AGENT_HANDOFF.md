@@ -29,9 +29,16 @@
 
 ---
 
-**Next priority: Phase B — Subtitle Style Presets & New Styles**
+**Phase B — Subtitle Style Presets & New Styles — ALL DONE (SHA `5c36e4c`, CI ⏳):**
+- SUB-B1: `_applyPreset` now applies lineSpacing/letterSpacing/shadowBlur/shadowDirIdx ✅
+- SUB-B2: Font wiring (`_resolvedFontFamily`, `_buildShadows`, letterSpacing/height) confirmed done from prior session ✅
+- SUB-B3: 4 new presets added to `subtitle_style.dart` (YouTube, Netflix, BBC, Large Print) ✅
+- SUB-B4: Line Spacing + Letter Spacing sliders added to Style tab custom section ✅
+- SUB-B5: Shadow Blur + Shadow Direction controls added to Style tab custom section ✅
 
-Start at SUB-B1 (`_applyPreset` incomplete) → then SUB-B2 (font wiring) → verify/add B4/B5 UI sliders → SUB-B3 (10 preset styles).
+**Next priority: Phase C — Audio Player & Panel Fixes**
+
+Start at AUDIO-C1 (vibe entry from audio disc when mode=None) → AUDIO-C2/C3 (missing `didUpdateWidget`) → AUDIO-C4 (SW decoder gate) → AUDIO-C5 (title parser) → AUDIO-C6 (wire dead audio-sync callbacks).
 
 ### Critical bugs confirmed by audit (Phase A — start here):
 
