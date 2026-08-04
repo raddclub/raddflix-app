@@ -2805,3 +2805,45 @@ All tasks added to `agent-hub/TASKS.md`. `AGENT_HANDOFF.md` updated with new pri
 | `94e1ee0b` | Panel active-state bugs 1-6 (prev session — CI ✅ confirmed this session) |
 | `27a07e20` | BG-play deep fix all 4 phases (prev session — CI ✅ confirmed this session) |
 | `423ceae9` | Add Subtitle/Audio/Player/Live TV Polish Plan; update TASKS.md + AGENT_HANDOFF.md |
+
+---
+
+## Session 2026-08-04b — Deep Audit Expanded Plan (Phases I–N)
+
+**Tasks completed:** 5 parallel subagent explorations + 2 follow-up targeted audits.
+No code changes; plan docs only.
+
+### Areas audited (not previously covered)
+
+- `_ps_ui_mixin.dart` (gestures: brightness/volume swipe, lock screen, seek accumulation, center controls)
+- `_ps_playback_mixin.dart` (error handling, open() try/catch, completed duplicate emission)
+- `pip_overlay.dart` (resize compounding, safe-area, auto-hide, button event bubbling)
+- `cast_panel.dart` (empty+scanning state, duplicate device, unclamped signal bars)
+- `download_service.dart` (validateStatus accepts 4xx, file leaks, concurrent overwrite, stall detection)
+- `local_media_screen.dart` (stale resume path, mounted guard, sync I/O)
+- `show_detail_screen.dart` (descending sort index, season reload, progress crash)
+- `history_screen.dart` (server-side clear, per-item delete, date grouping)
+- `actor_screen.dart` (future rebuilt in build, File.existsSync in build)
+- `api_client.dart` + `auth_provider.dart` (401 retry loop, offline logout, guest-to-auth bleed)
+- `app.dart` + router (unknown route handler)
+- `search_screen.dart` (textInputAction missing)
+
+### 47 new tasks added across 6 new phases (I–N)
+
+| Phase | Topic | Tasks |
+|---|---|---|
+| I | Player gesture & control bugs | 9 |
+| J | PiP overlay & cast panel | 7 |
+| K | Downloads & local media reliability (DL-K1 is 🔴 P1 — accepts 4xx as success) | 7 |
+| L | Show detail & history bugs | 7 |
+| M | Auth & network reliability | 4 |
+| N | Actor, search, nav misc | 7 |
+
+**Plan total: 86 tasks across 14 phases.**
+
+### Commits
+
+| SHA | Description |
+|---|---|
+| `423ceae9` | Add Subtitle/Audio/Player/Live TV Polish Plan (8 phases, 39 tasks) |
+| `1d33bd2b` | Expand plan with 6 new phases I-N (47 additional bugs from deep audit) |
