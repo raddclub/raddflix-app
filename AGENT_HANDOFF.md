@@ -5,7 +5,19 @@
 
 ---
 
-## Current State (2026-08-04 — Phase A subtitle wiring complete)
+## Current State (2026-08-04 — Phase J PiP & Cast panel complete)
+
+**Phase J (PiP Overlay & Cast Panel) — ALL 7 DONE:**
+- PIP-J1: `_baseSize` captured at `onScaleStart`; scale updates linear, no exponential compounding ✅
+- PIP-J2: `MediaQuery.padding` applied in both pan clamp and snap — window stays above status/nav bar ✅
+- PIP-J3: 3 s auto-hide timer; resets on each tap (`_startHideTimer`) ✅
+- PIP-J4: Close/expand/play buttons wrapped in `GestureDetector(behavior: HitTestBehavior.opaque)` — tapping a button no longer also toggles controls ✅
+- CAST-J5: `widget.scanning` bool drives "Searching…" vs "No devices found" — never shown simultaneously ✅
+- CAST-J6: Connected device filtered from available-devices list before `ListView.builder` renders it ✅
+- CAST-J7: `device.signalStrength.clamp(0, 4)` — signal bars now correct for any out-of-range value ✅ (SHA `4a9efee`, CI pending→green)
+
+**Next priority: Phase C — Audio Player & Panel Fixes**
+Start at AUDIO-C1 (vibe entry from audio disc when mode=None) → AUDIO-C2/C3 (missing `didUpdateWidget`) → AUDIO-C4 (SW decoder gate) → AUDIO-C5 (title parser) → AUDIO-C6 (wire dead audio-sync callbacks).
 
 **BG-play Deep Fix — ALL DONE (SHA `27a07e20`, CI green):**
 - BG-FIX-1: `_player.play()` after `vid=no` on fullscreen→background path ✅

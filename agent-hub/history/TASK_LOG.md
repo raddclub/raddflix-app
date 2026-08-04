@@ -2902,3 +2902,25 @@ Added "Shadow Details" section inside same custom block: Shadow Blur slider (0�
 | SHA | Description |
 |---|---|
 | `5c36e4c` | SUB-B1/B3/B4/B5: fix _applyPreset Phase-B fields, add 4 new presets, add spacing+shadow sliders |
+
+---
+
+## Session 2026-08-04e — Phase J PiP Overlay & Cast Panel (all 7 tasks)
+
+**Tasks completed:** PIP-J1, PIP-J2, PIP-J3, PIP-J4, CAST-J5, CAST-J6, CAST-J7 — all ✅ DONE.
+
+### What was done
+
+Audit on session start revealed J1–J6 were already committed to GitHub (`b9ee500c`) but TASKS.md still showed all 7 as ⬜ OPEN. CAST-J7 (signal bars clamp) was mentioned in that commit message but the `.clamp(0, 4)` was never actually written into the code — confirmed by fetching `cast_panel.dart` from GitHub API.
+
+**CAST-J7 fix applied (`cast_panel.dart` L178):**
+Changed `i < device.signalStrength` → `i < device.signalStrength.clamp(0, 4)`. Without this, a server returning `signalStrength: 5` (or negative) would highlight the wrong number of signal bars in `_DeviceRow`. `signalStrength` is declared as `int` in `CastDevice`; `.clamp(0, 4)` returns a `num` that comparisons handle correctly.
+
+All 7 TASKS.md rows updated ✅ DONE with correct commit SHAs.
+
+### Commits
+
+| SHA | Description |
+|---|---|
+| `b9ee500c` | Phase J: PiP-J1/J2/J3/J4 + CAST-J5/J6 (prior session — docs now reflect this) |
+| `4a9efee` | CAST-J7: clamp signalStrength to 0–4 in cast_panel.dart signal bars |

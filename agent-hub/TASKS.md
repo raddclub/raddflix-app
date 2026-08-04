@@ -689,13 +689,13 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 
 | Task | Description | Files | Status | Date | Commit |
 |---|---|---|---|---|---|
-| PIP-J1 | **PiP resize exponential compounding.** `onScaleUpdate` multiplies current width by Flutter's cumulative scale factor on each event → exponential jump. Fix: store `_baseSize` at `onScaleStart`; compute `_baseSize * details.scale` in update. | `pip_overlay.dart` ~L64–69 | ⬜ OPEN | 2026-08-04 | — |
-| PIP-J2 | **PiP draggable under status/nav bar.** Pan clamp ignores safe-area; window can hide behind system UI. Fix: apply `MediaQuery.padding` consistently in both pan and snap code paths. | `pip_overlay.dart` ~L57–61 | ⬜ OPEN | 2026-08-04 | — |
-| PIP-J3 | **PiP controls never auto-hide** (`_showControls` starts true, no timer). Fix: add 3 s auto-hide timer; reset on each tap. | `pip_overlay.dart` ~L31, 70 | ⬜ OPEN | 2026-08-04 | — |
-| PIP-J4 | **PiP inner buttons (close/expand/play) trigger outer onTap** — tapping Close also toggles controls. Fix: wrap each button in `GestureDetector(behavior: HitTestBehavior.opaque)` to absorb tap before it bubbles. | `pip_overlay.dart` | ⬜ OPEN | 2026-08-04 | — |
-| CAST-J5 | **Cast panel shows "No devices found" and spinner simultaneously.** Fix: add `_scanning` bool; show "Searching…" placeholder only while scanning; show empty state only after scan completes. | `cast_panel.dart` ~L42–65 | ⬜ OPEN | 2026-08-04 | — |
-| CAST-J6 | **Connected device duplicated in available-devices list** (appears in connected card AND disabled in list). Fix: filter connected device ID from the available list before rendering. | `cast_panel.dart` ~L54–74 | ⬜ OPEN | 2026-08-04 | — |
-| CAST-J7 | **Cast signal bars unclamped** — out-of-range `signalStrength` draws wrong bar count. Fix: `device.signalStrength.clamp(0, 4)`. | `cast_panel.dart` ~L157–161 | ⬜ OPEN | 2026-08-04 | — |
+| PIP-J1 | **PiP resize exponential compounding.** `onScaleUpdate` multiplies current width by Flutter's cumulative scale factor on each event → exponential jump. Fix: store `_baseSize` at `onScaleStart`; compute `_baseSize * details.scale` in update. | `pip_overlay.dart` ~L64–69 | ✅ DONE | 2026-08-04 | `b9ee500c` |
+| PIP-J2 | **PiP draggable under status/nav bar.** Pan clamp ignores safe-area; window can hide behind system UI. Fix: apply `MediaQuery.padding` consistently in both pan and snap code paths. | `pip_overlay.dart` ~L57–61 | ✅ DONE | 2026-08-04 | `b9ee500c` |
+| PIP-J3 | **PiP controls never auto-hide** (`_showControls` starts true, no timer). Fix: add 3 s auto-hide timer; reset on each tap. | `pip_overlay.dart` ~L31, 70 | ✅ DONE | 2026-08-04 | `b9ee500c` |
+| PIP-J4 | **PiP inner buttons (close/expand/play) trigger outer onTap** — tapping Close also toggles controls. Fix: wrap each button in `GestureDetector(behavior: HitTestBehavior.opaque)` to absorb tap before it bubbles. | `pip_overlay.dart` | ✅ DONE | 2026-08-04 | `b9ee500c` |
+| CAST-J5 | **Cast panel shows "No devices found" and spinner simultaneously.** Fix: add `_scanning` bool; show "Searching…" placeholder only while scanning; show empty state only after scan completes. | `cast_panel.dart` ~L42–65 | ✅ DONE | 2026-08-04 | `b9ee500c` |
+| CAST-J6 | **Connected device duplicated in available-devices list** (appears in connected card AND disabled in list). Fix: filter connected device ID from the available list before rendering. | `cast_panel.dart` ~L54–74 | ✅ DONE | 2026-08-04 | `b9ee500c` |
+| CAST-J7 | **Cast signal bars unclamped** — out-of-range `signalStrength` draws wrong bar count. Fix: `device.signalStrength.clamp(0, 4)`. | `cast_panel.dart` ~L157–161 | ✅ DONE | 2026-08-04 | `4a9efee` |
 
 ### Phase K — Downloads & Local Media Reliability 🔴 P1–P2
 
