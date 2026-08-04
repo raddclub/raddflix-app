@@ -137,6 +137,15 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
     super.initState();
     _p = widget.prefs;
     _tab = TabController(length: 5, vsync: this);
+    // D2: initialise local mirrors from persisted prefs so they survive
+    // close/reopen rather than resetting to hardcoded defaults.
+    _preset          = _p.colorLook;
+    _controlsDensity = _p.buttonSize <= 0.80 ? 'small'
+                     : _p.buttonSize >= 1.20 ? 'large'
+                     : 'medium';
+    _moveInterval    = _p.doubleTapSeekSeconds.toDouble();
+    _progressPos     = _p.progressBarBelow ? 'below' : 'above';
+    _materialStyle   = _p.materialProgressBar;
   }
 
   @override
@@ -521,7 +530,12 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
               isDense: true,
               items: presets.map((p) => DropdownMenuItem(
                   value: p, child: Text(p))).toList(),
-              onChanged: (v) { if (v != null) setState(() => _preset = v); },
+              onChanged: (v) {
+                if (v != null) {
+                  setState(() => _preset = v);
+                  _update(_p.copyWith(colorLook: v)); // D2: persist
+                }
+              },
             ),
           ),
         ),
@@ -536,14 +550,20 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         _QsRow(
           label: 'Controls',
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            _SizeChip('S', _controlsDensity == 'small',
-                () => setState(() => _controlsDensity = 'small')),
+            _SizeChip('S', _controlsDensity == 'small', () {
+              setState(() => _controlsDensity = 'small');
+              _update(_p.copyWith(buttonSize: 0.75)); // D2: persist
+            }),
             const SizedBox(width: 4),
-            _SizeChip('M', _controlsDensity == 'medium',
-                () => setState(() => _controlsDensity = 'medium')),
+            _SizeChip('M', _controlsDensity == 'medium', () {
+              setState(() => _controlsDensity = 'medium');
+              _update(_p.copyWith(buttonSize: 1.00)); // D2: persist
+            }),
             const SizedBox(width: 4),
-            _SizeChip('L', _controlsDensity == 'large',
-                () => setState(() => _controlsDensity = 'large')),
+            _SizeChip('L', _controlsDensity == 'large', () {
+              setState(() => _controlsDensity = 'large');
+              _update(_p.copyWith(buttonSize: 1.25)); // D2: persist
+            }),
           ]),
         ),
         const Divider(color: Colors.white10, height: 1),
@@ -553,7 +573,10 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
           child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
             _StyleOption(label: 'Line', selected: !_materialStyle,
-                onTap: () => setState(() => _materialStyle = false),
+                onTap: () {
+                  setState(() => _materialStyle = false);
+                  _update(_p.copyWith(materialProgressBar: false)); // D2
+                },
                 child: Container(
                   width: 60, height: 4,
                   decoration: BoxDecoration(
@@ -567,7 +590,10 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
                   ),
                 )),
             _StyleOption(label: 'Material', selected: _materialStyle,
-                onTap: () => setState(() => _materialStyle = true),
+                onTap: () {
+                  setState(() => _materialStyle = true);
+                  _update(_p.copyWith(materialProgressBar: true)); // D2
+                },
                 child: Container(
                   width: 60, height: 8,
                   decoration: BoxDecoration(
@@ -587,13 +613,19 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         _QsToggleRow(
           label: 'Place progress bar below buttons',
           value: _progressPos == 'below',
-          onChanged: (v) => setState(() => _progressPos = v ? 'below' : 'above'),
+          onChanged: (v) {
+            setState(() => _progressPos = v ? 'below' : 'above');
+            _update(_p.copyWith(progressBarBelow: v)); // D2: persist
+          },
         ),
         const Divider(color: Colors.white10, height: 1),
         _QsToggleRow(
           label: 'Material',
           value: _materialStyle,
-          onChanged: (v) => setState(() => _materialStyle = v),
+          onChanged: (v) {
+            setState(() => _materialStyle = v);
+            _update(_p.copyWith(materialProgressBar: v)); // D2: persist
+          },
         ),
       ],
     );
@@ -1208,7 +1240,10 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
               min: 1, max: 60, divisions: 59,
               activeColor: _accent,
               inactiveColor: Colors.white12,
-              onChanged: (v) => setState(() => _moveInterval = v),
+              onChanged: (v) {
+                setState(() => _moveInterval = v);
+                _update(_p.copyWith(doubleTapSeekSeconds: v.toInt())); // D2: persist
+              },
             )),
             SizedBox(width: 36, child: Text(
               _moveInterval.toInt().toString(),

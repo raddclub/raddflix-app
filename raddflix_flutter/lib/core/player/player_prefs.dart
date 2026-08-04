@@ -399,6 +399,14 @@ class PlayerPrefs {
   /// resets to [PlaybackVibeMode.none] on every new file load.
   final bool rememberVibeMode;
 
+  // ── D2: Quick Settings — Style/Controls persistence ───────────────────────
+  /// When true the progress bar is rendered below the transport buttons.
+  /// Default false (above buttons, standard layout).
+  final bool progressBarBelow;
+  /// When true the Material (thick, rounded) progress bar style is used;
+  /// when false the thin Line style is used. Default true.
+  final bool materialProgressBar;
+
   /// Convenience getter — converts [accentColorValue] to a [Color].
   Color get accentColor => Color(accentColorValue);
 
@@ -587,6 +595,8 @@ class PlayerPrefs {
     this.phoneticOverlayFontScale     = 0.72,
     this.vibeMode                     = PlaybackVibeMode.none,
     this.rememberVibeMode             = false,
+    this.progressBarBelow             = false,
+    this.materialProgressBar          = true,
   });
 
   PlayerPrefs copyWith({
@@ -703,6 +713,8 @@ class PlayerPrefs {
     double? phoneticOverlayFontScale,
     PlaybackVibeMode? vibeMode,
     bool? rememberVibeMode,
+    bool?   progressBarBelow,
+    bool?   materialProgressBar,
     int?    subtitleBottomMarginPx,
     String? subtitleHorizontalAlignment,
     int?    subtitleEdgePaddingPx,
@@ -885,6 +897,8 @@ class PlayerPrefs {
       phoneticOverlayFontScale:     phoneticOverlayFontScale     ?? this.phoneticOverlayFontScale,
       vibeMode:                     vibeMode                     ?? this.vibeMode,
       rememberVibeMode:             rememberVibeMode             ?? this.rememberVibeMode,
+      progressBarBelow:             progressBarBelow             ?? this.progressBarBelow,
+      materialProgressBar:          materialProgressBar          ?? this.materialProgressBar,
       subtitleBottomMarginPx:       subtitleBottomMarginPx       ?? this.subtitleBottomMarginPx,
       subtitleHorizontalAlignment:  subtitleHorizontalAlignment  ?? this.subtitleHorizontalAlignment,
       subtitleEdgePaddingPx:        subtitleEdgePaddingPx        ?? this.subtitleEdgePaddingPx,
@@ -1094,6 +1108,8 @@ class PlayerPrefs {
       subtitleLetterSpacing:        s.getDouble('${_p}sub_letter_spacing')        ?? 0.0,
       subtitleShadowBlurRadius:     s.getDouble('${_p}sub_shadow_blur')           ?? 0.0,
       subtitleShadowDirection:      s.getString('${_p}sub_shadow_dir')            ?? 'none',
+      progressBarBelow:             s.getBool('${_p}progress_bar_below')          ?? false,
+      materialProgressBar:          s.getBool('${_p}material_progress_bar')       ?? true,
     );
   }
 
@@ -1290,6 +1306,8 @@ class PlayerPrefs {
       s.setDouble('${_p}sub_letter_spacing',         subtitleLetterSpacing),
       s.setDouble('${_p}sub_shadow_blur',            subtitleShadowBlurRadius),
       s.setString('${_p}sub_shadow_dir',             subtitleShadowDirection),
+      s.setBool('${_p}progress_bar_below',           progressBarBelow),
+      s.setBool('${_p}material_progress_bar',        materialProgressBar),
     ]);
   }
 }
