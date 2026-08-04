@@ -45,16 +45,24 @@ Full phased task plan created 2026-08-04 from a full codebase audit. Plan is in
 
 ### Phase summary:
 
-| Phase | Topic | Priority |
-|---|---|---|
-| **A** | **Subtitle positioning & margin — 5 fixes (all settings broken)** | 🔴 P0 |
-| **B** | Subtitle style presets — 5 tasks (fix apply, wire font/style, add 10 new styles) | 🟡 P1 |
-| **C** | Audio player & panel — 6 fixes (vibe entry, stale state, dead callbacks) | 🟡 P1 |
-| **D** | Player settings & Quick Settings — 7 fixes (dead no-ops, immersive missing, etc.) | 🟡 P1–P2 |
-| **E** | Live TV — 10 fixes (orientation, HLS bypass, UX polish, skeleton loading) | 🟡 P1–P2 |
-| **F** | General app (guest/free/subscribed/admin perspective) — 6 tasks | 🟢 P2–P3 |
-| **G** | Dual subtitles consistency — 3 tasks | 🟢 P2 |
-| **H** | Production hygiene tweaks — 3 tasks | 🟢 P2–P3 |
+| Phase | Topic | Tasks | Priority |
+|---|---|---|---|
+| **A** | **Subtitle positioning & margin — all 5 settings completely broken** | 5 | 🔴 P0 |
+| **B** | Subtitle style presets — fix preset apply, wire font/style, add 10 new styles, spacing/shadow controls | 5 | 🟡 P1 |
+| **C** | Audio player & panel — vibe entry, stale panel state, dead delay callbacks, title parser | 6 | 🟡 P1 |
+| **D** | Player settings & Quick Settings — dead no-ops, immersive missing, settings not persisted | 7 | 🟡 P1–P2 |
+| **E** | Live TV — orientation bug, HLS bypass, skeleton loading, search UX, stale-data banner | 10 | 🟡 P1–P2 |
+| **F** | App-wide (guest/free/subscribed/admin) — 6 cross-cutting issues | 6 | 🟢 P2–P3 |
+| **G** | Dual subtitles consistency | 3 | 🟢 P2 |
+| **H** | Production hygiene tweaks | 3 | 🟢 P2–P3 |
+| **I** | Player gestures & controls — throttle, volume model, lock screen, seek accumulation | 9 | 🟡 P1–P2 |
+| **J** | PiP overlay & Cast panel — resize bug, safe-area, auto-hide, duplicate device, signal bars | 7 | 🟢 P2 |
+| **K** | Downloads & local media — 4xx accepted as success, file leaks, stale resume, no pause/resume | 7 | 🔴 P1–P2 |
+| **L** | Show detail & history — episode sort index, season reload, progress crash, history sync/grouping | 7 | 🟡 P1–P2 |
+| **M** | Auth & network reliability — retry loop, offline startup, guest-to-auth state bleed | 4 | 🟢 P2–P3 |
+| **N** | Actor, search, mini-player, nav misc — future rebuilt in build(), sync I/O, dead route handler | 7 | 🟢 P2–P3 |
+
+**Total: 86 tasks across 14 phases.**
 
 **After this plan:** Resume `FEATURES_ROADMAP.md` Phase A remaining (A3 button/icon styles,
 A4 controls background style). Then Phase B (drag-drop layout editor).

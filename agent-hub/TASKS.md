@@ -662,3 +662,82 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 | PROD-H1 | **Remove dead MPV subtitle-property calls after Phase A confirms they are no-ops.** `_applySubtitleStylePrefs()`, `_applySubtitleMargin()` in `_ps_subtitle_mixin.dart`. Read call sites carefully first — only remove pure `setProperty` lines with no other side-effects. | `_ps_subtitle_mixin.dart` | ⬜ OPEN | 2026-08-04 | — |
 | PROD-H2 | **Clean stale sidebar IDs from persisted prefs on startup.** Unknown IDs silently filtered on render but never removed from persisted list. Fix: `_sidebarOrder.removeWhere(!_allSidebarIds.contains)` on `_loadPrefs`, then `_scheduleSavePrefs()` if any removed. | `_ps_ui_mixin.dart` ~L2530 | ⬜ OPEN | 2026-08-04 | — |
 | PROD-H3 | **DropdownButton wake timeout assert on unknown prefs value.** Value from old version not in items list causes assertion. Fix: `wakeTimeoutSeconds.contains(val) ? val : defaultTimeout` guard before passing to `DropdownButton.value`. | `quick_settings_panel.dart` ~L796–810 | ⬜ OPEN | 2026-08-04 | — |
+
+---
+
+## Deep Audit — Additional Bugs (planned 2026-08-04 expanded audit)
+
+> Found in second-pass audit of player gestures, playback, PiP, cast, downloads,
+> show detail, history, auth, and misc screens. Full root-cause notes in
+> `agent-hub/SUBTITLE_AND_POLISH_PLAN.md` Phases I–N.
+
+### Phase I — Player Gesture & Control Bugs 🟡 P1–P2
+
+| Task | Description | Files | Status | Date | Commit |
+|---|---|---|---|---|---|
+| PLAY-I1 | **Brightness/volume swipe: no throttle on OS API calls.** Called on every pointer event — rapid writes complete out of order; failures silent. Fix: 16ms throttle per pointer event; try/catch; read back OS value to confirm sync. | `_ps_ui_mixin.dart` ~L611–689 | ⬜ OPEN | 2026-08-04 | — |
+| PLAY-I2 | **Volume model inconsistency: OS 0–1 vs. internal 0–2.5; HUD goes stale on hardware button changes.** OS volume changed externally never syncs `_volume`; MPV boost not restored on reload. Fix: subscribe to `VolumeController().volumeStream`; restore MPV boost from PlayerPrefs on init; show clear OS vs. boost distinction in HUD. | `_ps_ui_mixin.dart` ~L750–756 | ⬜ OPEN | 2026-08-04 | — |
+| PLAY-I3 | **Locked player shows full controls on tap — should show unlock affordance only.** `_toggleControls` while locked shows/hides full overlay. MX Player / VLC show only the lock icon for 2 s. Fix: when `_isLocked`, show only unlock widget (not full controls) and auto-hide after 2 s. | `_ps_ui_mixin.dart` ~L445–455 | ⬜ OPEN | 2026-08-04 | — |
+| PLAY-I4 | **`_seekRelative` uses stale cached position — rapid taps all seek from same old position.** Fix: maintain local `_pendingSeekTargetMs` that accumulates taps; commit debounced; cancel overlapping flash timers on new tap. | `_ps_ui_mixin.dart` ~L458–469 | ⬜ OPEN | 2026-08-04 | — |
+| PLAY-I5 | **`_buildCenterControls()` is an explicitly empty widget.** Center area placeholder exists in overlay layout but returns empty widget — center controls invisible. Fix: either remove dead allocation, or implement intended center play/pause. | `_ps_ui_mixin.dart` ~L1328–1332 | ⬜ OPEN | 2026-08-04 | — |
+| PLAY-I6 | **Seek drag gesture fires full `setState` on every pointer move.** Fix: use `ValueNotifier<double>` for in-progress seek delta; wrap only seekbar preview in `ValueListenableBuilder`. | `_ps_ui_mixin.dart` | ⬜ OPEN | 2026-08-04 | — |
+| PLAY-I7 | **Player error invisible when `_playing == true`.** Error stream listener skips `_streamError` while MPV reports playing — stream/decode errors during playback never shown. Fix: always update `_streamError`; show non-dismissive chip for playing-state errors; auto-dismiss if playback recovers. | `_ps_playback_mixin.dart` ~L462–466 | ⬜ OPEN | 2026-08-04 | — |
+| PLAY-I8 | **`_player.open()` calls not wrapped in try/catch.** Live, network, and local open failures silently stall the player without triggering error state or retry. Fix: wrap each call; on catch, set `_streamError` and trigger error display. | `_ps_playback_mixin.dart` ~L641, 661, 739, 785 | ⬜ OPEN | 2026-08-04 | — |
+| PLAY-I9 | **`completed` event: no duplicate emission guard.** media_kit can emit `completed=true` multiple times — end action sheet / episode navigation fires twice. Fix: `bool _completionHandled` flag; reset on `_openMedia`. | `_ps_playback_mixin.dart` | ⬜ OPEN | 2026-08-04 | — |
+
+### Phase J — PiP Overlay & Cast Panel Bugs 🟢 P2
+
+| Task | Description | Files | Status | Date | Commit |
+|---|---|---|---|---|---|
+| PIP-J1 | **PiP resize exponential compounding.** `onScaleUpdate` multiplies current width by Flutter's cumulative scale factor on each event → exponential jump. Fix: store `_baseSize` at `onScaleStart`; compute `_baseSize * details.scale` in update. | `pip_overlay.dart` ~L64–69 | ⬜ OPEN | 2026-08-04 | — |
+| PIP-J2 | **PiP draggable under status/nav bar.** Pan clamp ignores safe-area; window can hide behind system UI. Fix: apply `MediaQuery.padding` consistently in both pan and snap code paths. | `pip_overlay.dart` ~L57–61 | ⬜ OPEN | 2026-08-04 | — |
+| PIP-J3 | **PiP controls never auto-hide** (`_showControls` starts true, no timer). Fix: add 3 s auto-hide timer; reset on each tap. | `pip_overlay.dart` ~L31, 70 | ⬜ OPEN | 2026-08-04 | — |
+| PIP-J4 | **PiP inner buttons (close/expand/play) trigger outer onTap** — tapping Close also toggles controls. Fix: wrap each button in `GestureDetector(behavior: HitTestBehavior.opaque)` to absorb tap before it bubbles. | `pip_overlay.dart` | ⬜ OPEN | 2026-08-04 | — |
+| CAST-J5 | **Cast panel shows "No devices found" and spinner simultaneously.** Fix: add `_scanning` bool; show "Searching…" placeholder only while scanning; show empty state only after scan completes. | `cast_panel.dart` ~L42–65 | ⬜ OPEN | 2026-08-04 | — |
+| CAST-J6 | **Connected device duplicated in available-devices list** (appears in connected card AND disabled in list). Fix: filter connected device ID from the available list before rendering. | `cast_panel.dart` ~L54–74 | ⬜ OPEN | 2026-08-04 | — |
+| CAST-J7 | **Cast signal bars unclamped** — out-of-range `signalStrength` draws wrong bar count. Fix: `device.signalStrength.clamp(0, 4)`. | `cast_panel.dart` ~L157–161 | ⬜ OPEN | 2026-08-04 | — |
+
+### Phase K — Downloads & Local Media Reliability 🔴 P1–P2
+
+| Task | Description | Files | Status | Date | Commit |
+|---|---|---|---|---|---|
+| DL-K1 | **Download accepts HTTP 4xx as successful (`validateStatus: s < 500`).** 401/403/404 HTML error body saved as completed file. Fix: require 2xx; validate `Content-Type` not `text/html`. 🔴 P1 | `download_service.dart` ~L160–164 | ⬜ OPEN | 2026-08-04 | — |
+| DL-K2 | **Concurrent downloads for same `fileId` overwrite each other.** Fix: check for in-progress download before enqueuing; silently skip or show "already downloading" toast. | `download_service.dart` ~L123–126 | ⬜ OPEN | 2026-08-04 | — |
+| DL-K3 | **Partial files not cleaned up on generic Dio errors.** Fix: delete partial file in generic failure catch block. | `download_service.dart` ~L188–202 | ⬜ OPEN | 2026-08-04 | — |
+| DL-K4 | **Resume CTA leads to nonexistent file — stale path never validated.** Fix: validate `File(path).existsSync()` on `_load()`; clear stale resume prefs for missing files. | `local_media_screen.dart` ~L112–121 | ⬜ OPEN | 2026-08-04 | — |
+| DL-K5 | **`setState` without `mounted` guard in `_load()` and `_loadMusic()`.** Crashes if user navigates away during permission/query. Fix: add `if (!mounted) return;` before every post-await `setState`. | `local_media_screen.dart` ~L124–205 | ⬜ OPEN | 2026-08-04 | — |
+| DL-K6 | **No pause/resume in downloads UI — only cancel or wait.** Fix: add `pauseDownload()`/`resumeDownload()` to service; show Pause/Resume toggle in progress row. | `download_service.dart`, `downloads_screen.dart` | ⬜ OPEN | 2026-08-04 | — |
+| DL-K7 | **Bulk delete removes DB rows but leaks files on disk.** Fix: `deleteDownload()` must delete physical file before removing DB row; verify and add file deletion if missing. | `download_service.dart`, `downloads_screen.dart` ~L687–699 | ⬜ OPEN | 2026-08-04 | — |
+
+### Phase L — Show Detail & History Screen Bugs 🟡 P1–P2
+
+| Task | Description | Files | Status | Date | Commit |
+|---|---|---|---|---|---|
+| DET-L1 | **Episode gap calculation broken in descending sort.** Gaps computed on reversed list → wrong placeholders. Fix: compute gaps on ascending copy, then reverse final list. | `show_detail_screen.dart` ~L191–229 | ⬜ OPEN | 2026-08-04 | — |
+| DET-L2 | **Episode tap uses display-list index, not stable file ID — wrong episode plays in descending sort.** Fix: key navigation on `fileId`, not list position. | `show_detail_screen.dart` ~L1147–1167 | ⬜ OPEN | 2026-08-04 | — |
+| DET-L3 | **Season reload always resets to Season 1** — pull-to-refresh loses user's selected season. Fix: save `_selectedSeason?.id` before reload; restore it afterward. Guard tab listener against disposed controller. | `show_detail_screen.dart` ~L167–180 | ⬜ OPEN | 2026-08-04 | — |
+| DET-L4 | **Episode progress: empty `file_id` collision + unclamped `CircularProgressIndicator.value`.** All episodes with blank IDs share one progress entry; out-of-range values assert/crash. Fix: skip empty-ID keying; clamp value to 0.0–1.0. | `show_detail_screen.dart` ~L1149, 2203–2217 | ⬜ OPEN | 2026-08-04 | — |
+| HIST-L5 | **"Clear All" history only clears locally — server entries return on next sync.** Fix: call server-side history clear API; or mark as `server_deleted` locally and filter from future sync merges. | `history_screen.dart` ~L76–103 | ⬜ OPEN | 2026-08-04 | — |
+| HIST-L6 | **History: no per-item delete; "Clear All" is fire-and-forget with no error UI.** Fix: (a) add swipe-to-dismiss per item; (b) await clear, show error snackbar + Retry on failure. | `history_screen.dart` | ⬜ OPEN | 2026-08-04 | — |
+| HIST-L7 | **History list has no date grouping** — all time periods mixed in one flat grid. Fix: group by Today / Yesterday / This Week / Earlier with section headers. | `history_screen.dart` ~L212–247 | ⬜ OPEN | 2026-08-04 | — |
+
+### Phase M — Auth & Network Reliability 🟢 P2–P3
+
+| Task | Description | Files | Status | Date | Commit |
+|---|---|---|---|---|---|
+| AUTH-M1 | **401 retry loop: no max retry count** — bad token/endpoint can loop refresh cycles indefinitely. Fix: add `extra['_retryCount']`; abort after 2 retries. | `api_client.dart` ~L251–285 | ⬜ OPEN | 2026-08-04 | — |
+| AUTH-M2 | **Refresh failure clears Keystore but leaves UI as "authenticated"** — Riverpod state never updated. Fix: on refresh failure, call `authProvider.forceLogout()` to immediately reflect unauthenticated state. | `api_client.dart` ~L287–297 | ⬜ OPEN | 2026-08-04 | — |
+| AUTH-M3 | **First offline startup logs out user even with valid tokens in Keystore.** No cached user → network error → unauthenticated. Fix: keep "authenticated (offline/stale)" state on startup network failure if valid tokens exist; only force logout on confirmed 401. | `auth_provider.dart` ~L80–108 | ⬜ OPEN | 2026-08-04 | — |
+| AUTH-M4 | **Guest-to-auth sign-in inherits guest local data** (continue-watching, watchlist, etc.). Fix: run same cleanup as `logout()` before applying account session in `login()`; extract shared `_clearLocalSession()` helper. | `auth_provider.dart` ~L122–125 | ⬜ OPEN | 2026-08-04 | — |
+
+### Phase N — Actor, Search, Mini-Player & Navigation Misc 🟢 P2–P3
+
+| Task | Description | Files | Status | Date | Commit |
+|---|---|---|---|---|---|
+| ACTOR-N1 | **Actor filmography `Future.wait` rebuilt on every `build()` call — duplicate HTTP requests.** Fix: cache future in `initState` (`late final _actorFuture`); use `FutureBuilder(future: _actorFuture)`. | `actor_screen.dart` ~L31–35 | ⬜ OPEN | 2026-08-04 | — |
+| ACTOR-N2 | **`File.existsSync()` synchronous I/O inside `build()`** — blocks UI thread on rebuild/scroll. Fix: pre-check in `initState`; cache result as bool field. | `actor_screen.dart` ~L210–212 | ⬜ OPEN | 2026-08-04 | — |
+| ACTOR-N3 | **Empty/whitespace actor profile URLs passed to `CachedNetworkImage`** — unnecessary error churn. Fix: add `.trim().isNotEmpty` guard alongside null check. | `actor_screen.dart` ~L210–243 | ⬜ OPEN | 2026-08-04 | — |
+| SEARCH-N4 | **Search TextField missing `textInputAction: TextInputAction.search`** — keyboard shows generic Return key; submit doesn't trigger search or dismiss keyboard. Fix: add `textInputAction: search` + `onSubmitted` handler. | `search_screen.dart` ~L256–270 | ⬜ OPEN | 2026-08-04 | — |
+| DL-N5 | **Stalled download shows last progress indefinitely** — no stall detection. Fix: add 30 s no-new-bytes timeout in `DownloadService`; surface "Stalled — tap to retry" state. | `download_service.dart`, `downloads_screen.dart` | ⬜ OPEN | 2026-08-04 | — |
+| NAV-N6 | **Deep link to removed/unknown content crashes navigation** — `onUnknownRoute` not wired. Fix: add `onUnknownRoute` handler returning `HomeScreen` + "Content not found" snackbar. | `app.dart` ~L142–153 | ⬜ OPEN | 2026-08-04 | — |
+| NAV-N7 | **Mini-player reattach doesn't copy `_currentFileId`/episode metadata.** After returning from mini-player, episode navigation and resume key use wrong episode. Fix: copy all PlaybackService metadata into local player state at reattach. | `_ps_playback_mixin.dart` reattach path ~L300–320 | ⬜ OPEN | 2026-08-04 | — |
