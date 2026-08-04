@@ -203,6 +203,25 @@ class _AudioEffectPanelState extends State<_AudioEffectPanel> {
   }
 
   @override
+  void didUpdateWidget(covariant _AudioEffectPanel old) {
+    super.didUpdateWidget(old);
+    // AUDIO-C3: re-sync local mirrors when parent rebuilds while sheet is open.
+    if (old.eqBands != widget.eqBands) _bands = List.from(widget.eqBands);
+    if (old.selectedPreset != widget.selectedPreset) _preset = widget.selectedPreset;
+    if (old.currentVibeMode != widget.currentVibeMode) _vibeMode = widget.currentVibeMode;
+    if (old.eqEnabled != widget.eqEnabled) _eqEnabled = widget.eqEnabled;
+    if (old.labVocal != widget.labVocal) _labVocal = widget.labVocal;
+    if (old.labDialogue != widget.labDialogue) _labDialogue = widget.labDialogue;
+    if (old.labNorm != widget.labNorm) _labNorm = widget.labNorm;
+    if (old.labBass != widget.labBass) _labBass = widget.labBass;
+    if (old.labBassLevel != widget.labBassLevel) _labBassLevel = widget.labBassLevel;
+    if (old.labDialogueOnly != widget.labDialogueOnly) _labDialogueOnly = widget.labDialogueOnly;
+    if (old.labCompress != widget.labCompress) _labCompress = widget.labCompress;
+    if (old.labStereoWide != widget.labStereoWide) _labStereoWide = widget.labStereoWide;
+    if (old.labNoise != widget.labNoise) _labNoise = widget.labNoise;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       children: [
@@ -1562,6 +1581,16 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
   }
 
   @override
+  void didUpdateWidget(covariant _AudioTrackPanel old) {
+    super.didUpdateWidget(old);
+    // AUDIO-C2: keep local mirrors in sync when parent rebuilds while panel is open.
+    if (old.audioSync != widget.audioSync) _sync = widget.audioSync;
+    if (old.useSWDecoder != widget.useSWDecoder) _useSW = widget.useSWDecoder;
+    if (old.initialChannelModeIdx != widget.initialChannelModeIdx) _chIdx = widget.initialChannelModeIdx;
+    if (old.selectedTrack != widget.selectedTrack) _selectedTrack = widget.selectedTrack;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return ListView(
       padding: EdgeInsets.zero,
@@ -1700,7 +1729,8 @@ class _AudioTrackPanelState extends State<_AudioTrackPanel> {
                   style: const TextStyle(color: Colors.white54, fontSize: 11),
                 ),
                 value: _useSW,
-                onChanged: (v) {
+                // AUDIO-C4: disable toggle during active playback; seek required to apply.
+                onChanged: widget.isPlaying ? null : (v) {
                   setState(() => _useSW = v);
                   widget.onSWDecoderChanged(v);
                 },

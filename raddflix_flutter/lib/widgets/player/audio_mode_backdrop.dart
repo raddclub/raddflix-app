@@ -53,6 +53,8 @@ class AudioModeBackdrop extends StatefulWidget {
   // VIBE-4D: vibe mode chip
   final PlaybackVibeMode currentVibeMode;
   final VoidCallback? onVibeCycle;
+  // AUDIO-C1: opens effect panel at Vibe tab — used by ghost chip when mode=none
+  final VoidCallback? onOpenVibePanel;
 
   const AudioModeBackdrop({
     super.key,
@@ -73,6 +75,7 @@ class AudioModeBackdrop extends StatefulWidget {
     VoidCallback? onShuffleToggle,
     this.currentVibeMode = PlaybackVibeMode.none,
     this.onVibeCycle,
+    this.onOpenVibePanel,
   })  : onLoopToggle = onLoopToggle ?? _noop,
         onShuffleToggle = onShuffleToggle ?? _noop;
 
@@ -395,31 +398,43 @@ class _AudioModeBackdropState extends State<AudioModeBackdrop>
               child: _TitleRow(title: widget.title),
             ),
 
-            // VIBE-4D: vibe mode chip — shown when a mode is active
-            if (widget.currentVibeMode != PlaybackVibeMode.none)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: GestureDetector(
-                  onTap: widget.onVibeCycle,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF9C7BEF).withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color: const Color(0xFF9C7BEF).withOpacity(0.45), width: 1),
+            // AUDIO-C1: always show the vibe chip. Active mode → cycle chip;
+            // mode=none → ghost "+ Vibe" entry point that opens the Vibe tab.
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: GestureDetector(
+                onTap: widget.currentVibeMode != PlaybackVibeMode.none
+                    ? widget.onVibeCycle
+                    : widget.onOpenVibePanel,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: widget.currentVibeMode != PlaybackVibeMode.none
+                        ? const Color(0xFF9C7BEF).withOpacity(0.18)
+                        : Colors.white.withOpacity(0.07),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: widget.currentVibeMode != PlaybackVibeMode.none
+                          ? const Color(0xFF9C7BEF).withOpacity(0.45)
+                          : Colors.white.withOpacity(0.18),
+                      width: 1,
                     ),
-                    child: Text(
-                      '✦ ${_vibeChipLabel(widget.currentVibeMode)}',
-                      style: const TextStyle(
-                        color: Color(0xFFCEB8FF),
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  ),
+                  child: Text(
+                    widget.currentVibeMode != PlaybackVibeMode.none
+                        ? '✦ ${_vibeChipLabel(widget.currentVibeMode)}'
+                        : '✦ + Vibe',
+                    style: TextStyle(
+                      color: widget.currentVibeMode != PlaybackVibeMode.none
+                          ? const Color(0xFFCEB8FF)
+                          : Colors.white38,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ),
               ),
+            ),
 
             // Glass controls card at the very bottom.
             SafeArea(
@@ -982,15 +997,32 @@ class _TitleRow extends StatelessWidget {
     );
   }
 
+  // AUDIO-C5: only strip the last segment as an extension when it is a known
+  // short media extension (≤4 chars). Prevents "Dr. Who S01E01.mkv" → "Dr".
+  // Also recognises en-dash and em-dash as artist separators.
+  static const _kMediaExtensions = {
+    'mp3', 'flac', 'wav', 'aac', 'm4a', 'ogg', 'opus',
+    'mp4', 'mkv', 'avi', 'mov', 'webm', 'ts', 'mts',
+  };
+
   static ({String artist, String track}) _parseTitle(String raw) {
-    final noExt = raw.contains('.') ? raw.substring(0, raw.lastIndexOf('.')) : raw;
+    String noExt = raw;
+    final lastDot = raw.lastIndexOf('.');
+    if (lastDot > 0 && lastDot < raw.length - 1) {
+      final ext = raw.substring(lastDot + 1).toLowerCase();
+      if (_kMediaExtensions.contains(ext)) noExt = raw.substring(0, lastDot);
+    }
     final cleaned = noExt.replaceFirst(RegExp(r'^\d{1,3}[\s.\-]+'), '');
-    final idx = cleaned.indexOf(' - ');
-    if (idx > 0 && idx < cleaned.length - 3) {
-      return (
-        artist: cleaned.substring(0, idx).trim(),
-        track: cleaned.substring(idx + 3).trim(),
-      );
+    // Recognise ASCII hyphen, en-dash (–), and em-dash (—) as artist separators.
+    final sepMatch = RegExp(r' [-–—] ').firstMatch(cleaned);
+    if (sepMatch != null) {
+      final idx = sepMatch.start;
+      if (idx > 0 && idx < cleaned.length - 3) {
+        return (
+          artist: cleaned.substring(0, idx).trim(),
+          track:  cleaned.substring(sepMatch.end).trim(),
+        );
+      }
     }
     return (artist: '', track: cleaned.trim().isEmpty ? raw : cleaned.trim());
   }

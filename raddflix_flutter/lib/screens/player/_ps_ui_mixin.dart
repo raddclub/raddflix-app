@@ -2914,6 +2914,8 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                         _applyVibeMode(PlaybackVibeMode.values[
                             (idx + 1) % PlaybackVibeMode.values.length]);
                       },
+                      // AUDIO-C1: ghost chip opens effect panel at Vibe tab (index 3)
+                      onOpenVibePanel: () => _openAudioEffectPanel(initialTab: 3),
                     ),
                   ),
 
@@ -4490,14 +4492,25 @@ void _openPanel({
         onOpenWakeDnd: () {},               // Phase H4/H5 — to be wired later
         onOpenLayoutDesigner: () => _showLayoutDesignerSheet(context),
         subDelayMs: (_subSync * 1000).round(),
-        audioDelayMs: 0,
+        audioDelayMs: (_audioSync * 1000).round(),
         onSubDelay: (ms) {
           setState(() => _subSync = ms / 1000.0);
           _scheduleSavePrefs();
         },
-        onAudioDelay: (_) {},
-        onOpenSubSync: () {},
-        onOpenAudioSync: () {},
+        // AUDIO-C6: wire previously dead callbacks so adjustments in QuickSettings
+        // actually affect playback and route to the correct sync panels.
+        onAudioDelay: (ms) {
+          setState(() => _audioSync = ms / 1000.0);
+          _scheduleSavePrefs();
+        },
+        onOpenSubSync: () {
+          Navigator.of(context).pop();
+          _openSubtitlePanel();
+        },
+        onOpenAudioSync: () {
+          Navigator.of(context).pop();
+          _openAudioPanel();
+        },
         speed: _speed,
         onSpeedChanged: (v) => _setSpeed(v),
         onFitChanged: (_) {},
