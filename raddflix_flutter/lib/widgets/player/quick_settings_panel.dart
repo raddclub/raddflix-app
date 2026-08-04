@@ -690,8 +690,11 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('Picture Profile', style: TextStyle(color: Colors.white, fontSize: 13)),
-                Text(_p.pictureProfile[0].toUpperCase() + _p.pictureProfile.substring(1),
-                    style: TextStyle(color: _accent, fontSize: 11, fontWeight: FontWeight.w500)),
+                Text(
+                  _p.pictureProfile.isNotEmpty
+                      ? _p.pictureProfile[0].toUpperCase() + _p.pictureProfile.substring(1)
+                      : 'Default',
+                  style: TextStyle(color: _accent, fontSize: 11, fontWeight: FontWeight.w500)),
               ])),
               const Icon(Icons.chevron_right_rounded, color: Colors.white38, size: 18),
             ]),

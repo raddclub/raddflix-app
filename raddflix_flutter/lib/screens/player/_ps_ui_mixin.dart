@@ -279,7 +279,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   ];
 
   static const _allSidebarIds = [
-    'bgaudio','cc','audio','eq','vibe','speed','loop','rotate','lock','pip',
+    'bgaudio','cc','audio','eq','vibe','speed','loop','rotate','lock','immersive','pip',
     'screenshot','sleep','ab','episodes','settings','vivid',
     'mute','frame','onehanded','zoom','silence','more','style',
   ];
@@ -2350,7 +2350,9 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
           icon: _selectedSubtitle != null ? Icons.subtitles_rounded : Icons.subtitles_off_rounded,
           label: 'CC',
           active: _selectedSubtitle != null,
-          available: true,
+          // D4: hide CC button when no subtitle tracks exist so users don't
+          // tap an entry point that opens an empty panel.
+          available: _realSubtitleTracks.isNotEmpty,
           onTap: _openSubtitlePanel,
         ),
         'audio': (
@@ -4478,7 +4480,11 @@ void _openPanel({
           _openSettingsPanel();
         },
         onOpenGestureMap: () => _showGestureMapSheet(context),
-        onOpenPictureProfiles: () {},        // Phase D1 — to be wired later
+        onOpenPictureProfiles: () {
+          // D1: close the style panel then present the Picture Profiles sheet.
+          Navigator.of(context).pop();
+          _showPictureProfilesSheet(context);
+        },
         onOpenAudioLab: () {
           Navigator.of(context).pop();
           _openAudioEffectPanel();
@@ -4517,6 +4523,24 @@ void _openPanel({
         onQualityChanged: (_) {},
       );
       _openPanel(panel: panel, title: 'Player Style', widthFactor: 0.46, maxHeightFraction: 0.94);
+    }
+
+    // D1: shows PictureProfilesSheet as a bottom sheet. Opened when the user
+    // taps "Picture Profile" inside the Quick Settings style panel.
+    void _showPictureProfilesSheet(BuildContext ctx) {
+      showModalBottomSheet<void>(
+        context: ctx,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => PictureProfilesSheet(
+          prefs: ref.read(playerPrefsProvider),
+          onApply: (next) async {
+            await ref.read(playerPrefsProvider.notifier).set(next);
+            if (mounted) setState(() {});
+          },
+          accentColor: _accentColor,
+        ),
+      );
     }
 
     // ── LIVE-P7-A: Live quality selector helpers ────────────────────────────
