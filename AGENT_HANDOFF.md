@@ -7,7 +7,7 @@
 
 ## Current State (2026-08-04 — Phase G complete)
 
-**Phase G (Dual Subtitles & Overlay Consistency) — ALL 3 DONE (SHA `41c70a43`, CI in progress):**
+**Phase G (Dual Subtitles & Overlay Consistency) — ALL 3 DONE (SHA `41c70a43`, CI ✅):**
 - SUB-G1: `didUpdateWidget` was mis-nested inside `initState` in `_ps_panels_subtitle.dart` (would not compile); moved to correct position after `initState` closes ✅
 - SUB-G2: `DualSubtitleOverlay.bottom` formula now adds `widget.controlsRaiseDp`; call site in `_ps_ui_mixin.dart` passes `_showControls ? 120.0 : 0.0` ✅
 - SUB-G3: `_DualSubtitleOverlayState.build()` resolves `fontFamily` from `PlayerPrefs.subtitleFont`/`subtitleFontFamily` (mirrors `SubtitleOverlay._resolvedFontFamily`); passed via new `fontFamily` param on `_SubLine` ✅
