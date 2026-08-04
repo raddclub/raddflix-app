@@ -2924,3 +2924,26 @@ All 7 TASKS.md rows updated ✅ DONE with correct commit SHAs.
 |---|---|
 | `b9ee500c` | Phase J: PiP-J1/J2/J3/J4 + CAST-J5/J6 (prior session — docs now reflect this) |
 | `4a9efee` | CAST-J7: clamp signalStrength to 0–4 in cast_panel.dart signal bars |
+
+---
+
+## Session 2026-08-04f — Phase G Dual Subtitles & Overlay Consistency (SUB-G1/G2/G3)
+
+**Tasks completed:** SUB-G1, SUB-G2, SUB-G3 — all ✅ DONE.
+
+### What was done
+
+**SUB-G1 — Fix `didUpdateWidget` mis-nesting (`_ps_panels_subtitle.dart`):**
+A prior session inserted `@override void didUpdateWidget` inside the body of `initState()` — between the `_selectedSecondSub` assignment (line 144) and `_searchController = TextEditingController(...)` (line 155). This is invalid Dart and would not compile (the `}` at line 165 closed `initState`, leaving `didUpdateWidget` orphaned inside it). Fixed by moving `_searchController = ...` and the rest of the `initState` body to before the `didUpdateWidget`, then placing `didUpdateWidget` as a proper sibling override method after `initState` closes. The secondary track highlight now correctly re-syncs when the widget prop changes while the panel is open.
+
+**SUB-G2 — Wire `controlsRaiseDp` to `DualSubtitleOverlay` bottom formula:**
+`DualSubtitleOverlay` already declared a `controlsRaiseDp` parameter (added in a prior session) but the `build()` method's `Positioned.bottom` formula ignored it: `bottom: (...).clamp(48.0, 200.0)`. Added `+ widget.controlsRaiseDp` to the formula. Also: the call site in `_ps_ui_mixin.dart` was not passing `controlsRaiseDp` at all — added `controlsRaiseDp: _showControls ? 120.0 : 0.0` to the `DualSubtitleOverlay(...)` constructor, matching the pattern used for the single-track `SubtitleOverlay` above it.
+
+**SUB-G3 — Font resolution in `DualSubtitleOverlay`:**
+`_SubLine.build()` used a plain `TextStyle` with no `fontFamily`, so the font selector in the subtitle panel had no effect on dual-subtitle mode. Added a `resolvedFontFamily` switch in `_DualSubtitleOverlayState.build()` that mirrors `SubtitleOverlay._resolvedFontFamily` — maps `prefs.subtitleFont` ('atkinson' → Atkinson Hyperlegible, 'lexie_readable'/'Lexend' → Lexend, 'roboto' → Roboto, others pass `subtitleFontFamily` through). Added `fontFamily` field to `_SubLine` (nullable, defaults to null = system font) and pass `resolvedFontFamily` to both primary and secondary `_SubLine` call sites.
+
+### Commits
+
+| SHA | Description |
+|---|---|
+| `41c70a43` | SUB-G1/G2/G3: fix didUpdateWidget nesting, wire controlsRaiseDp, add font resolution to DualSubtitleOverlay |

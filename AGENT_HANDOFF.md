@@ -5,9 +5,14 @@
 
 ---
 
-## Current State (2026-08-04 — Phase F complete)
+## Current State (2026-08-04 — Phase G complete)
 
-**Phase F (General App Fixes) — 5/6 DONE (SHA `5030aa4a`, CI pending):**
+**Phase G (Dual Subtitles & Overlay Consistency) — ALL 3 DONE (SHA `41c70a43`, CI in progress):**
+- SUB-G1: `didUpdateWidget` was mis-nested inside `initState` in `_ps_panels_subtitle.dart` (would not compile); moved to correct position after `initState` closes ✅
+- SUB-G2: `DualSubtitleOverlay.bottom` formula now adds `widget.controlsRaiseDp`; call site in `_ps_ui_mixin.dart` passes `_showControls ? 120.0 : 0.0` ✅
+- SUB-G3: `_DualSubtitleOverlayState.build()` resolves `fontFamily` from `PlayerPrefs.subtitleFont`/`subtitleFontFamily` (mirrors `SubtitleOverlay._resolvedFontFamily`); passed via new `fontFamily` param on `_SubLine` ✅
+
+**Phase F (General App Fixes) — 5/6 DONE (SHA `5030aa4a`, CI green):**
 - APP-F1: Guest gating in settings — Catalog Sync shows "Sign in" locked row; App Lock hidden; Manage Downloads hidden ✅
 - APP-F2: Subscription gates verified on all entry points (home → ShowDetail → player Layer 2) ✅
 - APP-F4: Expiry date already in profile_screen L388 + days-remaining countdown ✅
@@ -15,8 +20,7 @@
 - APP-F6: Mic "Listening" HUD badge + `HapticFeedback.lightImpact()` on voice enable ✅
 - APP-F3: Deferred — needs Oracle SSH for Flask/admin SSE progress endpoint
 
-**Next priority: Phase G — Dual Subtitles & Overlay Consistency**
-Start at SUB-G1 (verify secondary track highlight persists) → SUB-G2 (apply auto-raise to DualSubtitleOverlay) → SUB-G3 (DualSubtitleOverlay primary track inherits Phase B font/style).
+**Next priority: Phase H — Production Hygiene Tweaks**
 
 **Phase J (PiP Overlay & Cast Panel) — ALL 7 DONE (SHA `4a9efee`, CI green):**
 - PIP-J1: `_baseSize` captured at `onScaleStart`; scale updates linear, no exponential compounding ✅

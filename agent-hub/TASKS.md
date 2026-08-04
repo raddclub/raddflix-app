@@ -651,9 +651,9 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 
 | Task | Description | Files | Status | Date | Commit |
 |---|---|---|---|---|---|
-| SUB-G1 | **Dual subtitle secondary track highlight — verify PANEL-ACTIVESTATE-FIX is complete.** `94e1ee0b` added `_selectedSecondSub` local state. Verify secondary track selection actually persists across reopen and the active highlight is correct. | `_ps_panels_subtitle.dart` | ⬜ OPEN | 2026-08-04 | — |
-| SUB-G2 | **Apply auto-raise (SUB-A3) to DualSubtitleOverlay.** Both subtitle tracks must raise when seekbar visible. Primary track uses same raise; secondary track raises additional fixed offset above primary. | `dual_subtitle_overlay.dart` | ⬜ OPEN | 2026-08-04 | — |
-| SUB-G3 | **Dual subtitle primary track inherits Phase B font/style.** After SUB-B2 done, verify `DualSubtitleOverlay` primary track also reads `subtitleFont` and `subtitleStyleData`. | `dual_subtitle_overlay.dart` | ⬜ OPEN | 2026-08-04 | — |
+| SUB-G1 | **Dual subtitle secondary track highlight — verify PANEL-ACTIVESTATE-FIX is complete.** `94e1ee0b` added `_selectedSecondSub` local state. Verify secondary track selection actually persists across reopen and the active highlight is correct. | `_ps_panels_subtitle.dart` | ✅ DONE | 2026-08-04 | `41c70a43` — `didUpdateWidget` was mis-nested inside `initState` (compile error); moved to correct position after `initState` closes |
+| SUB-G2 | **Apply auto-raise (SUB-A3) to DualSubtitleOverlay.** Both subtitle tracks must raise when seekbar visible. Primary track uses same raise; secondary track raises additional fixed offset above primary. | `dual_subtitle_overlay.dart` | ✅ DONE | 2026-08-04 | `41c70a43` — `+ widget.controlsRaiseDp` added to `bottom` formula; `controlsRaiseDp: _showControls ? 120.0 : 0.0` wired at call site in `_ps_ui_mixin.dart` |
+| SUB-G3 | **Dual subtitle primary track inherits Phase B font/style.** After SUB-B2 done, verify `DualSubtitleOverlay` primary track also reads `subtitleFont` and `subtitleStyleData`. | `dual_subtitle_overlay.dart` | ✅ DONE | 2026-08-04 | `41c70a43` — `resolvedFontFamily` switch mirrors `SubtitleOverlay._resolvedFontFamily`; `_SubLine` gains `fontFamily` param; passed to both primary + secondary call sites |
 
 ### Phase H — Production Hygiene Tweaks 🟢 P2–P3
 
