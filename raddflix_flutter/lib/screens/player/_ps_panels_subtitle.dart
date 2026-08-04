@@ -244,14 +244,40 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     // IDEA-08: phonetic overlay — same PlayerPrefs namespace.
     await prefs.setBool('player_phonetic_overlay_enabled',    _phoneticEnabled);
     await prefs.setDouble('player_phonetic_overlay_scale',     _phoneticFontScale);
+    // SUB-A2/A4/A5: write position/alignment fields to PlayerPrefs namespace
+    // so SubtitleOverlay reads them immediately (not just after restart).
+    // PlayerPrefs.load() reads player_sub_bottom_margin_px / player_sub_h_align
+    // / player_sub_edge_pad_px — not the panel's own pref_sub_* keys.
+    await prefs.setInt('player_sub_bottom_margin_px',  _subBottomMargin.round());
+    await prefs.setString('player_sub_h_align',        ['left','center','right'][_subAlignX]);
+    await prefs.setInt('player_sub_edge_pad_px',       _subEdgePadding.round());
+    await prefs.setString('player_sub_position',       ['top','center','bottom'][_subAlignY]);
+    // SUB-B4/B5: write spacing/shadow fields to PlayerPrefs namespace.
+    await prefs.setDouble('player_sub_line_spacing',   _subLineSpacing);
+    await prefs.setDouble('player_sub_letter_spacing', _subLetterSpacing);
+    await prefs.setDouble('player_sub_shadow_blur',    _subShadowBlur);
+    await prefs.setString('player_sub_shadow_dir',
+        ['none','down_right','down','all'][_subShadowDirIdx]);
+    // Notify parent to update playerPrefsProvider so the live overlay reacts.
+    widget.onPositionSynced?.call(
+      bottomMarginPx: _subBottomMargin.round(),
+      hAlign:         ['left','center','right'][_subAlignX],
+      edgePaddingPx:  _subEdgePadding.round(),
+      vPosition:      ['top','center','bottom'][_subAlignY],
+    );
     widget.onStyleSynced?.call(
-      fontIdx:   _subFontIdx,
-      size:      _subSize,
-      bold:      _subBold,
-      color:     _subColor,
-      bgColor:   _subBgColor,
-      opacity:   _subOpacity,
-      shadowIdx: _subShadowIdx,
+      fontIdx:          _subFontIdx,
+      size:             _subSize,
+      bold:             _subBold,
+      color:            _subColor,
+      bgColor:          _subBgColor,
+      opacity:          _subOpacity,
+      shadowIdx:        _subShadowIdx,
+      italic:           null, // no italic toggle in panel yet; future SUB-B item
+      lineSpacing:      _subLineSpacing,        // SUB-B4
+      letterSpacing:    _subLetterSpacing,      // SUB-B4
+      shadowBlurRadius: _subShadowBlur,         // SUB-B5
+      shadowDirection:  ['none','down_right','down','all'][_subShadowDirIdx], // SUB-B5
     );
   }
 

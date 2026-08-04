@@ -289,6 +289,7 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
                 subtitleFontFamily: fontNames[fontIdx.clamp(0, fontNames.length - 1)],
                 subtitleFontSize: size,
                 subtitleBold: bold,
+                subtitleItalic: italic,
                 // Bake the panel's separate text-opacity slider into the
                 // color's alpha channel, since PlayerPrefs has no distinct
                 // text-opacity field.
@@ -296,6 +297,22 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
                 subtitleBackgroundColorValue: bgColor.value,
                 subtitleBackgroundOpacity: bgColor.opacity,
                 subtitleOutlineThickness: outlineThicknesses[shadowIdx.clamp(0, 3)],
+                // SUB-B4/B5: live spacing & shadow updates (null → no change).
+                subtitleLineSpacing:      lineSpacing,
+                subtitleLetterSpacing:    letterSpacing,
+                subtitleShadowBlurRadius: shadowBlurRadius,
+                subtitleShadowDirection:  shadowDirection,
+              ));
+        },
+        // SUB-A2/A4/A5: live position updates — writes directly to
+        // playerPrefsProvider so SubtitleOverlay re-renders instantly.
+        onPositionSynced: ({required bottomMarginPx, required hAlign,
+            required edgePaddingPx, required vPosition}) {
+          ref.read(playerPrefsProvider.notifier).update((p) => p.copyWith(
+                subtitleBottomMarginPx:      bottomMarginPx,
+                subtitleHorizontalAlignment: hAlign,
+                subtitleEdgePaddingPx:       edgePaddingPx,
+                subtitlePosition:            vPosition,
               ));
         },
       );

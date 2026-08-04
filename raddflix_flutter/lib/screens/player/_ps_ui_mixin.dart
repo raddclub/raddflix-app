@@ -2806,6 +2806,11 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                                 p.accentColorValue,          p.subtitlePersonalityEnabled,
                                 p.subtitlePersonalityIntensity, p.phoneticOverlayEnabled,
                                 p.phoneticOverlayFontScale,  p.dualSubtitlesEnabled,
+                                // SUB-A2/A4/A5/B4/B5: new position & spacing fields
+                                p.subtitleBottomMarginPx,    p.subtitleHorizontalAlignment,
+                                p.subtitleEdgePaddingPx,     p.subtitleLineSpacing,
+                                p.subtitleLetterSpacing,     p.subtitleShadowBlurRadius,
+                                p.subtitleShadowDirection,   p.subtitleFont,
                               )));
                               final prefs = ref.read(playerPrefsProvider);
                               // DUAL-SUB: when dual mode is on, the DualSubtitleOverlay
@@ -2817,6 +2822,9 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                                 child: SubtitleOverlay(
                                   currentLine: currentLine,
                                   prefs: prefs,
+                                  // SUB-A3: raise subtitle above controls bar
+                                  // when controls are visible.
+                                  controlsRaiseDp: _showControls ? 120.0 : 0.0,
                                   onPausedForLookup: () {
                                     try { _player.pause(); } catch (_) {}
                                   },
