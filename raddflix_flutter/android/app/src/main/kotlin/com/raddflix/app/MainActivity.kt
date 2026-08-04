@@ -127,6 +127,15 @@ class MainActivity : FlutterActivity() {
                 )
             }
         }
+    }
+
+    // BG-FIX-3: notifReceiver must stay registered while the app is in the
+    // background so notification play/pause/seek buttons actually reach Flutter.
+    // onStart/onStop straddle the background state — the receiver was already
+    // unregistered by onStop() before the user could tap anything in the shade.
+    // Moving to onResume/onPause keeps it alive exactly when it is needed.
+    override fun onResume() {
+        super.onResume()
         val filter = IntentFilter().apply {
             addAction(PlaybackService.ACTION_PLAY_PAUSE)
             addAction(PlaybackService.ACTION_SEEK_BACK)
@@ -141,8 +150,8 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    override fun onStop() {
-        super.onStop()
+    override fun onPause() {
+        super.onPause()
         try { unregisterReceiver(notifReceiver) } catch (_: Exception) {}
     }
 
@@ -220,22 +229,25 @@ class MainActivity : FlutterActivity() {
                 // Start (or restart/update) the foreground media notification service.
                 // Accepts full play state — title, isPlaying, positionMs, durationMs.
                 "startBgPlayback" -> {
-                    val title     = call.argument<String>("title")      ?: "Playing…"
-                    val isPlaying = call.argument<Boolean>("isPlaying") ?: true
-                    val posMs     = (call.argument<Int>("positionMs")   ?: 0).toLong()
-                    val durMs     = (call.argument<Int>("durationMs")   ?: 0).toLong()
-                    startPlaybackService(title, isPlaying, posMs, durMs)
+                    val title      = call.argument<String>("title")      ?: "Playing…"
+                    val isPlaying  = call.argument<Boolean>("isPlaying") ?: true
+                    val posMs      = (call.argument<Int>("positionMs")   ?: 0).toLong()
+                    val durMs      = (call.argument<Int>("durationMs")   ?: 0).toLong()
+                    // BG-FIX-4: Flutter sends artworkUrl but it was silently dropped here.
+                    val artworkUrl = call.argument<String>("artworkUrl") ?: ""
+                    startPlaybackService(title, isPlaying, posMs, durMs, artworkUrl)
                     result.success(null)
                 }
 
                 // Update the notification with refreshed state (play/pause toggle,
                 // updated position for the progress bar, title change).
                 "updateBgNotification" -> {
-                    val title     = call.argument<String>("title")      ?: "Playing…"
-                    val isPlaying = call.argument<Boolean>("isPlaying") ?: true
-                    val posMs     = (call.argument<Int>("positionMs")   ?: 0).toLong()
-                    val durMs     = (call.argument<Int>("durationMs")   ?: 0).toLong()
-                    startPlaybackService(title, isPlaying, posMs, durMs)
+                    val title      = call.argument<String>("title")      ?: "Playing…"
+                    val isPlaying  = call.argument<Boolean>("isPlaying") ?: true
+                    val posMs      = (call.argument<Int>("positionMs")   ?: 0).toLong()
+                    val durMs      = (call.argument<Int>("durationMs")   ?: 0).toLong()
+                    val artworkUrl = call.argument<String>("artworkUrl") ?: ""
+                    startPlaybackService(title, isPlaying, posMs, durMs, artworkUrl)
                     result.success(null)
                 }
 
@@ -609,13 +621,15 @@ class MainActivity : FlutterActivity() {
         title: String,
         isPlaying: Boolean,
         posMs: Long,
-        durMs: Long
+        durMs: Long,
+        artworkUrl: String = ""  // BG-FIX-4: forwarded from Flutter call args
     ) {
         val svcIntent = Intent(this, PlaybackService::class.java).apply {
-            putExtra(PlaybackService.EXTRA_TITLE,      title)
-            putExtra(PlaybackService.EXTRA_IS_PLAYING, isPlaying)
-            putExtra(PlaybackService.EXTRA_POSITION,   posMs)
-            putExtra(PlaybackService.EXTRA_DURATION,   durMs)
+            putExtra(PlaybackService.EXTRA_TITLE,       title)
+            putExtra(PlaybackService.EXTRA_IS_PLAYING,  isPlaying)
+            putExtra(PlaybackService.EXTRA_POSITION,    posMs)
+            putExtra(PlaybackService.EXTRA_DURATION,    durMs)
+            putExtra(PlaybackService.EXTRA_ARTWORK_URL, artworkUrl)
         }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

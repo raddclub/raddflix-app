@@ -315,6 +315,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
         // the audio pipeline waiting for a surface that gets destroyed in the
         // background.  Restored to vid=auto in the resumed branch above.
         try { _np.setProperty('vid', 'no'); } catch (_) {}
+        // BG-FIX-1: media_kit internally pauses MPV when the video Surface is
+        // destroyed (confirmed open bug: media_kit #970).  Calling play() here
+        // immediately counteracts that auto-pause so audio keeps running.
+        try { _player.play(); } catch (_) {}
         // Start the foreground service so Android keeps the process alive.
         _notifyBgState();
         // Refresh the notification every 5 s so the progress bar stays in sync.

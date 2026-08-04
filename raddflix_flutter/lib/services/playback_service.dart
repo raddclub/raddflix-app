@@ -209,6 +209,19 @@ class PlaybackService extends ChangeNotifier with WidgetsBindingObserver {
     if (state == AppLifecycleState.paused) {
       if (!backgroundAudioEnabled) return;
       _pipChannel.setMethodCallHandler(_handleNativeCall);
+      // BG-FIX-2: Path B (minimized player → background) was missing vid=no.
+      // Without it, Android destroys the Surface and MPV stalls trying to
+      // render to a dead surface — audio cuts out.  Mirror exactly what
+      // player_screen.dart (Path A) does: drop video decode, then kick
+      // play() to counteract media_kit's internal auto-pause on surface loss.
+      final _p = _player;
+      if (_p != null) {
+        final np = _p.platform;
+        if (np is NativePlayer) {
+          try { np.setProperty('vid', 'no'); } catch (_) {}
+        }
+        try { _p.play(); } catch (_) {}
+      }
       _startOrUpdateNativeBg(starting: true);
       _bgNotifTimer?.cancel();
       _bgNotifTimer = Timer.periodic(const Duration(seconds: 5), (_) {
