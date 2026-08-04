@@ -29,7 +29,7 @@
 
 ---
 
-**Phase B — Subtitle Style Presets & New Styles — ALL DONE (SHA `5c36e4c`, CI ⏳):**
+**Phase B — Subtitle Style Presets & New Styles — ALL DONE (SHA `5c36e4c`, CI ✅):**
 - SUB-B1: `_applyPreset` now applies lineSpacing/letterSpacing/shadowBlur/shadowDirIdx ✅
 - SUB-B2: Font wiring (`_resolvedFontFamily`, `_buildShadows`, letterSpacing/height) confirmed done from prior session ✅
 - SUB-B3: 4 new presets added to `subtitle_style.dart` (YouTube, Netflix, BBC, Large Print) ✅
