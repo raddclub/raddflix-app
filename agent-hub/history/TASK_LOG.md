@@ -2720,3 +2720,30 @@ nothing when audio plays in background.
 |---|---|
 | `841470bb` | BG play defaults, music permission fix, POST_NOTIFICATIONS (prev session, CI ✅) |
 | (in progress) | Phase A: accent color + seek bar style wired to PlayerPrefs; QuickSettingsPanel accessible |
+
+---
+
+## Session 2026-08-04 — Panel Active-State & Animation Fixes (Bugs 1–6)
+
+**Tasks completed:** PANEL-ACTIVESTATE-FIX
+
+### Root cause (all 6 bugs)
+Every panel opens via `showModalBottomSheet`. Widget is constructed once with state baked into
+constructor params. The parent's `setState()` calls after user interaction never cause the modal
+to rebuild — the panel is frozen at the state it was opened with.
+
+### Fixes applied
+
+| Bug | File | Fix |
+|---|---|---|
+| 1 — Vibe chip no live highlight | `_ps_panels_audio.dart` | Added `late PlaybackVibeMode _vibeMode` to `_AudioEffectPanelState`; init from widget; onTap calls `setState(() => _vibeMode = mode)` before parent callback; UI reads `_vibeMode` not `widget.currentVibeMode` |
+| 2 — Audio track radio dot frozen | `_ps_panels_audio.dart` | Added `AudioTrack? _selectedTrack` to `_AudioTrackPanelState`; init from widget; Builder reads `_selectedTrack`; onChanged updates local before parent callback; Disable row same pattern |
+| 3 — Primary subtitle highlight frozen | `_ps_panels_subtitle.dart` | Added `SubtitleTrack? _selectedSubtitle` to `_SubtitlePanelState`; init in `initState`; `_buildTracksTab` reads `_selectedSubtitle`; onTap lambdas update local first |
+| 4 — Secondary subtitle highlight frozen | `_ps_panels_subtitle.dart` | Same pattern with `_selectedSecondSub` |
+| 5 — EQ preset doesn't deselect on band drag | `_ps_panels_audio.dart` | EQ band slider onChanged: `setState(() { _bands[i] = v; _preset = -1; })` |
+| 6 — Hard snap, no animation | Both | Vibe cards: `Container` → `AnimatedContainer(180ms, easeOut)`; `_SubTrackTile` circle: same |
+
+### Commit
+| SHA | Description |
+|---|---|
+| `94e1ee0b` | Fix panel active-state bugs 1-6 (CI ⏳) |

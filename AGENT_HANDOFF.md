@@ -5,7 +5,7 @@
 
 ---
 
-## Current State (2026-08-03 — BG-play fix planned, ready to implement)
+## Current State (2026-08-04 — Panel active-state & animation fixes shipped)
 
 **Phase A (Full UI Theme Engine) — DONE (SHA `e4899225`, CI green):**
 - PHASE-A1: `_accentColor` getter wired to `PlayerPrefs.accentColor` ✅
