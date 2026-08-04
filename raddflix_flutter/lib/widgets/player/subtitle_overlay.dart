@@ -1,3 +1,4 @@
+import 'dart:math' show max;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart'; // J3: Lexend dyslexia-friendly font
 import 'package:flutter/services.dart';
@@ -25,12 +26,19 @@ class SubtitleOverlay extends StatefulWidget {
   /// Implementations should resume the player.
   final VoidCallback? onResumedAfterLookup;
 
+  /// SUB-A3: how many logical pixels to raise the subtitle block above the
+  /// seekbar when player controls are visible.  Driven by a ValueNotifier
+  /// outside so the transition animates without rebuilding the whole Consumer.
+  /// Pass 0 when controls are hidden (default).
+  final double controlsRaiseDp;
+
   const SubtitleOverlay({
     super.key,
     required this.currentLine,
     required this.prefs,
     this.onPausedForLookup,
     this.onResumedAfterLookup,
+    this.controlsRaiseDp = 0,
   });
 
   @override
@@ -88,21 +96,117 @@ class _SubtitleOverlayState extends State<SubtitleOverlay>
     super.dispose();
   }
 
+  // SUB-A4: combine vertical position with horizontal alignment
   Alignment get _alignment {
-    switch (widget.prefs.subtitlePosition) {
-      case 'top':    return Alignment.topCenter;
-      case 'center': return Alignment.center;
-      default:       return Alignment.bottomCenter;
+    final x = widget.prefs.subtitleHorizontalAlignment == 'left'  ? -1.0
+             : widget.prefs.subtitleHorizontalAlignment == 'right' ?  1.0
+             : 0.0;
+    final y = widget.prefs.subtitlePosition == 'top'    ? -1.0
+             : widget.prefs.subtitlePosition == 'center' ?  0.0
+             : 1.0;
+    return Alignment(x, y);
+  }
+
+  // SUB-A4: text/wrap alignment for left/center/right
+  TextAlign get _textAlign {
+    switch (widget.prefs.subtitleHorizontalAlignment) {
+      case 'left':  return TextAlign.left;
+      case 'right': return TextAlign.right;
+      default:      return TextAlign.center;
     }
   }
 
-  EdgeInsets get _padding {
-    final offset = widget.prefs.subtitleVerticalOffset * 60;
-    switch (widget.prefs.subtitlePosition) {
-      case 'top':    return EdgeInsets.only(top: 20.0 + offset.abs());
-      case 'center': return EdgeInsets.zero;
-      default:       return EdgeInsets.only(bottom: 80.0 + offset.abs());
+  WrapAlignment get _wrapAlignment {
+    switch (widget.prefs.subtitleHorizontalAlignment) {
+      case 'left':  return WrapAlignment.start;
+      case 'right': return WrapAlignment.end;
+      default:      return WrapAlignment.center;
     }
+  }
+
+  /// SUB-A1: signed offset (no abs()) + SUB-A2: subtitleBottomMarginPx +
+  /// SUB-A3: controlsRaiseDp so overlay clears the seekbar when visible.
+  EdgeInsets get _padding {
+    final offset = widget.prefs.subtitleVerticalOffset * 60; // signed
+    switch (widget.prefs.subtitlePosition) {
+      case 'top':
+        return EdgeInsets.only(top: max(4.0, 20.0 + offset)); // positive = push down
+      case 'center':
+        return EdgeInsets.only(top: max(0.0, offset));
+      default:
+        return EdgeInsets.only(
+          bottom: max(4.0,
+            widget.prefs.subtitleBottomMarginPx.toDouble() // SUB-A2: px field
+            + offset                                       // SUB-A1: signed
+            + widget.controlsRaiseDp,                     // SUB-A3: raise
+          ),
+        );
+    }
+  }
+
+  /// SUB-B2: resolve font family — subtitleFont (accessibility preset) takes
+  /// priority over subtitleFontFamily (manual panel selection).
+  String? get _resolvedFontFamily {
+    switch (widget.prefs.subtitleFont) {
+      case 'open_dyslexic':
+        return GoogleFonts.openDyslexic3().fontFamily;
+      case 'atkinson':
+        return GoogleFonts.atkinsonHyperlegible().fontFamily;
+      case 'lexend':
+      case 'lexie_readable':
+        return GoogleFonts.lexend().fontFamily;
+      case 'roboto':
+        return GoogleFonts.roboto().fontFamily;
+      default:
+        if (widget.prefs.subtitleFontFamily == 'Sans-Serif' ||
+            widget.prefs.subtitleFontFamily == 'Sans Serif' ||
+            widget.prefs.subtitleFontFamily == 'Default') {
+          return null;
+        }
+        if (widget.prefs.subtitleFontFamily == 'Lexend') {
+          return GoogleFonts.lexend().fontFamily;
+        }
+        return widget.prefs.subtitleFontFamily;
+    }
+  }
+
+  /// SUB-B5: build outline + optional directional drop-shadow list.
+  List<Shadow>? _buildShadows(double outline, Color outlineColor) {
+    final shadows = <Shadow>[];
+    if (widget.prefs.subtitleShadowBlurRadius > 0) {
+      final blur = widget.prefs.subtitleShadowBlurRadius;
+      switch (widget.prefs.subtitleShadowDirection) {
+        case 'down_right':
+          shadows.add(Shadow(
+              offset: Offset(blur * 0.5, blur * 0.5),
+              blurRadius: blur, color: Colors.black87));
+          break;
+        case 'down':
+          shadows.add(Shadow(
+              offset: Offset(0, blur * 0.5),
+              blurRadius: blur, color: Colors.black87));
+          break;
+        case 'all':
+          shadows.addAll([
+            Shadow(offset: Offset(-blur * 0.4, -blur * 0.4), blurRadius: blur, color: Colors.black87),
+            Shadow(offset: Offset( blur * 0.4, -blur * 0.4), blurRadius: blur, color: Colors.black87),
+            Shadow(offset: Offset(-blur * 0.4,  blur * 0.4), blurRadius: blur, color: Colors.black87),
+            Shadow(offset: Offset( blur * 0.4,  blur * 0.4), blurRadius: blur, color: Colors.black87),
+          ]);
+          break;
+        default:
+          break; // 'none'
+      }
+    }
+    if (outline > 0) {
+      shadows.addAll([
+        Shadow(offset: Offset( outline / 2,  outline / 2), blurRadius: outline, color: outlineColor),
+        Shadow(offset: Offset(-outline / 2, -outline / 2), blurRadius: outline, color: outlineColor),
+        Shadow(offset: Offset( outline / 2, -outline / 2), blurRadius: outline, color: outlineColor),
+        Shadow(offset: Offset(-outline / 2,  outline / 2), blurRadius: outline, color: outlineColor),
+      ]);
+    }
+    return shadows.isEmpty ? null : shadows;
   }
 
   void _onWordTap(BuildContext ctx, String word) async {
@@ -172,25 +276,16 @@ class _SubtitleOverlayState extends State<SubtitleOverlay>
     final effectiveFontSize = widget.prefs.subtitleFontSize * personality.fontScale;
 
     final baseStyle = TextStyle(
-      fontSize:   effectiveFontSize,
-      fontFamily: (widget.prefs.subtitleFontFamily == 'Sans-Serif' ||
-              widget.prefs.subtitleFontFamily == 'Sans Serif' ||
-              widget.prefs.subtitleFontFamily == 'Default')
-          ? null
-          : widget.prefs.subtitleFontFamily == 'Lexend'
-              ? GoogleFonts.lexend().fontFamily
-              : widget.prefs.subtitleFontFamily,
-      color:      effectiveTextColor,
-      fontWeight: (personality.forceBold || widget.prefs.subtitleBold)
-          ? FontWeight.bold : FontWeight.normal,
-      fontStyle:  (personality.forceItalic || widget.prefs.subtitleItalic)
-          ? FontStyle.italic : FontStyle.normal,
-      shadows: outline > 0 ? [
-        Shadow(offset: Offset( outline / 2,  outline / 2), blurRadius: outline, color: outlineColor),
-        Shadow(offset: Offset(-outline / 2, -outline / 2), blurRadius: outline, color: outlineColor),
-        Shadow(offset: Offset( outline / 2, -outline / 2), blurRadius: outline, color: outlineColor),
-        Shadow(offset: Offset(-outline / 2,  outline / 2), blurRadius: outline, color: outlineColor),
-      ] : null,
+      fontSize:      effectiveFontSize,
+      fontFamily:    _resolvedFontFamily,  // SUB-B2: accessibility font > panel selection
+      color:         effectiveTextColor,
+      fontWeight:    (personality.forceBold || widget.prefs.subtitleBold)
+                         ? FontWeight.bold : FontWeight.normal,
+      fontStyle:     (personality.forceItalic || widget.prefs.subtitleItalic)
+                         ? FontStyle.italic : FontStyle.normal,
+      letterSpacing: widget.prefs.subtitleLetterSpacing, // SUB-B4
+      height:        widget.prefs.subtitleLineSpacing,    // SUB-B4
+      shadows:       _buildShadows(outline, outlineColor), // SUB-B5
     );
 
     // IDEA-06: music lines get a gradient background pill instead of solid.
@@ -260,7 +355,8 @@ class _SubtitleOverlayState extends State<SubtitleOverlay>
               child: child,
             ),
             child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 24),
+              margin: EdgeInsets.symmetric(  // SUB-A5: use pref instead of hardcoded 24
+                horizontal: widget.prefs.subtitleEdgePaddingPx.toDouble()),
               padding: (hasExplicitBg || personality.useGradientBg)
                   ? const EdgeInsets.symmetric(horizontal: 10, vertical: 5)
                   : EdgeInsets.zero,
@@ -290,7 +386,7 @@ class _SubtitleOverlayState extends State<SubtitleOverlay>
       String? phoneticLine, TextStyle? phoneticStyle) {
     final Widget main = widget.prefs.dictEnabled
         ? _buildTappableText(ctx, line, style)
-        : Text(line, textAlign: TextAlign.center, style: style);
+        : Text(line, textAlign: _textAlign, style: style); // SUB-A4: respect h-alignment
 
     if (phoneticLine == null || phoneticLine.isEmpty) return main;
     return Column(
@@ -315,7 +411,7 @@ class _SubtitleOverlayState extends State<SubtitleOverlay>
     }
 
     return Wrap(
-      alignment: WrapAlignment.center,
+      alignment: _wrapAlignment, // SUB-A4: respect h-alignment
       children: tokens.map((token) {
         final isWord = _reWord.hasMatch(token);
         if (!isWord) {

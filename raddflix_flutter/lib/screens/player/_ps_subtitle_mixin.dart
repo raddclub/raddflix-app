@@ -42,6 +42,10 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
   // setState() on every subtitle tick (1–10 calls/s depending on frame rate).
   // The getter/setter pair keeps all cross-cluster references transparent —
   // callers still write `_currentSubLine = line` and read `_currentSubLine`.
+  // SUB-A3: raised dp when controls are showing — drives controlsRaiseDp on
+  // SubtitleOverlay without forcing a Consumer/ValueListenableBuilder rebuild.
+  final ValueNotifier<double> _subtitleRaiseNotifier = ValueNotifier(0.0);
+
   final ValueNotifier<String?> _currentSubLineNotifier = ValueNotifier(null);
   String? get _currentSubLine => _currentSubLineNotifier.value;
   set _currentSubLine(String? v) => _currentSubLineNotifier.value = v;

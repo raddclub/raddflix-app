@@ -35,7 +35,22 @@ class _SubtitlePanel extends StatefulWidget {
     required Color bgColor,
     required double opacity,
     required int shadowIdx,
+    // Phase B optional extensions:
+    bool? italic,
+    double? lineSpacing,
+    double? letterSpacing,
+    double? shadowBlurRadius,
+    String? shadowDirection,
   })? onStyleSynced;
+
+  // SUB-A2/A4/A5: syncs position/alignment fields to PlayerPrefs so
+  // SubtitleOverlay sees changes immediately (not just after restart).
+  final void Function({
+    required int bottomMarginPx,
+    required String hAlign,
+    required int edgePaddingPx,
+    required String vPosition,
+  })? onPositionSynced;
 
   const _SubtitlePanel({
     required this.isLocal,
@@ -54,6 +69,7 @@ class _SubtitlePanel extends StatefulWidget {
     required this.onSubtitleTrackSelected,
     required this.onSecondSubSelected,
     this.onStyleSynced,
+    this.onPositionSynced,
   });
 
   @override
@@ -79,6 +95,12 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
   int    _subShadowIdx = 2;       // 0=None  1=Outline  2=Drop Shadow  3=Box
   // BB3: active preset — switches to custom when the user changes any slider.
   SubtitlePreset _currentPreset = SubtitlePreset.custom;
+
+  // ── Phase B state ─────────────────────────────────────────────────────────
+  double _subLineSpacing   = 1.3;  // SUB-B4: 1.0–2.0
+  double _subLetterSpacing = 0.0;  // SUB-B4: −1–4 px
+  double _subShadowBlur    = 0.0;  // SUB-B5: 0–12
+  int    _subShadowDirIdx  = 0;    // SUB-B5: 0=none 1=down_right 2=down 3=all
 
   // ── Position ──────────────────────────────────────────────────────────────
   int    _subAlignX       = 1;    // 0=Left   1=Center   2=Right

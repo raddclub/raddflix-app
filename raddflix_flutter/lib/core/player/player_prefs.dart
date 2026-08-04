@@ -60,6 +60,27 @@ class PlayerPrefs {
   final double subtitleVerticalOffset;
   final bool   subtitleAutoDetect;
 
+  // ── SUB-A2/A4/A5: Position & Alignment ────────────────────────────────────
+  /// Bottom margin in px (0–200). Default 80.
+  /// Written by the panel's Bottom Margin slider; read by SubtitleOverlay._padding.
+  final int    subtitleBottomMarginPx;
+  /// Horizontal alignment: 'left' | 'center' | 'right'. Default 'center'.
+  final String subtitleHorizontalAlignment;
+  /// Edge (horizontal) padding in px (0–60). Default 24.
+  final int    subtitleEdgePaddingPx;
+
+  // ── SUB-B4: Spacing ────────────────────────────────────────────────────────
+  /// Line height multiplier (1.0–2.0). Default 1.3.
+  final double subtitleLineSpacing;
+  /// Letter spacing in logical pixels (−1.0–4.0). Default 0.0.
+  final double subtitleLetterSpacing;
+
+  // ── SUB-B5: Shadow ────────────────────────────────────────────────────────
+  /// Extra directional shadow blur radius (0–12). 0 = off. Default 0.
+  final double subtitleShadowBlurRadius;
+  /// Shadow direction: 'none' | 'down_right' | 'down' | 'all'. Default 'none'.
+  final String subtitleShadowDirection;
+
   // ── AUDIO ─────────────────────────────────────────────────────────────────
   final int    audioTimingOffsetMs;
   final double volumeBoostMultiplier;
@@ -418,6 +439,13 @@ class PlayerPrefs {
     this.subtitlePosition = 'bottom',
     this.subtitleVerticalOffset = 0.1,
     this.subtitleAutoDetect = false,
+    this.subtitleBottomMarginPx       = 80,
+    this.subtitleHorizontalAlignment  = 'center',
+    this.subtitleEdgePaddingPx        = 24,
+    this.subtitleLineSpacing          = 1.3,
+    this.subtitleLetterSpacing        = 0.0,
+    this.subtitleShadowBlurRadius     = 0.0,
+    this.subtitleShadowDirection      = 'none',
     this.audioTimingOffsetMs = 0,
     this.volumeBoostMultiplier = 1.0,
     this.equalizerEnabled = false,
@@ -675,6 +703,13 @@ class PlayerPrefs {
     double? phoneticOverlayFontScale,
     PlaybackVibeMode? vibeMode,
     bool? rememberVibeMode,
+    int?    subtitleBottomMarginPx,
+    String? subtitleHorizontalAlignment,
+    int?    subtitleEdgePaddingPx,
+    double? subtitleLineSpacing,
+    double? subtitleLetterSpacing,
+    double? subtitleShadowBlurRadius,
+    String? subtitleShadowDirection,
   }) => PlayerPrefs(
     gestureEnabled: gestureEnabled ?? this.gestureEnabled,
     swipeBrightnessEnabled: swipeBrightnessEnabled ?? this.swipeBrightnessEnabled,
@@ -850,6 +885,13 @@ class PlayerPrefs {
       phoneticOverlayFontScale:     phoneticOverlayFontScale     ?? this.phoneticOverlayFontScale,
       vibeMode:                     vibeMode                     ?? this.vibeMode,
       rememberVibeMode:             rememberVibeMode             ?? this.rememberVibeMode,
+      subtitleBottomMarginPx:       subtitleBottomMarginPx       ?? this.subtitleBottomMarginPx,
+      subtitleHorizontalAlignment:  subtitleHorizontalAlignment  ?? this.subtitleHorizontalAlignment,
+      subtitleEdgePaddingPx:        subtitleEdgePaddingPx        ?? this.subtitleEdgePaddingPx,
+      subtitleLineSpacing:          subtitleLineSpacing          ?? this.subtitleLineSpacing,
+      subtitleLetterSpacing:        subtitleLetterSpacing        ?? this.subtitleLetterSpacing,
+      subtitleShadowBlurRadius:     subtitleShadowBlurRadius     ?? this.subtitleShadowBlurRadius,
+      subtitleShadowDirection:      subtitleShadowDirection      ?? this.subtitleShadowDirection,
   );
 
   // ── Load from SharedPreferences ─────────────────────────────────────────
@@ -1045,6 +1087,13 @@ class PlayerPrefs {
                                       (s.getInt('${_p}vibe_mode') ?? 0)
                                         .clamp(0, PlaybackVibeMode.values.length - 1)],
       rememberVibeMode:             s.getBool('${_p}remember_vibe_mode')          ?? false,
+      subtitleBottomMarginPx:       s.getInt('${_p}sub_bottom_margin_px')         ?? 80,
+      subtitleHorizontalAlignment:  s.getString('${_p}sub_h_align')               ?? 'center',
+      subtitleEdgePaddingPx:        s.getInt('${_p}sub_edge_pad_px')              ?? 24,
+      subtitleLineSpacing:          s.getDouble('${_p}sub_line_spacing')          ?? 1.3,
+      subtitleLetterSpacing:        s.getDouble('${_p}sub_letter_spacing')        ?? 0.0,
+      subtitleShadowBlurRadius:     s.getDouble('${_p}sub_shadow_blur')           ?? 0.0,
+      subtitleShadowDirection:      s.getString('${_p}sub_shadow_dir')            ?? 'none',
     );
   }
 
@@ -1234,6 +1283,13 @@ class PlayerPrefs {
       s.setDouble('${_p}phonetic_overlay_scale',     phoneticOverlayFontScale),
       s.setInt('${_p}vibe_mode',                      vibeMode.index),
       s.setBool('${_p}remember_vibe_mode',            rememberVibeMode),
+      s.setInt('${_p}sub_bottom_margin_px',          subtitleBottomMarginPx),
+      s.setString('${_p}sub_h_align',                subtitleHorizontalAlignment),
+      s.setInt('${_p}sub_edge_pad_px',               subtitleEdgePaddingPx),
+      s.setDouble('${_p}sub_line_spacing',           subtitleLineSpacing),
+      s.setDouble('${_p}sub_letter_spacing',         subtitleLetterSpacing),
+      s.setDouble('${_p}sub_shadow_blur',            subtitleShadowBlurRadius),
+      s.setString('${_p}sub_shadow_dir',             subtitleShadowDirection),
     ]);
   }
 }
