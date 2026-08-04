@@ -5,19 +5,27 @@
 
 ---
 
-## Current State (2026-08-04 — Phase J PiP & Cast panel complete)
+## Current State (2026-08-04 — Phase F complete)
 
-**Phase J (PiP Overlay & Cast Panel) — ALL 7 DONE:**
+**Phase F (General App Fixes) — 5/6 DONE (SHA `5030aa4a`, CI pending):**
+- APP-F1: Guest gating in settings — Catalog Sync shows "Sign in" locked row; App Lock hidden; Manage Downloads hidden ✅
+- APP-F2: Subscription gates verified on all entry points (home → ShowDetail → player Layer 2) ✅
+- APP-F4: Expiry date already in profile_screen L388 + days-remaining countdown ✅
+- APP-F5: IndexedStack preserves HomeScreen scroll state natively — no changes needed ✅
+- APP-F6: Mic "Listening" HUD badge + `HapticFeedback.lightImpact()` on voice enable ✅
+- APP-F3: Deferred — needs Oracle SSH for Flask/admin SSE progress endpoint
+
+**Next priority: Phase G — Dual Subtitles & Overlay Consistency**
+Start at SUB-G1 (verify secondary track highlight persists) → SUB-G2 (apply auto-raise to DualSubtitleOverlay) → SUB-G3 (DualSubtitleOverlay primary track inherits Phase B font/style).
+
+**Phase J (PiP Overlay & Cast Panel) — ALL 7 DONE (SHA `4a9efee`, CI green):**
 - PIP-J1: `_baseSize` captured at `onScaleStart`; scale updates linear, no exponential compounding ✅
 - PIP-J2: `MediaQuery.padding` applied in both pan clamp and snap — window stays above status/nav bar ✅
 - PIP-J3: 3 s auto-hide timer; resets on each tap (`_startHideTimer`) ✅
-- PIP-J4: Close/expand/play buttons wrapped in `GestureDetector(behavior: HitTestBehavior.opaque)` — tapping a button no longer also toggles controls ✅
-- CAST-J5: `widget.scanning` bool drives "Searching…" vs "No devices found" — never shown simultaneously ✅
-- CAST-J6: Connected device filtered from available-devices list before `ListView.builder` renders it ✅
-- CAST-J7: `device.signalStrength.clamp(0, 4)` — signal bars now correct for any out-of-range value ✅ (SHA `4a9efee`, CI pending→green)
-
-**Next priority: Phase C — Audio Player & Panel Fixes**
-Start at AUDIO-C1 (vibe entry from audio disc when mode=None) → AUDIO-C2/C3 (missing `didUpdateWidget`) → AUDIO-C4 (SW decoder gate) → AUDIO-C5 (title parser) → AUDIO-C6 (wire dead audio-sync callbacks).
+- PIP-J4: Close/expand/play buttons wrapped in `GestureDetector(behavior: HitTestBehavior.opaque)` ✅
+- CAST-J5: `widget.scanning` bool drives "Searching…" vs "No devices found" ✅
+- CAST-J6: Connected device filtered from available-devices list ✅
+- CAST-J7: `device.signalStrength.clamp(0, 4)` — signal bars clamped ✅
 
 **BG-play Deep Fix — ALL DONE (SHA `27a07e20`, CI green):**
 - BG-FIX-1: `_player.play()` after `vid=no` on fullscreen→background path ✅
