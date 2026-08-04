@@ -149,7 +149,7 @@ class _SubtitleOverlayState extends State<SubtitleOverlay>
   String? get _resolvedFontFamily {
     switch (widget.prefs.subtitleFont) {
       case 'open_dyslexic':
-        return GoogleFonts.openDyslexic3().fontFamily;
+        return GoogleFonts.openDyslexic().fontFamily;
       case 'atkinson':
         return GoogleFonts.atkinsonHyperlegible().fontFamily;
       case 'lexend':
