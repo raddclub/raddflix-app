@@ -142,6 +142,16 @@ class _SubtitlePanelState extends State<_SubtitlePanel> {
     _speed = widget.subSpeed;
     _selectedSubtitle   = widget.selectedSubtitle;
     _selectedSecondSub  = widget.selectedSecondSub;
+
+  @override
+  void didUpdateWidget(_SubtitlePanel old) {
+    super.didUpdateWidget(old);
+    // SUB-G1: keep local mirrors in sync if external selection changes while panel is open
+    if (widget.selectedSubtitle  != old.selectedSubtitle)
+      setState(() => _selectedSubtitle  = widget.selectedSubtitle);
+    if (widget.selectedSecondSub != old.selectedSecondSub)
+      setState(() => _selectedSecondSub = widget.selectedSecondSub);
+  }
     _searchController = TextEditingController(text: widget.title ?? '');
     if ((widget.title ?? '').isNotEmpty && !widget.isLocal) {
       WidgetsBinding.instance.addPostFrameCallback((_) {

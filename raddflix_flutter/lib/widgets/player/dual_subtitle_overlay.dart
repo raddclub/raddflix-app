@@ -1,5 +1,7 @@
+import 'dart:math' show max;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart'; // SUB-G3: Phase B font resolution
 import '../../core/player/player_prefs.dart';
 import '../../core/player/word_dict.dart';
 import '../../core/player/subtitle_personality.dart'; // IDEA-06
@@ -23,6 +25,10 @@ class DualSubtitleOverlay extends StatefulWidget {
   /// Called 800ms after the definition sheet is dismissed.
   final VoidCallback? onResumedAfterLookup;
 
+  /// SUB-G2: raise both tracks above controls bar when controls are visible.
+  /// Pass `_showControls ? 120.0 : 0.0` from the player.
+  final double controlsRaiseDp;
+
   const DualSubtitleOverlay({
     super.key,
     required this.primaryLine,
@@ -30,6 +36,7 @@ class DualSubtitleOverlay extends StatefulWidget {
     required this.prefs,
     this.onPausedForLookup,
     this.onResumedAfterLookup,
+    this.controlsRaiseDp = 0,
   });
 
   @override
