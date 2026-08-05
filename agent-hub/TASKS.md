@@ -17,6 +17,7 @@
 
 | Task | Description | Plan | Status |
 |---|---|---|---|
+| DOC-AUDIT-2026-08-05 | **Correct 22 stale task entries — VIBE phases 1–5, DL-K1/K2/K3, SEARCH-N4, PLAY-I5.** All marked ⬜ OPEN but already implemented in prior sessions. Updated to ✅ DONE with correct commit SHAs. Also confirmed PLAY-I5 is intentional (cinematic mode design). Updated AGENT_HANDOFF.md CI status + next-priority. Appended TASK_LOG session entry. | `agent-hub/TASKS.md`, `AGENT_HANDOFF.md`, `agent-hub/history/TASK_LOG.md` | ✅ DONE | 2026-08-05 | this session |
 | PANEL-ACTIVESTATE-FIX | **Fix 6 panel active-state & animation bugs.** All caused by the same root: panels opened via modal bottom sheet receive stale widget props (frozen at open time). Fixes: (1) `_AudioEffectPanelState` — added local `_vibeMode` field, init from widget, onTap updates local before calling parent callback; (2) `_AudioTrackPanelState` — added local `_selectedTrack`, Builder uses local, onChanged updates local; (3+4) `_SubtitlePanelState` — added `_selectedSubtitle` + `_selectedSecondSub`, `_buildTracksTab` uses locals; (5) EQ band slider onChanged resets `_preset = -1` locally; (6) Vibe cards + `_SubTrackTile` circle use `AnimatedContainer(180ms, easeOut)` instead of plain `Container`. | `_ps_panels_audio.dart`, `_ps_panels_subtitle.dart` | ✅ DONE — `94e1ee0b` |
 | LIVE-TV-I01 | **DB migration v27→v28: logo_path column for live_channels.** `catalogDbVersion` bumped to 28. `CREATE TABLE live_channels` gains `logo_path TEXT NOT NULL DEFAULT ''`. `_migrate()` `oldV < 28` block ALTERs existing installs safely. Added `saveChannelLogoPath(channelId, path)` and `getChannelLogoPath(channelId)` helpers. `LiveChannel` model gains nullable `logoPath` field; `fromRow` reads it; `toRow` omits it (PosterService owns it). | `constants.dart`, `local_db.dart`, `live_channels.dart` | ✅ DONE — `8513e2f` |
 | LIVE-TV-I02 | **PosterService: permanent channel logo disk cache.** Added `getChannelLogoPath(channelId)` (disk check) and `downloadAndCacheChannelLogo(channelId, url)` (download + persist to SQLite `logo_path`). Logos stored as `ch_{id}.jpg` in existing hidden `.raddflix_media` folder. | `poster_service.dart` | ✅ DONE — `5146927` |
@@ -468,43 +469,43 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 |---|---|---|---|---|
 | VIBE-1A | **Add `asetrate` and `apulsator` af-pipeline primitives to audiolab mixin.** Add `String _currentVibeAf = ''` state. Insert vibe af segment in `_buildMergedAfString()` after aformat, before reverb + lab chain. Files: `_ps_audiolab_mixin.dart`. | ✅ DONE | 2026-08-01 | `0e338263` |
 | VIBE-1B | **Add `PlaybackVibeMode` enum + `vibeMode`/`rememberVibeMode` fields to PlayerPrefs.** Enum values: `none`, `slowed`, `slowedReverb`, `nightcore`, `lofi`, `eightD`, `phonk`, `club`. Persist as int index. Files: `core/player/player_prefs.dart`. | ✅ DONE | 2026-07-30 | `6064bf82` |
-| VIBE-1C | **Add `_applyVibeMode(PlaybackVibeMode)` method to audiolab mixin.** Handles speed changes, pitch correction toggle, af chain construction per mode, audio-only vs video branching. Calls `_applyAllAf()` and `_scheduleSavePrefs()`. Files: `_ps_audiolab_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |
-| VIBE-1D | **Subtitle sync compensation for speed-affecting vibe modes.** Set `sub-speed` MPV property to match vibe speed ratio so subtitles track slowed/sped audio. Reset to `'1'` on mode clear. Files: `_ps_subtitle_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |
-| VIBE-1E | **Reset vibe mode on new file load** (unless `rememberVibeMode` is true). Files: `_ps_playback_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-1C | **Add `_applyVibeMode(PlaybackVibeMode)` method to audiolab mixin.** Handles speed changes, pitch correction toggle, af chain construction per mode, audio-only vs video branching. Calls `_applyAllAf()` and `_scheduleSavePrefs()`. Files: `_ps_audiolab_mixin.dart`. | ✅ DONE | 2026-08-01 | `4c61c79a` |
+| VIBE-1D | **Subtitle sync compensation for speed-affecting vibe modes.** Set `sub-speed` MPV property to match vibe speed ratio so subtitles track slowed/sped audio. Reset to `'1'` on mode clear. Files: `_ps_subtitle_mixin.dart`. | ✅ DONE | 2026-08-01 | `4c61c79a` |
+| VIBE-1E | **Reset vibe mode on new file load** (unless `rememberVibeMode` is true). Files: `_ps_playback_mixin.dart`. | ✅ DONE | 2026-08-01 | `7ea55258` |
 
 ### Phase 2 — Core 4 Vibe Modes (Shippable MVP)
 
 | Task | Description | Status | Date | Commit |
 |---|---|---|---|---|
-| VIBE-2A | **Slowed mode.** 0.82× speed + pitch drops naturally. Audio-only: `asetrate=44100*0.82,aresample=44100`. Video: `_setSpeed(0.82)` + pitch correction off. | ⬜ OPEN | 2026-07-30 | — |
-| VIBE-2B | **Slowed + Reverb mode.** Slowed (above) + `aecho=0.8:0.88:300\|600\|900:0.4\|0.25\|0.12`. The most popular audio vibe format in South Asian streaming. | ⬜ OPEN | 2026-07-30 | — |
-| VIBE-2C | **NightCore mode.** 1.25× speed + pitch rises naturally. Audio-only: `asetrate=44100*1.25,aresample=44100`. Video: `_setSpeed(1.25)` + pitch correction off. | ⬜ OPEN | 2026-07-30 | — |
-| VIBE-2D | **Lofi mode.** 0.93× speed (barely visible on video) + `lowpass=f=9000` + soft `aecho=0.65:0.75:80\|200:0.2\|0.12`. Warm cassette feel. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-2A | **Slowed mode.** 0.82× speed + pitch drops naturally. Audio-only: `asetrate=44100*0.82,aresample=44100`. Video: `_setSpeed(0.82)` + pitch correction off. | ✅ DONE | 2026-08-01 | `4c61c79a` |
+| VIBE-2B | **Slowed + Reverb mode.** Slowed (above) + `aecho=0.8:0.88:300\|600\|900:0.4\|0.25\|0.12`. The most popular audio vibe format in South Asian streaming. | ✅ DONE | 2026-08-01 | `4c61c79a` |
+| VIBE-2C | **NightCore mode.** 1.25× speed + pitch rises naturally. Audio-only: `asetrate=44100*1.25,aresample=44100`. Video: `_setSpeed(1.25)` + pitch correction off. | ✅ DONE | 2026-08-01 | `4c61c79a` |
+| VIBE-2D | **Lofi mode.** 0.93× speed (barely visible on video) + `lowpass=f=9000` + soft `aecho=0.65:0.75:80\|200:0.2\|0.12`. Warm cassette feel. | ✅ DONE | 2026-08-01 | `4c61c79a` |
 
 ### Phase 3 — Extended Vibe Modes
 
 | Task | Description | Status | Date | Commit |
 |---|---|---|---|---|
-| VIBE-3A | **8D Audio mode.** `apulsator=hz=0.18:type=sine:width=1.0`. No speed change. Works safely on video. Headphones-only warning in UI. | ⬜ OPEN | 2026-07-30 | — |
-| VIBE-3B | **Phonk mode.** 0.90× speed + `aecho=0.78:0.88:200\|400:0.4\|0.2` + heavy bass EQ preset. Dark, menacing energy. | ⬜ OPEN | 2026-07-30 | — |
-| VIBE-3C | **Club Mix mode** (replaces "DJ Mode" concept). 1.0× speed + `extrastereo=m=2.5` + `acompressor=threshold=0.4:ratio=4:attack=20:release=250` + mild bass boost. Punchy, wide, energetic. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-3A | **8D Audio mode.** `apulsator=hz=0.18:type=sine:width=1.0`. No speed change. Works safely on video. Headphones-only warning in UI. | ✅ DONE | 2026-08-01 | `4c61c79a` |
+| VIBE-3B | **Phonk mode.** 0.90× speed + `aecho=0.78:0.88:200\|400:0.4\|0.2` + heavy bass EQ preset. Dark, menacing energy. | ✅ DONE | 2026-08-01 | `4c61c79a` |
+| VIBE-3C | **Club Mix mode** (replaces "DJ Mode" concept). 1.0× speed + `extrastereo=m=2.5` + `acompressor=threshold=0.4:ratio=4:attack=20:release=250` + mild bass boost. Punchy, wide, energetic. | ✅ DONE | 2026-08-01 | `4c61c79a` |
 
 ### Phase 4 — Vibe Modes UI
 
 | Task | Description | Status | Date | Commit |
 |---|---|---|---|---|
-| VIBE-4A | **"Vibe" tab in Audio Effect panel.** 4th tab after Presets/Equalizer/Lab. 2-column GridView of mode cards. Files: `_ps_panels_audio.dart`. | ⬜ OPEN | 2026-07-30 | — |
-| VIBE-4B | **`_VibeModeCard` widget.** Icon + name + one-line description. Active: accent-red glow. Warning chips: "Video slows too" for speed modes on video; "🎧 Headphones" for 8D. Tap active card to deactivate. | ⬜ OPEN | 2026-07-30 | — |
-| VIBE-4C | **Quick bar integration.** Add `"vibe"` quick-bar item showing active mode name. Tap opens Audio panel at Vibe tab. Files: `_ps_ui_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |
-| VIBE-4D | **Audio-only (vinyl disc) Vibe button.** Cycle button on `AudioModeBackdrop` frosted-glass controls. Shows mode name label. Adjusts disc rotation speed to match vibe tempo. Files: `audio_mode_backdrop.dart`. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-4A | **"Vibe" tab in Audio Effect panel.** 4th tab after Presets/Equalizer/Lab. 2-column GridView of mode cards. Files: `_ps_panels_audio.dart`. | ✅ DONE | 2026-08-02 | `e64ec784` |
+| VIBE-4B | **`_VibeModeCard` widget.** Icon + name + one-line description. Active: accent-red glow. Warning chips: "Video slows too" for speed modes on video; "🎧 Headphones" for 8D. Tap active card to deactivate. | ✅ DONE | 2026-08-02 | `e64ec784` |
+| VIBE-4C | **Quick bar integration.** Add `"vibe"` quick-bar item showing active mode name. Tap opens Audio panel at Vibe tab. Files: `_ps_ui_mixin.dart`. | ✅ DONE | 2026-08-02 | `e64ec784` |
+| VIBE-4D | **Audio-only (vinyl disc) Vibe button.** Cycle button on `AudioModeBackdrop` frosted-glass controls. Shows mode name label. Adjusts disc rotation speed to match vibe tempo. Files: `audio_mode_backdrop.dart`. | ✅ DONE | 2026-08-02 | `e64ec784` |
 
 ### Phase 5 — Vibe Modes Polish
 
 | Task | Description | Status | Date | Commit |
 |---|---|---|---|---|
-| VIBE-5A | **"Remember Vibe" toggle in Settings.** Default: OFF (reset on new file). Files: `settings_screen.dart`. | ⬜ OPEN | 2026-07-30 | — |
-| VIBE-5B | **Vibe mode in player info HUD.** Show active mode name in diagnostics HUD when `showPlaybackInfo` is true. Files: `_ps_ui_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |
-| VIBE-5C | **Filter stacking safety rules.** Prevent double-echo (vibe reverb + manual reverb), double-extrastereo (club + lab stereo wide). Document in `_buildMergedAfString()`. Files: `_ps_audiolab_mixin.dart`. | ⬜ OPEN | 2026-07-30 | — |
+| VIBE-5A | **"Remember Vibe" toggle in Settings.** Default: OFF (reset on new file). Files: `settings_screen.dart`. | ✅ DONE | 2026-08-02 | `e64ec784` |
+| VIBE-5B | **Vibe mode in player info HUD.** Show active mode name in diagnostics HUD when `showPlaybackInfo` is true. Files: `_ps_ui_mixin.dart`. | ✅ DONE | 2026-08-02 | `e64ec784` |
+| VIBE-5C | **Filter stacking safety rules.** Prevent double-echo (vibe reverb + manual reverb), double-extrastereo (club + lab stereo wide). Document in `_buildMergedAfString()`. Files: `_ps_audiolab_mixin.dart`. | ✅ DONE | 2026-08-02 | `e64ec784` |
 | VIBE-5D | **Voice command support for vibe modes.** Direct phrases `"slowed"`, `"nightcore"`, `"lofi"`, `"reverb"`, and `"no vibe"` map to vibe mode activation; aliases remain supported. | ✅ DONE | 2026-08-01 | local workspace |
 | CI-FIX-VIBE | **Restore CI green after 6 consecutive failures (#1799–1804).** Root cause: VIBE phase commits added call sites in `_ps_ui_mixin.dart` for `_currentVibe`, `_applyVibeMode`, `_vibeLabel`, `_currentSecondSubLineNotifier` (no abstract declarations); `_vibeLabel` never defined anywhere; `_AudioEffectPanel` and `AudioModeBackdrop` missing `currentVibeMode`/`onVibeModeChanged`/`onVibeCycle`/`initialTabIndex` constructor params. Fixes: (1) abstract stubs in `_ps_ui_mixin.dart`, (2) `_vibeLabel()` impl in `_ps_audiolab_mixin.dart`, (3) Vibe tab + 3 new params in `_ps_panels_audio.dart`, (4) `currentVibeMode`/`onVibeCycle` params + VIBE-4D chip in `audio_mode_backdrop.dart`. | ✅ DONE | 2026-08-02 | commit `e64ec784`; CI run #1805 in progress |
 
@@ -679,7 +680,7 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 | PLAY-I2 | **Volume model inconsistency: OS 0–1 vs. internal 0–2.5; HUD goes stale on hardware button changes.** OS volume changed externally never syncs `_volume`; MPV boost not restored on reload. Fix: subscribe to `VolumeController().volumeStream`; restore MPV boost from PlayerPrefs on init; show clear OS vs. boost distinction in HUD. | `_ps_ui_mixin.dart` ~L750–756 | ⬜ OPEN | 2026-08-04 | — |
 | PLAY-I3 | **Locked player shows full controls on tap — should show unlock affordance only.** `_toggleControls` while locked shows/hides full overlay. MX Player / VLC show only the lock icon for 2 s. Fix: when `_isLocked`, show only unlock widget (not full controls) and auto-hide after 2 s. | `_ps_ui_mixin.dart` ~L445–455 | ⬜ OPEN | 2026-08-04 | — |
 | PLAY-I4 | **`_seekRelative` uses stale cached position — rapid taps all seek from same old position.** Fix: maintain local `_pendingSeekTargetMs` that accumulates taps; commit debounced; cancel overlapping flash timers on new tap. | `_ps_ui_mixin.dart` ~L458–469 | ⬜ OPEN | 2026-08-04 | — |
-| PLAY-I5 | **`_buildCenterControls()` is an explicitly empty widget.** Center area placeholder exists in overlay layout but returns empty widget — center controls invisible. Fix: either remove dead allocation, or implement intended center play/pause. | `_ps_ui_mixin.dart` ~L1328–1332 | ⬜ OPEN | 2026-08-04 | — |
+| PLAY-I5 | **`_buildCenterControls()` is an explicitly empty widget.** Center area placeholder exists in overlay layout but returns empty widget — center controls invisible. Fix: either remove dead allocation, or implement intended center play/pause. | `_ps_ui_mixin.dart` ~L1328–1332 | ✅ RESOLVED | 2026-08-05 | intentional — cinematic mode design keeps center clear; comment at L1354 confirms "All playback controls live under the seek bar only" — no fix needed |
 | PLAY-I6 | **Seek drag gesture fires full `setState` on every pointer move.** Fix: use `ValueNotifier<double>` for in-progress seek delta; wrap only seekbar preview in `ValueListenableBuilder`. | `_ps_ui_mixin.dart` | ⬜ OPEN | 2026-08-04 | — |
 | PLAY-I7 | **Player error invisible when `_playing == true`.** Error stream listener skips `_streamError` while MPV reports playing — stream/decode errors during playback never shown. Fix: always update `_streamError`; show non-dismissive chip for playing-state errors; auto-dismiss if playback recovers. | `_ps_playback_mixin.dart` ~L462–466 | ⬜ OPEN | 2026-08-04 | — |
 | PLAY-I8 | **`_player.open()` calls not wrapped in try/catch.** Live, network, and local open failures silently stall the player without triggering error state or retry. Fix: wrap each call; on catch, set `_streamError` and trigger error display. | `_ps_playback_mixin.dart` ~L641, 661, 739, 785 | ⬜ OPEN | 2026-08-04 | — |
@@ -701,9 +702,9 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 
 | Task | Description | Files | Status | Date | Commit |
 |---|---|---|---|---|---|
-| DL-K1 | **Download accepts HTTP 4xx as successful (`validateStatus: s < 500`).** 401/403/404 HTML error body saved as completed file. Fix: require 2xx; validate `Content-Type` not `text/html`. 🔴 P1 | `download_service.dart` ~L160–164 | ⬜ OPEN | 2026-08-04 | — |
-| DL-K2 | **Concurrent downloads for same `fileId` overwrite each other.** Fix: check for in-progress download before enqueuing; silently skip or show "already downloading" toast. | `download_service.dart` ~L123–126 | ⬜ OPEN | 2026-08-04 | — |
-| DL-K3 | **Partial files not cleaned up on generic Dio errors.** Fix: delete partial file in generic failure catch block. | `download_service.dart` ~L188–202 | ⬜ OPEN | 2026-08-04 | — |
+| DL-K1 | **Download accepts HTTP 4xx as successful (`validateStatus: s < 500`).** 401/403/404 HTML error body saved as completed file. Fix: require 2xx; validate `Content-Type` not `text/html`. 🔴 P1 | `download_service.dart` ~L160–164 | ✅ DONE | 2026-08-05 | `b5838217` — `validateStatus: (s) => s != null && s >= 200 && s < 300` |
+| DL-K2 | **Concurrent downloads for same `fileId` overwrite each other.** Fix: check for in-progress download before enqueuing; silently skip or show "already downloading" toast. | `download_service.dart` ~L123–126 | ✅ DONE | 2026-08-05 | `b5838217` — `_cancelTokens.containsKey(fileId)` guard added |
+| DL-K3 | **Partial files not cleaned up on generic Dio errors.** Fix: delete partial file in generic failure catch block. | `download_service.dart` ~L188–202 | ✅ DONE | 2026-08-05 | `b5838217` — `File(localPath).delete()` in both DioException and generic catch |
 | DL-K4 | **Resume CTA leads to nonexistent file — stale path never validated.** Fix: validate `File(path).existsSync()` on `_load()`; clear stale resume prefs for missing files. | `local_media_screen.dart` ~L112–121 | ⬜ OPEN | 2026-08-04 | — |
 | DL-K5 | **`setState` without `mounted` guard in `_load()` and `_loadMusic()`.** Crashes if user navigates away during permission/query. Fix: add `if (!mounted) return;` before every post-await `setState`. | `local_media_screen.dart` ~L124–205 | ⬜ OPEN | 2026-08-04 | — |
 | DL-K6 | **No pause/resume in downloads UI — only cancel or wait.** Fix: add `pauseDownload()`/`resumeDownload()` to service; show Pause/Resume toggle in progress row. | `download_service.dart`, `downloads_screen.dart` | ⬜ OPEN | 2026-08-04 | — |
@@ -737,7 +738,7 @@ Full detail for every row below (root cause, code diffs, testing notes) lives in
 | ACTOR-N1 | **Actor filmography `Future.wait` rebuilt on every `build()` call — duplicate HTTP requests.** Fix: cache future in `initState` (`late final _actorFuture`); use `FutureBuilder(future: _actorFuture)`. | `actor_screen.dart` ~L31–35 | ⬜ OPEN | 2026-08-04 | — |
 | ACTOR-N2 | **`File.existsSync()` synchronous I/O inside `build()`** — blocks UI thread on rebuild/scroll. Fix: pre-check in `initState`; cache result as bool field. | `actor_screen.dart` ~L210–212 | ⬜ OPEN | 2026-08-04 | — |
 | ACTOR-N3 | **Empty/whitespace actor profile URLs passed to `CachedNetworkImage`** — unnecessary error churn. Fix: add `.trim().isNotEmpty` guard alongside null check. | `actor_screen.dart` ~L210–243 | ⬜ OPEN | 2026-08-04 | — |
-| SEARCH-N4 | **Search TextField missing `textInputAction: TextInputAction.search`** — keyboard shows generic Return key; submit doesn't trigger search or dismiss keyboard. Fix: add `textInputAction: search` + `onSubmitted` handler. | `search_screen.dart` ~L256–270 | ⬜ OPEN | 2026-08-04 | — |
+| SEARCH-N4 | **Search TextField missing `textInputAction: TextInputAction.search`** — keyboard shows generic Return key; submit doesn't trigger search or dismiss keyboard. Fix: add `textInputAction: search` + `onSubmitted` handler. | `search_screen.dart` ~L256–270 | ✅ DONE | 2026-08-04 | `c694f969` — `textInputAction: TextInputAction.search` + `onSubmitted: (_) => _doSearch()` at L601 |
 | DL-N5 | **Stalled download shows last progress indefinitely** — no stall detection. Fix: add 30 s no-new-bytes timeout in `DownloadService`; surface "Stalled — tap to retry" state. | `download_service.dart`, `downloads_screen.dart` | ⬜ OPEN | 2026-08-04 | — |
 | NAV-N6 | **Deep link to removed/unknown content crashes navigation** — `onUnknownRoute` not wired. Fix: add `onUnknownRoute` handler returning `HomeScreen` + "Content not found" snackbar. | `app.dart` ~L142–153 | ⬜ OPEN | 2026-08-04 | — |
 | NAV-N7 | **Mini-player reattach doesn't copy `_currentFileId`/episode metadata.** After returning from mini-player, episode navigation and resume key use wrong episode. Fix: copy all PlaybackService metadata into local player state at reattach. | `_ps_playback_mixin.dart` reattach path ~L300–320 | ⬜ OPEN | 2026-08-04 | — |

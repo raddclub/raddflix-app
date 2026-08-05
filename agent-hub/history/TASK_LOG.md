@@ -2950,6 +2950,34 @@ A prior session inserted `@override void didUpdateWidget` inside the body of `in
 
 ---
 
+## Session 2026-08-05b — Doc audit & task status corrections
+
+**Tasks completed:** DOC-AUDIT-2026-08-05 — corrected 22 stale task entries.
+
+### What was done
+
+Audited all ⬜ OPEN entries in TASKS.md against actual code on disk + AGENT_HANDOFF.md + TASK_LOG.md history. Found 22 entries marked open that were already done in prior sessions:
+
+**VIBE Phases 1–5 (17 tasks):** VIBE-1C, 1D, 1E, 2A–D, 3A–C, 4A–D, 5A–C all shipped in commits `4c61c79a` / `7ea55258` / `e64ec784` but their TASKS.md rows still read ⬜ OPEN. Updated to ✅ DONE with correct SHAs.
+
+**Phase K downloads (3 tasks):** DL-K1 (`validateStatus: 2xx-only`), DL-K2 (concurrent-download guard), DL-K3 (partial-file cleanup) all implemented in `b5838217` — task rows still read ⬜ OPEN. Updated to ✅ DONE.
+
+**Search (1 task):** SEARCH-N4 (`textInputAction: search` + `onSubmitted`) implemented in `c694f969`. Updated to ✅ DONE.
+
+**PLAY-I5 (1 entry):** `_buildCenterControls()` is intentionally `SizedBox.shrink()` per cinematic-mode design (comment in code confirms). Marked ✅ RESOLVED — not a bug.
+
+**AGENT_HANDOFF.md:** Phase H CI status updated from "pending" to ✅ confirmed (build `b5838217 completed success`). Next-priority section updated to list all genuinely open phases (I, K4–K7, L, M, N).
+
+### Genuinely open (confirmed OPEN after code audit)
+PLAY-I1–I4, I6–I9; DL-K4–K7; DET-L1–L4; HIST-L5–L7; AUTH-M1–M4; ACTOR-N1–N3; DL-N5; NAV-N6–N7.
+
+### Commits
+| SHA | Description |
+|---|---|
+| (this push) | DOC-AUDIT: correct 22 stale task entries + HANDOFF CI status + TASK_LOG |
+
+---
+
 ## Session 2026-08-05a — Phase H Production Hygiene Tweaks (PROD-H1/H2/H3)
 
 **Tasks completed:** PROD-H1, PROD-H2, PROD-H3 — all ✅ DONE.

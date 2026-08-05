@@ -20,12 +20,13 @@
 - APP-F6: Mic "Listening" HUD badge + `HapticFeedback.lightImpact()` on voice enable ✅
 - APP-F3: Deferred — needs Oracle SSH for Flask/admin SSE progress endpoint
 
-**Phase H (Production Hygiene Tweaks) — ALL 3 DONE (SHA `c15a2584`, CI pending):**
+**Phase H (Production Hygiene Tweaks) — ALL 3 DONE (SHA `c15a2584`, CI ✅):**
 - PROD-H1: `_applySubtitleMargin()` emptied (debounce + 2 dead `setProperty` calls + fields removed); `_applySubtitleStylePrefs()` emptied (prefs load + 14 `setProperty` calls removed); `_reapplySubtitleStyleAfterLifecycle()` stubbed ✅
 - PROD-H2: `_sidebarOrder.removeWhere((id) => !_allSidebarIds.contains(id))` added after JSON decode in `_loadPrefs()`; re-saves prefs if any stripped ✅
 - PROD-H3: `DropdownButton.value` guarded with `const {0,10,20,30}.contains(_p.wakeTimeoutMins) ? _p.wakeTimeoutMins : 0` ✅
 
-**Next priority: Phase I — (see agent-hub/TASKS.md for next open phase)**
+**Next priority: Phase I — Player Gesture & Control Bugs (PLAY-I1 through I9, all ⬜ OPEN)**
+**Also open: Phase K (DL-K4/K5/K6/K7), Phase L (DET-L1–L4, HIST-L5–L7), Phase M (AUTH-M1–M4), Phase N (ACTOR-N1–N3, DL-N5, NAV-N6, NAV-N7)**
 
 **Phase J (PiP Overlay & Cast Panel) — ALL 7 DONE (SHA `4a9efee`, CI green):**
 - PIP-J1: `_baseSize` captured at `onScaleStart`; scale updates linear, no exponential compounding ✅
