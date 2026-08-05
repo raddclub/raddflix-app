@@ -310,6 +310,14 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
       _isLocal = (widget.localPath != null && widget.localPath!.isNotEmpty);
       _isFree = widget.isFree;
       _trackUsage = !_isFree && !_isLocal;
+      // NAV-N7: restore fileId + episode index from PlaybackService BEFORE
+      // detach so resume key, episode navigation, and series tracker all
+      // operate on the correct episode after returning from the mini-player.
+      // Without this, _currentFileId stays '' and _currentEpIdx stays 0,
+      // causing _watchProgressKey() to return the wrong key and
+      // _playEpisodeAt() to navigate relative to the wrong starting episode.
+      _currentFileId = playbackService.fileId ?? widget.fileId;
+      _currentEpIdx  = playbackService.episodeIndex;
       playbackService.detachForReattach();
       _wirePlayerStreams();
       _wireSilenceSkipObserver();
