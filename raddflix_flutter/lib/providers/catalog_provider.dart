@@ -276,7 +276,11 @@ class CatalogNotifier extends StateNotifier<CatalogState>
 
         if (match != null && !seenIds.contains(match.id)) {
           seenIds.add(match.id);
-          result.add(match.copyWith(watchProgress: progress));
+          final updatedAt = pos['updated_at'] as int? ?? 0;
+          final watchedAt = updatedAt > 0
+              ? DateTime.fromMillisecondsSinceEpoch(updatedAt * 1000)
+              : null;
+          result.add(match.copyWith(watchProgress: progress, watchedAt: watchedAt));
         }
 
         if (result.length >= 10) break;

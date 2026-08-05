@@ -38,6 +38,10 @@ class CatalogItem {
   /// Total episode count from Oracle catalog (may exceed locally-available count).
   /// Used to show "Coming Soon" banner when episodes haven't been uploaded yet.
   final int? episodeCount;
+  /// When the user last watched this item (from local watch_positions.updated_at).
+  /// Null for items loaded from the catalog without a position row.
+  /// Used by HistoryScreen to group items by date (Today / Yesterday / etc.).
+  final DateTime? watchedAt;
 
   const CatalogItem({
     required this.id,
@@ -62,6 +66,7 @@ class CatalogItem {
     this.isOngoing,
     this.newEpisodeCount,
     this.episodeCount,
+    this.watchedAt,
   });
 
   bool get isMovie      => mediaType == 'movie';
@@ -118,6 +123,7 @@ class CatalogItem {
     String? shareUrl,
     String? posterPath,
     int? newEpisodeCount,
+    DateTime? watchedAt,
   }) => CatalogItem(
     id: id, title: title, year: year, mediaType: mediaType,
     description: description, rating: rating, genres: genres,
@@ -131,6 +137,7 @@ class CatalogItem {
     isOngoing: isOngoing ?? this.isOngoing,
     newEpisodeCount: newEpisodeCount ?? this.newEpisodeCount,
     episodeCount: episodeCount,
+    watchedAt: watchedAt ?? this.watchedAt,
   );
 
   CatalogItem copyWithEpisodes(List<Map<String, dynamic>> eps) => CatalogItem(
@@ -145,5 +152,6 @@ class CatalogItem {
     isOngoing: isOngoing,
     newEpisodeCount: newEpisodeCount,
     episodeCount: episodeCount,
+    watchedAt: watchedAt,
   );
 }

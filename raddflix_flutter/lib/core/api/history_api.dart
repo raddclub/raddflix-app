@@ -85,6 +85,17 @@ class HistoryApi {
     }
   }
 
+  /// DELETE /api/history — clears the server-side watch history for this user.
+  /// Fire-and-forget: local data is cleared before this is called, so offline
+  /// failures are acceptable.  Silently ignored if the endpoint is unavailable.
+  static Future<void> clearServerHistory() async {
+    try {
+      await ApiClient.instance.delete('/api/history');
+    } catch (_) {
+      // Offline or endpoint unavailable — local data is already cleared.
+    }
+  }
+
   /// Pull watch history from the server and merge into local DB (newer wins).
   /// Enables cross-device 'Continue Watching': positions saved on another device
   /// appear locally after this call. Should be called when authenticated.

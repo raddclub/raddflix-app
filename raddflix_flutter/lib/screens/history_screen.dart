@@ -97,9 +97,21 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                   ),
                 );
                 if (ok == true) {
-                  ref
-                      .read(catalogProvider.notifier)
-                      .clearAllContinueWatching();
+                  try {
+                    // HIST-L6: await so errors surface to the user.
+                    await ref.read(catalogProvider.notifier).clearAllContinueWatching();
+                    // HIST-L5: best-effort server clear; fire-and-forget (offline is fine).
+                    HistoryApi.clearServerHistory().ignore();
+                  } catch (_) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Failed to clear history — try again'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  }
                 }
               },
               child: const Text('Clear All',
@@ -209,41 +221,134 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     );
   }
 
+  // HIST-L7: group items by recency using their watchedAt timestamp.
+  Map<String, List<CatalogItem>> _groupByDate(List<CatalogItem> items) {
+    final now = DateTime.now();
+    final today     = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final weekAgo   = today.subtract(const Duration(days: 7));
+
+    final groups = <String, List<CatalogItem>>{
+      'Today': [],
+      'Yesterday': [],
+      'This Week': [],
+      'Earlier': [],
+    };
+    for (final item in items) {
+      final dt = item.watchedAt;
+      if (dt == null) {
+        groups['Earlier']!.add(item);
+        continue;
+      }
+      final date = DateTime(dt.year, dt.month, dt.day);
+      if (!date.isBefore(today)) {
+        groups['Today']!.add(item);
+      } else if (!date.isBefore(yesterday)) {
+        groups['Yesterday']!.add(item);
+      } else if (!date.isBefore(weekAgo)) {
+        groups['This Week']!.add(item);
+      } else {
+        groups['Earlier']!.add(item);
+      }
+    }
+    return groups;
+  }
+
   Widget _buildGrid(BuildContext context, List<CatalogItem> items) {
     final t = RaddTheme.of(context);
     final animConfig = ref.watch(animConfigProvider);
     final canMorph = animConfig.canMorph && animConfig.shouldAnimate(context);
-    return GridView.builder(
-      // UX-01: 96px bottom clearance to clear the nav bar (was 32)
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 2 / 3,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-      ),
-      itemCount: items.length,
-      // Tier 2+ → shared-element morph into the detail screen, matching the
-      // pattern used on Home/Search; lower tiers keep the fade/scale-in card.
-      itemBuilder: (_, i) => canMorph
-          ? OpenContainer<void>(
-              closedColor: Colors.transparent,
-              openColor: Colors.transparent,
-              closedElevation: 0,
-              openElevation: 0,
-              transitionDuration: animConfig.slow,
-              tappable: false,
-              closedBuilder: (_, openFn) =>
-                  ContentCard(item: items[i], onTap: openFn),
-              openBuilder: (_, __) => ShowDetailScreen(item: items[i]),
-            )
-          : ContentCard(item: items[i])
-              .animate(delay: (i * 30).ms)
-              .fadeIn(duration: 300.ms)
-              .scale(
-                  begin: const Offset(0.9, 0.9),
-                  end: const Offset(1, 1),
-                  duration: 300.ms),
-    );
+    final groups = _groupByDate(items);
+    final sectionOrder = ['Today', 'Yesterday', 'This Week', 'Earlier'];
+
+    // Build a flat list of section-header + row-of-cards entries for CustomScrollView.
+    final slivers = <Widget>[];
+    int globalIdx = 0;
+    for (final section in sectionOrder) {
+      final sectionItems = groups[section]!;
+      if (sectionItems.isEmpty) continue;
+
+      // Section header
+      slivers.add(SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+          child: Text(
+            section,
+            style: TextStyle(
+              color: t.textMuted,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ),
+      ));
+
+      // Grid for this section
+      slivers.add(SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        sliver: SliverGrid(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            childAspectRatio: 2 / 3,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+          ),
+          delegate: SliverChildBuilderDelegate(
+            (_, i) {
+              final item = sectionItems[i];
+              final idx = globalIdx + i;
+              // HIST-L6: swipe-to-dismiss each item.
+              final card = canMorph
+                  ? OpenContainer<void>(
+                      closedColor: Colors.transparent,
+                      openColor: Colors.transparent,
+                      closedElevation: 0,
+                      openElevation: 0,
+                      transitionDuration: animConfig.slow,
+                      tappable: false,
+                      closedBuilder: (_, openFn) =>
+                          ContentCard(item: item, onTap: openFn),
+                      openBuilder: (_, __) => ShowDetailScreen(item: item),
+                    )
+                  : ContentCard(item: item)
+                      .animate(delay: (idx * 30).ms)
+                      .fadeIn(duration: 300.ms)
+                      .scale(
+                          begin: const Offset(0.9, 0.9),
+                          end: const Offset(1, 1),
+                          duration: 300.ms);
+              return Dismissible(
+                key: ValueKey('hist_${item.id}'),
+                direction: DismissDirection.startToEnd,
+                background: Container(
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.only(left: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.error.withOpacity(0.75),
+                    borderRadius: BorderRadius.circular(RaddRadius.sm),
+                  ),
+                  child: const Icon(Icons.delete_outline,
+                      color: Colors.white, size: 22),
+                ),
+                onDismissed: (_) {
+                  ref
+                      .read(catalogProvider.notifier)
+                      .removeFromContinueWatching(item);
+                },
+                child: card,
+              );
+            },
+            childCount: sectionItems.length,
+          ),
+        ),
+      ));
+      globalIdx += sectionItems.length;
+    }
+
+    // Bottom padding sliver to clear the nav bar.
+    slivers.add(const SliverToBoxAdapter(child: SizedBox(height: 96)));
+
+    return CustomScrollView(slivers: slivers);
   }
 }
