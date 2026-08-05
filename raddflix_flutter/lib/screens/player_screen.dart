@@ -384,6 +384,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       const MethodChannel('com.raddflix.app/pip').setMethodCallHandler(null);
     }
     _immersiveExitTimer?.cancel();
+    _seekDragTick.dispose(); // PLAY-I6
     _watchPartySub?.cancel();
     _voiceSub?.cancel();
     _voiceCmdTimer?.cancel();

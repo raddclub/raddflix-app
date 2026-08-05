@@ -3011,3 +3011,38 @@ Falls back to `0` (Always On) for any unrecognised stored value.
 | SHA | Description |
 |---|---|
 | `c15a2584` | PROD-H1/H2/H3: remove dead MPV sub setProperty calls, clean stale sidebar IDs, guard wake DropdownButton value |
+
+---
+
+## Session 2026-08-05c — Phase I complete (PLAY-I1–I9)
+
+**Tasks completed:** PLAY-I6 implemented; PLAY-I1/I2/I3/I4/I7/I8/I9 confirmed done from prior sessions and marked correctly.
+
+### What was done
+
+**Audit (PLAY-I1, I2, I3, I4, I7, I8, I9):**
+Code review confirmed all 7 items were already implemented by prior sessions but their TASKS.md rows still read ⬜ OPEN. All marked ✅ DONE with notes. Key findings:
+- I1: `_bvApplyTimer` 16ms debounce in `_onDragUpdate`/`_onScaleUpdate` brightness+volume paths
+- I2: `VolumeController().listener()` + `getVolume()` in `initState` (player_screen.dart L249–254)
+- I3: Main gesture layer gated `if (!_isLocked && !_isImmersive)` — taps when locked reach `_buildLockOverlay()` which shows only the lock icon + bg-audio toggle
+- I4: `_pendingPosition` field accumulates rapid seek targets in `_seekRelative()`
+- I7: Error stream listener always sets `_streamError` — PLAY-I7 comment confirms
+- I8: All three `_player.open()` paths wrapped in try/catch — PLAY-I8 comments confirm
+- I9: `_completionHandled` bool guards `_onVideoCompleted()`; reset in `_openMedia()`
+
+**PLAY-I6 — ValueNotifier seek drag tick (`_ps_ui_mixin.dart`, `player_screen.dart`):**
+Seek drag previously called `setState(() {})` on every pointer event (~60/s), rebuilding the entire player widget tree. Fixed with a `ValueNotifier<int> _seekDragTick` tick counter:
+- Added `_seekDragTick = ValueNotifier<int>(0)` field in `_ps_ui_mixin.dart`
+- `_onDragUpdate` seek path: replaced `setState(() {})` with `_seekDragTick.value++`
+- `_onScaleUpdate` seek path: same replacement
+- Seekbar thumb drag update (`onHorizontalDragUpdate`): replaced `setState(() => _seekBarDelta = ...)` with direct field assignment + `_seekDragTick.value++`
+- `_buildControlsOverlay`: removed top-level `currentPos` computation; seek preview label Positioned now has inner `ValueListenableBuilder<int>` that computes visibility from `_dragIntent`/`_seekPreviewLabel`; bottom area Positioned child wrapped in `ValueListenableBuilder<int>` that computes `currentPos` fresh each tick
+- `_buildPortraitLayout`: removed top-level `currentPos`; controls panel call wrapped in `ValueListenableBuilder<int>` inside `SafeArea`
+- `player_screen.dart` dispose: `_seekDragTick.dispose()` added
+- Result: during seek drag, only the seekbar+preview label rebuild — not the entire player tree (video surface, subtitle overlay, lock overlay, etc.)
+
+### Commits
+
+| SHA | Description |
+|---|---|
+| (this push) | PLAY-I6: _seekDragTick ValueNotifier limits seek-drag rebuild to seekbar+preview; mark I1–I9 DONE |

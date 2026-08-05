@@ -131,6 +131,11 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   double? _seekBarDelta; // fractional 0..1 during seekbar drag
   Duration? _pendingPosition; // PLAY-I4: intended seek target across rapid taps
 
+  // PLAY-I6: tick counter incremented on every seek-drag pointer event.
+  // Only the seekbar + preview label widgets listen to this notifier, so they
+  // rebuild independently without triggering a full player setState rebuild.
+  final _seekDragTick = ValueNotifier<int>(0);
+
   // ── Volume / Brightness ──────────────────────────────────────────────────────
   double _brightness = 0.5;
 
@@ -657,7 +662,9 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
       final diff = previewPos - _dragStartPos;
       final sign = diff.isNegative ? '-' : '+';
       _seekPreviewLabel = '${_formatDuration(previewPos)}  ($sign${_formatDuration(diff.abs())})';
-      if (mounted) setState(() {});
+      // PLAY-I6: update tick notifier — only the seekbar/preview rebuild, not
+      // the full player tree. No setState here.
+      _seekDragTick.value++;
     } else if (_dragIntent == 'brightness') {
       final newVal = (_startBrightness - dy / constraints.maxHeight * 1.5).clamp(0.0, 1.0);
       _brightness = newVal;
@@ -761,7 +768,8 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
       final diff = previewPos - _dragStartPos;
       final sign = diff.isNegative ? '-' : '+';
       _seekPreviewLabel = '${_formatDuration(previewPos)}  ($sign${_formatDuration(diff.abs())})';
-      if (mounted) setState(() {});
+      // PLAY-I6: tick notifier — seekbar/preview rebuild only, same as _onDragUpdate.
+      _seekDragTick.value++;
     } else if (_dragIntent == 'brightness') {
       final newVal = (_startBrightness - dy / constraints.maxHeight * 1.5).clamp(0.0, 1.0);
       _brightness = newVal;
@@ -981,10 +989,8 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
     }
 
     Widget _buildControlsOverlay(BoxConstraints constraints) {
-      final currentPos = _seekBarDelta != null
-          ? Duration(milliseconds: (_seekBarDelta! * _duration.inMilliseconds).round())
-          : _position;
-
+      // PLAY-I6: currentPos is now computed inside the ValueListenableBuilder
+      // for the bottom area so seek-drag updates don't need full setState.
       return Stack(
         children: [
           // Top gradient
@@ -1050,28 +1056,39 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
               child: _buildOneHandedSideStrip(),
             ),
 
-          // P9: Seek preview label during drag
-          if (_dragIntent == 'seek' && _seekPreviewLabel.isNotEmpty && _showSeekPositionLabel)
-            Positioned(
-              bottom: 88, left: 0, right: 0,
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.82),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white12),
+          // P9: Seek preview label during drag.
+          // PLAY-I6: Positioned is fixed; only the inner content is driven by
+          // _seekDragTick so the rebuild is scoped to this label widget only.
+          Positioned(
+            bottom: 88, left: 0, right: 0,
+            child: ValueListenableBuilder<int>(
+              valueListenable: _seekDragTick,
+              builder: (_, __, ___) {
+                if (_dragIntent != 'seek' || _seekPreviewLabel.isEmpty || !_showSeekPositionLabel) {
+                  return const SizedBox.shrink();
+                }
+                return Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.82),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Text(
+                      _seekPreviewLabel,
+                      style: const TextStyle(color: Colors.white, fontSize: 14,
+                          fontWeight: FontWeight.w700, letterSpacing: 0.3),
+                    ),
                   ),
-                  child: Text(
-                    _seekPreviewLabel,
-                    style: const TextStyle(color: Colors.white, fontSize: 14,
-                        fontWeight: FontWeight.w700, letterSpacing: 0.3),
-                  ),
-                ),
-              ),
+                );
+              },
             ),
+          ),
 
           // ── BOTTOM AREA: seek bar + icon row ──────────────────────────────────
+          // PLAY-I6: currentPos computed inside ValueListenableBuilder so seekbar
+          // thumb position updates on drag without a full player setState rebuild.
           Positioned(
             bottom: 0,
             left: _oneHandedMode && !_oneHandedLeft ? null : 0,
@@ -1081,7 +1098,15 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                 : null,
             child: SafeArea(
               top: false,
-              child: _buildBottomArea(constraints, currentPos),
+              child: ValueListenableBuilder<int>(
+                valueListenable: _seekDragTick,
+                builder: (_, __, ___) {
+                  final currentPos = _seekBarDelta != null
+                      ? Duration(milliseconds: (_seekBarDelta! * _duration.inMilliseconds).round())
+                      : _position;
+                  return _buildBottomArea(constraints, currentPos);
+                },
+              ),
             ),
           ),
         ],
@@ -1548,7 +1573,10 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                 final barWidth = parentConstraints.maxWidth - 44 - 44 - 32;
                 final relX = d.localPosition.dx.clamp(0.0, barWidth);
                 final frac = relX / barWidth;
-                if (mounted) setState(() => _seekBarDelta = frac.clamp(0.0, 1.0));
+                // PLAY-I6: update _seekBarDelta directly and tick the notifier
+                // so the seekbar preview rebuilds without a full player setState.
+                _seekBarDelta = frac.clamp(0.0, 1.0);
+                _seekDragTick.value++;
               },
               onHorizontalDragEnd: (_) {
                 if (_seekBarDelta != null && _duration.inMilliseconds > 0) {
@@ -2819,9 +2847,8 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
       // Shorts style) instead of being confined to a fixed top zone. Controls are
       // a floating, auto-hiding overlay on top, not a permanent panel that eats
       // half the screen.
-      final Duration currentPos = _seekBarDelta != null
-          ? Duration(milliseconds: (_seekBarDelta! * _duration.inMilliseconds).round())
-          : _position;
+      // PLAY-I6: currentPos is computed inside ValueListenableBuilder at the
+      // call site so seek-drag frame updates bypass the outer setState path.
       final BoxConstraints videoConstraints = BoxConstraints(
         maxWidth: constraints.maxWidth,
         maxHeight: constraints.maxHeight,
@@ -3257,7 +3284,18 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                             ),
                             child: SafeArea(
                               top: false,
-                              child: _buildPortraitControlsPanel(constraints, currentPos),
+                              // PLAY-I6: wrap in ValueListenableBuilder so seek-drag
+                              // pointer events update the seekbar thumb without a full
+                              // player setState rebuild.
+                              child: ValueListenableBuilder<int>(
+                                valueListenable: _seekDragTick,
+                                builder: (_, __, ___) {
+                                  final currentPos = _seekBarDelta != null
+                                      ? Duration(milliseconds: (_seekBarDelta! * _duration.inMilliseconds).round())
+                                      : _position;
+                                  return _buildPortraitControlsPanel(constraints, currentPos);
+                                },
+                              ),
                             ),
                           ),
                         ),

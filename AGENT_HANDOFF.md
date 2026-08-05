@@ -5,7 +5,20 @@
 
 ---
 
-## Current State (2026-08-04 — Phase G complete)
+## Current State (2026-08-05 — Phase I complete)
+
+**Phase I (Player Gesture & Control Bugs) — ALL 9 DONE:**
+- PLAY-I1: `_bvApplyTimer` 16ms throttle on brightness/volume OS calls ✅ (prior session)
+- PLAY-I2: `VolumeController().listener()` syncs `_volume` on hardware button changes ✅ (prior session)
+- PLAY-I3: Lock overlay structure correctly shows only lock icon on tap when locked ✅ (prior session)
+- PLAY-I4: `_pendingPosition` accumulates rapid seek taps so each tap builds on the last ✅ (prior session)
+- PLAY-I5: `_buildCenterControls()` intentionally empty — cinematic design ✅ RESOLVED
+- PLAY-I6: `_seekDragTick` ValueNotifier drives seekbar/preview rebuild without full setState ✅ this session (`_ps_ui_mixin.dart`, `player_screen.dart`)
+- PLAY-I7: Error stream always sets `_streamError` regardless of playing state ✅ (prior session)
+- PLAY-I8: All `_player.open()` calls wrapped in try/catch; error displayed ✅ (prior session)
+- PLAY-I9: `_completionHandled` guard prevents duplicate `completed` event handling ✅ (prior session)
+
+**Next priority: Phase K (DL-K4/K5/K6/K7), Phase L (DET-L1–L4, HIST-L5–L7), Phase M (AUTH-M1–M4), Phase N (ACTOR-N1–N3, DL-N5, NAV-N6, NAV-N7)**
 
 **Phase G (Dual Subtitles & Overlay Consistency) — ALL 3 DONE (SHA `41c70a43`, CI ✅):**
 - SUB-G1: `didUpdateWidget` was mis-nested inside `initState` in `_ps_panels_subtitle.dart` (would not compile); moved to correct position after `initState` closes ✅
