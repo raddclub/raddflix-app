@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
@@ -35,6 +36,10 @@ class DownloadService {
   // catch block can keep the partial file and set status='paused' instead
   // of deleting the file and removing the DB row.
   static final _pausedDownloads = <String>{};
+  // DL-N5: tracks fileIds that were cancelled due to a stall (no new bytes
+  // for 30 s). The catch block keeps the partial file deleted and sets
+  // DB status='stalled' so the UI can distinguish stall from user-cancel.
+  static final _stalledDownloads = <String>{};
 
 
   static Future<void> _checkDownloadQuota() async {
@@ -152,7 +157,25 @@ class DownloadService {
     // 512 KB floor — a large file truncated mid-download (e.g. connection dropped
     // at 80%) would previously pass the 512 KB check and be wrongly marked 'completed'.
     int expectedTotal = 0;
+    // DL-N5: stall detection — if no new bytes arrive for 30 s the connection
+    // is assumed dead and the download is cancelled as 'stalled' so the user
+    // can tap retry instead of watching a frozen progress bar indefinitely.
+    int _lastReceivedBytes = 0;
+    Timer? stallTimer;
+
+    void _resetStallTimer() {
+      stallTimer?.cancel();
+      stallTimer = Timer(const Duration(seconds: 30), () {
+        if (_cancelTokens.containsKey(fileId)) {
+          DebugLogger.logWarn('DOWNLOAD', 'Stall detected for $fileId — no bytes for 30s, cancelling');
+          _stalledDownloads.add(fileId);
+          _cancelTokens[fileId]?.cancel('Stalled');
+        }
+      });
+    }
+
     try {
+      _resetStallTimer(); // start the initial 30s window
       await _dio.download(
         resolvedUrl,
         localPath,
@@ -161,6 +184,11 @@ class DownloadService {
           if (total > 0) expectedTotal = total;
           final progress = total > 0 ? received / total : 0.0;
           onProgress(progress, received, total > 0 ? total : 0);
+          // DL-N5: reset stall timer on every byte arrival.
+          if (received > _lastReceivedBytes) {
+            _lastReceivedBytes = received;
+            _resetStallTimer();
+          }
           // FIX-DL-THROTTLE: only write to DB when progress crosses a 5% boundary
           // to avoid flooding SQLite with hundreds of UPDATE calls per second.
           final pct5 = (progress * 20).floor();
@@ -202,8 +230,16 @@ class DownloadService {
       UsageService.addDownloadBytes(bytes: fileSize).ignore();
       onProgress(1.0, fileSize, fileSize);
     } on DioException catch (e) {
+      stallTimer?.cancel();
       if (CancelToken.isCancel(e)) {
-        if (_pausedDownloads.remove(fileId)) {
+        if (_stalledDownloads.remove(fileId)) {
+          // DL-N5: Stalled — connection died mid-download. Delete the partial
+          // file (it cannot be resumed without knowing the server state) and
+          // mark as 'stalled' so the UI shows "Stalled — tap retry" instead
+          // of the generic "Failed" label.
+          try { await File(localPath).delete(); } catch (_) {}
+          await LocalDb.updateDownloadStatus(fileId, 'stalled', 0.0, 0);
+        } else if (_pausedDownloads.remove(fileId)) {
           // DL-K6: Paused — keep the partial file so a future resume can reuse
           // it (or at least show accurate progress). Record current byte count
           // so the progress bar reflects where we stopped.
@@ -221,7 +257,7 @@ class DownloadService {
           try { await File(localPath).delete(); } catch (_) {}
           await LocalDb.deleteDownload(fileId);
         }
-        return; // cancelled or paused — not an error
+        return; // cancelled, paused, or stalled — not an error
       }
       // DL-K3: delete partial file on network/HTTP errors (including 4xx from
       // DL-K1 fix). Without this, a partial or HTML error body sits on disk
@@ -230,11 +266,13 @@ class DownloadService {
       await LocalDb.updateDownloadStatus(fileId, 'failed', 0.0, 0);
       rethrow;
     } catch (e) {
+      stallTimer?.cancel();
       // DL-K3: also clean up on generic errors (validation failure, etc.)
       try { await File(localPath).delete(); } catch (_) {}
       await LocalDb.updateDownloadStatus(fileId, 'failed', 0.0, 0);
       rethrow;
     } finally {
+      stallTimer?.cancel();
       _cancelTokens.remove(fileId);
     }
   }

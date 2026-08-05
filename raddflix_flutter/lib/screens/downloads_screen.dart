@@ -123,6 +123,10 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   // DL-K6: paused items have their own distinct state — partial file exists on
   // disk; DB status is 'paused'; Resume CTA replaces the action button.
   bool _isPaused(Map m)      => _status(m) == 'paused';
+  // DL-N5: stalled items — connection died mid-download; partial file deleted;
+  // DB status is 'stalled'. Treated like failed for the retry flow but surfaced
+  // with a distinct "Stalled" badge so the user knows why it stopped.
+  bool _isStalled(Map m)     => _status(m) == 'stalled';
 
   String _fmtSize(int bytes) {
     if (bytes == 0) return '—';
@@ -1155,6 +1159,18 @@ class _DownloadCardState extends State<_DownloadCard> {
                         color: Colors.white,
                         fontSize: 8,
                         fontWeight: FontWeight.w800)))),
+                // DL-N5: Stalled badge
+                if (widget.statusStr == 'stalled')
+                  Positioned(top: 6, left: 6, child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                        color: const Color(0xFFFF8C00),
+                        borderRadius: BorderRadius.circular(3)),
+                    child: const Text('STALLED', style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w800)))),
                 // DL-K6: Paused badge
                 if (widget.statusStr == 'paused')
                   Positioned(top: 6, left: 6, child: Container(
@@ -1216,7 +1232,8 @@ class _DownloadCardState extends State<_DownloadCard> {
                           child: Icon(AppIcons.play, size: 16,
                               color: AppColors.primary.withOpacity(0.85)),
                         )
-                      else if (widget.statusStr == 'failed')
+                      else if (widget.statusStr == 'failed' ||
+                               widget.statusStr == 'stalled')
                         GestureDetector(
                           onTap: widget.onRetry ?? widget.onDelete,
                           child: Icon(AppIcons.refresh, size: 16,
@@ -1239,6 +1256,15 @@ class _DownloadCardState extends State<_DownloadCard> {
                     Text('Tap retry to re-download',
                         style: TextStyle(
                             color: AppColors.error.withOpacity(0.65),
+                            fontSize: 8,
+                            fontWeight: FontWeight.w600)),
+                  ],
+                  // DL-N5: stalled hint
+                  if (widget.statusStr == 'stalled') ...[
+                    const SizedBox(height: 2),
+                    Text('Connection stalled — tap retry',
+                        style: TextStyle(
+                            color: const Color(0xFFFF8C00).withOpacity(0.80),
                             fontSize: 8,
                             fontWeight: FontWeight.w600)),
                   ],
@@ -1362,6 +1388,16 @@ class _DownloadListTileState extends State<_DownloadListTile> {
                     child: Text('FAILED', style: TextStyle(
                         color: AppColors.error, fontSize: 9, fontWeight: FontWeight.w700))),
               ],
+              // DL-N5: stalled badge in size row
+              if (widget.statusStr == 'stalled') ...[
+                SizedBox(width: RaddSpace.sm),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                        color: const Color(0xFFFF8C00).withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(3)),
+                    child: const Text('STALLED', style: TextStyle(
+                        color: Color(0xFFFF8C00), fontSize: 9, fontWeight: FontWeight.w700))),
+              ],
               // DL-K6: paused badge in size row
               if (widget.statusStr == 'paused') ...[
                 SizedBox(width: RaddSpace.sm),
@@ -1403,8 +1439,15 @@ class _DownloadListTileState extends State<_DownloadListTile> {
                   style: TextStyle(color: AppColors.error.withOpacity(0.7),
                       fontSize: 10, fontWeight: FontWeight.w500)),
             ],
+            // DL-N5: stalled hint text
+            if (widget.statusStr == 'stalled') ...[
+              SizedBox(height: 3),
+              Text('Connection stalled — tap retry to try again',
+                  style: TextStyle(color: const Color(0xFFFF8C00).withOpacity(0.80),
+                      fontSize: 10, fontWeight: FontWeight.w500)),
+            ],
           ])),
-          // DL-K6: action buttons — active/paused/failed/complete
+          // DL-K6 / DL-N5: action buttons — active/paused/stalled/failed/complete
           if (!widget.isSelecting)
             if (widget.isActive)
               // Active: Pause + Cancel
@@ -1437,13 +1480,16 @@ class _DownloadListTileState extends State<_DownloadListTile> {
                   onPressed: widget.onDelete,
                 ),
               ])
-            else if (widget.statusStr == 'failed')
-              // Failed: Retry + Delete
+            else if (widget.statusStr == 'failed' ||
+                     widget.statusStr == 'stalled')
+              // Failed / Stalled: Retry + Delete
               Row(mainAxisSize: MainAxisSize.min, children: [
                 IconButton(
                   icon: Icon(AppIcons.refresh, size: 18,
                       color: AppColors.primary.withOpacity(0.85)),
-                  tooltip: 'Retry download',
+                  tooltip: widget.statusStr == 'stalled'
+                      ? 'Retry stalled download'
+                      : 'Retry download',
                   onPressed: widget.onRetry ?? widget.onDelete,
                 ),
                 IconButton(
