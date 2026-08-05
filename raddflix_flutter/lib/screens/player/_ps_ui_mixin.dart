@@ -312,6 +312,10 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   // QuickSettingsPanel (Style tab) is immediately reflected everywhere.
   Color get _accentColor => ref.read(playerPrefsProvider).accentColor;
 
+  // A3: icon pack — returns the correct PlayerIcons for the user's chosen pack.
+  PlayerIcons get _icons =>
+      iconsFor(iconPackFromString(ref.read(playerPrefsProvider).iconPack));
+
   int _progressBarStyle = 0;
 
   String _seekPreviewLabel = '';
@@ -973,7 +977,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                               borderRadius: BorderRadius.circular(10),
                               border: Border.all(color: Colors.white24),
                             ),
-                            child: const Icon(Icons.lock_rounded,
+                            child: Icon(_icons.lock,
                                 color: Colors.white, size: 22),
                           ),
                         ),
@@ -1131,7 +1135,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
             ),
             const SizedBox(height: 6),
             _RaddIconBtn(
-              icon: _isLocked ? Icons.lock_rounded : Icons.lock_open_rounded,
+              icon: _isLocked ? _icons.lock : _icons.unlock,
               size: 20,
               onTap: () => setState(() {
                 _isLocked = !_isLocked;
@@ -1467,7 +1471,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                   Opacity(
                     opacity: _hasPrev ? 1.0 : 0.25,
                     child: _RaddIconBtn(
-                      icon: Icons.skip_previous_rounded,
+                      icon: _icons.skipPrev,
                       size: 26,
                       onTap: _hasPrev ? () => _playEpisodeAt(_currentEpIdx - 1) : null,
                     ),
@@ -1478,7 +1482,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                   Opacity(
                     opacity: _hasNext ? 1.0 : 0.25,
                     child: _RaddIconBtn(
-                      icon: Icons.skip_next_rounded,
+                      icon: _icons.skipNext,
                       size: 26,
                       onTap: _hasNext ? () => _playEpisodeAt(_currentEpIdx + 1) : null,
                     ),
@@ -1494,7 +1498,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                 // Utility buttons — always shown, right of nav
                 const SizedBox(width: RaddSpace.xs),
                 _RaddIconBtn(
-                  icon: Icons.lock_outline_rounded,
+                  icon: _icons.lock,
                   size: 19,
                   onTap: () => setState(() {
                     _isLocked = true;
@@ -1529,7 +1533,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                       color: Colors.white.withOpacity(0.35), width: 1.2),
                 ),
                 child: Icon(
-                  _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  _playing ? _icons.pause : _icons.play,
                   color: Colors.white,
                   size: 24,
                 ),
@@ -1935,7 +1939,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                         color: Colors.white.withOpacity(0.35), width: 1.2),
                   ),
                   child: Icon(
-                    _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    _playing ? _icons.pause : _icons.play,
                     color: Colors.white,
                     size: 24,
                   ),
@@ -1959,7 +1963,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                     onTap: _openLiveSettingsPanel,
                   ),
                   _RaddIconBtn(
-                    icon: Icons.lock_outline_rounded,
+                    icon: _icons.lock,
                     size: 18,
                     onTap: () => setState(() {
                       _isLocked = true;
@@ -2237,7 +2241,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                 // Utility buttons
                 const SizedBox(width: RaddSpace.xs),
                 _RaddIconBtn(
-                  icon: Icons.lock_outline_rounded,
+                  icon: _icons.lock,
                   size: 19,
                   onTap: () => setState(() {
                     _isLocked = true;
@@ -2271,7 +2275,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                       color: Colors.white.withOpacity(0.35), width: 1.2),
                 ),
                 child: Icon(
-                  _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  _playing ? _icons.pause : _icons.play,
                   color: Colors.white,
                   size: 24,
                 ),
@@ -2467,7 +2471,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
           onTap: () => _openAudioEffectPanel(initialTab: 3),
         ),
         'speed': (
-          icon: Icons.speed_rounded,
+          icon: _icons.speed,
           label: _speed == 1.0 ? '1×' : '${_speed.toStringAsFixed(2)}×',
           active: _speed != 1.0,
           available: true,
@@ -2488,7 +2492,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
           onTap: _cycleOrientation,
         ),
         'lock': (
-          icon: Icons.lock_outline_rounded,
+          icon: _icons.lock,
           label: 'Lock',
           active: false,
           available: true,
@@ -2571,7 +2575,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
           onTap: _toggleMute,
         ),
         'frame': (
-          icon: Icons.skip_next_rounded,
+          icon: _icons.skipNext,
           label: 'Frame',
           active: false,
           available: true,
@@ -3273,28 +3277,32 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                         duration: const Duration(milliseconds: 280),
                         child: IgnorePointer(
                           ignoring: !_showControls || _isLocked,
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [Colors.transparent, Color(0xE6000000)],
-                                stops: [0.0, 0.35],
+                          child: ControlsBackground(
+                            style: ref.read(playerPrefsProvider).controlsBgStyle,
+                            accentColor: _accentColor,
+                            child: Container(
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [Colors.transparent, Color(0xE6000000)],
+                                  stops: [0.0, 0.35],
+                                ),
                               ),
-                            ),
-                            child: SafeArea(
-                              top: false,
-                              // PLAY-I6: wrap in ValueListenableBuilder so seek-drag
-                              // pointer events update the seekbar thumb without a full
-                              // player setState rebuild.
-                              child: ValueListenableBuilder<int>(
-                                valueListenable: _seekDragTick,
-                                builder: (_, __, ___) {
-                                  final currentPos = _seekBarDelta != null
-                                      ? Duration(milliseconds: (_seekBarDelta! * _duration.inMilliseconds).round())
-                                      : _position;
-                                  return _buildPortraitControlsPanel(constraints, currentPos);
-                                },
+                              child: SafeArea(
+                                top: false,
+                                // PLAY-I6: wrap in ValueListenableBuilder so seek-drag
+                                // pointer events update the seekbar thumb without a full
+                                // player setState rebuild.
+                                child: ValueListenableBuilder<int>(
+                                  valueListenable: _seekDragTick,
+                                  builder: (_, __, ___) {
+                                    final currentPos = _seekBarDelta != null
+                                        ? Duration(milliseconds: (_seekBarDelta! * _duration.inMilliseconds).round())
+                                        : _position;
+                                    return _buildPortraitControlsPanel(constraints, currentPos);
+                                  },
+                                ),
                               ),
                             ),
                           ),
@@ -3402,13 +3410,13 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
             active: _eqEnabled,
           ))),
           Expanded(child: Center(child: _buildPortraitActionBtn(
-            Icons.speed_rounded,
+            _icons.speed,
             _speed == 1.0 ? '1×' : '${_speed.toStringAsFixed(1)}×',
             _cycleSpeed,
             active: _speed != 1.0,
           ))),
           Expanded(child: Center(child: _buildPortraitActionBtn(
-            Icons.lock_outline_rounded,
+            _icons.lock,
             'Lock',
             () => setState(() {
               _isLocked = true;
@@ -3485,7 +3493,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                   Opacity(
                     opacity: _hasPrev ? 1.0 : 0.25,
                     child: _RaddIconBtn(
-                      icon: Icons.skip_previous_rounded,
+                      icon: _icons.skipPrev,
                       size: 28,
                       onTap: _hasPrev ? () => _playEpisodeAt(_currentEpIdx - 1) : null,
                     ),
@@ -3495,7 +3503,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                   Opacity(
                     opacity: _hasNext ? 1.0 : 0.25,
                     child: _RaddIconBtn(
-                      icon: Icons.skip_next_rounded,
+                      icon: _icons.skipNext,
                       size: 28,
                       onTap: _hasNext ? () => _playEpisodeAt(_currentEpIdx + 1) : null,
                     ),
@@ -3521,7 +3529,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
                       color: Colors.white.withOpacity(0.40), width: 1.2),
                 ),
                 child: Icon(
-                  _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  _playing ? _icons.pause : _icons.play,
                   color: Colors.white,
                   size: 28,
                 ),
@@ -3997,7 +4005,7 @@ void _openPanel({
               const Text('Applies to every video in this session', style: TextStyle(color: Colors.white38, fontSize: 12)),
               const SizedBox(height: 12),
               for (final pair in [
-                ('play_next', Icons.skip_next_rounded,   'Play Next Episode'),
+                ('play_next', _icons.skipNext,   'Play Next Episode'),
                 ('loop',      Icons.repeat_rounded,       'Loop Current'),
                 ('stop',      Icons.stop_circle_outlined, 'Stop & Stay'),
                 ('ask',       Icons.help_outline_rounded, 'Ask Each Time'),
@@ -5126,7 +5134,7 @@ void _openPanel({
                         fontSize: 13,
                       )),
                   trailing: isCurrent
-                      ? const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 18)
+                      ? Icon(_icons.play, color: Colors.white, size: 18)
                       : null,
                   onTap: () {
                     Navigator.of(context).pop();

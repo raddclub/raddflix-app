@@ -58,6 +58,8 @@ import '../widgets/player/audio_mode_backdrop.dart';
 import '../core/player/word_dict.dart';
 import '../widgets/player/word_definition_sheet.dart';
 import '../widgets/player/subtitle_overlay.dart'; // SUB-OVERLAY-FIX
+import '../widgets/player/controls_background.dart'; // A4
+import '../core/player/icon_packs.dart'; // A3
 import '../widgets/player/dual_subtitle_overlay.dart'; // DUAL-SUB
 import '../core/player/subtitle_style.dart';
 import '../widgets/player/quick_settings_panel.dart'; // Phase A: Style panel
@@ -978,7 +980,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                     duration: const Duration(milliseconds: 280),
                     child: IgnorePointer(
                       ignoring: !_showControls || _isLocked,
-                      child: _buildControlsOverlay(constraints),
+                      child: ControlsBackground(
+                        style: ref.read(playerPrefsProvider).controlsBgStyle,
+                        accentColor: _accentColor,
+                        child: _buildControlsOverlay(constraints),
+                      ),
                     ),
                   ),
 
