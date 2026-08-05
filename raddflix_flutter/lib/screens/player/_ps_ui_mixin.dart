@@ -4597,7 +4597,6 @@ void _openPanel({
         onOpenEndAction: () => _showEndActionSheet(context),
         onOpenSilenceSkip: () => _showSilenceSkipSheet(context),
         onOpenZoomCrop: () => _showZoomCropSheet(context),
-        onOpenWakeDnd: () {},               // Phase H4/H5 — to be wired later
         onOpenLayoutDesigner: () => _showLayoutDesignerSheet(context),
         subDelayMs: (_subSync * 1000).round(),
         audioDelayMs: (_audioSync * 1000).round(),

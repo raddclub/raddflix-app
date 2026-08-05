@@ -39,7 +39,6 @@ class QuickSettingsPanel extends StatefulWidget {
   final VoidCallback onOpenEndAction;
   final VoidCallback onOpenSilenceSkip;
   final VoidCallback onOpenZoomCrop;
-  final VoidCallback onOpenWakeDnd;   // opens wake lock / DND sheet
   final VoidCallback? onOpenLayoutDesigner; // Phase B: drag-drop layout editor
   final int subDelayMs;
   final int audioDelayMs;
@@ -69,7 +68,6 @@ class QuickSettingsPanel extends StatefulWidget {
     required this.onOpenEndAction,
     required this.onOpenSilenceSkip,
     required this.onOpenZoomCrop,
-    required this.onOpenWakeDnd,
     this.onOpenLayoutDesigner,
     required this.subDelayMs,
     required this.audioDelayMs,
