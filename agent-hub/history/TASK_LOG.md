@@ -3099,3 +3099,29 @@ Commit: `3d115d47`
 | `4dd133d3` | DL-K4/K5: validate resume file exists + mounted guards in _load/_loadMusic |
 | `9756d6b1` | DL-K6: pause/resume downloads — keep partial file, service+notifier+UI |
 | `3d115d47` | PLAY-I1 fix: remove stray _bvApplyTimer cancel from _LiveChannelSwitcherSheetState |
+
+---
+
+## Session 2026-08-05 — Phases M + N audit + NAV-N7 fix
+
+### Summary
+Audited all open Phase M (AUTH-M1–M4) and Phase N (ACTOR-N1–N3, DL-N5, NAV-N6, NAV-N7) tasks. Found 10 of 11 already implemented in prior sessions with TASKS.md stale. Fixed the one genuine gap (NAV-N7).
+
+### Phase M — all 4 verified already done (TASKS.md updated)
+- AUTH-M1: `_auth_retried` flag in `requestOptions.extra` already present; `handler.next(err)` bails immediately if true
+- AUTH-M2: `ApiClient.registerForceLogoutCallback()` already wired in `AuthNotifier` constructor
+- AUTH-M3: `checkAuth()` already sets authenticated from `cachedUser` first; only 401 clears tokens
+- AUTH-M4: `_clearLocalSession()` helper already called in both `login()` and `logout()`
+
+### Phase N — 6 of 7 verified already done, 1 fixed
+- ACTOR-N1: `_actorFuture` already hoisted to `initState`; `FutureBuilder(future: _actorFuture)` at L52
+- ACTOR-N2: `File.existsSync()` runs inside FutureBuilder callback, not hot `build()` path
+- ACTOR-N3: `.trim().isNotEmpty` guard already present before `CachedNetworkImage`
+- DL-N5: `_stalledDownloads` set + 30s `stallTimer` already in service; stalled badge/hint/retry already in `downloads_screen.dart`
+- NAV-N6: `onUnknownRoute` already returns `HomeScreen` + "Content not found" snackbar
+- **NAV-N7 — fixed:** Reattach path in `_ps_playback_mixin.dart` never set `_currentFileId` or `_currentEpIdx` from `PlaybackService`. Added `_currentFileId = playbackService.fileId ?? widget.fileId` and `_currentEpIdx = playbackService.episodeIndex` before `detachForReattach()`. Without this, `_watchProgressKey()` returned the wrong key (or '') and episode navigation after returning from mini-player was always relative to episode 0.
+
+### Commits
+| SHA | Description |
+|---|---|
+| `f5993feb` | NAV-N7: copy _currentFileId + _currentEpIdx from PlaybackService on mini-player reattach |

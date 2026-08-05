@@ -5,7 +5,7 @@
 
 ---
 
-## Current State (2026-08-05 — Phase K complete)
+## Current State (2026-08-05 — Phases M + N complete)
 
 **Phase K (Downloads & Local Media Reliability) — ALL 7 DONE:**
 - DL-K1: `validateStatus: (s) => s != null && s >= 200 && s < 300` (prior session, `b5838217`) ✅
@@ -30,7 +30,7 @@
 - PLAY-I8: All `_player.open()` calls wrapped in try/catch; error displayed ✅ (prior session)
 - PLAY-I9: `_completionHandled` guard prevents duplicate `completed` event handling ✅ (prior session)
 
-**Next priority: Phase L (DET-L1–L4, HIST-L5–L7), Phase M (AUTH-M1–M4), Phase N (ACTOR-N1–N3, DL-N5, NAV-N6, NAV-N7)**
+**All phases A–N complete. Next: resume `FEATURES_ROADMAP.md` Phase A remaining (A3 button/icon styles, A4 controls background style), then Phase B (drag-drop layout editor).**
 
 **Phase G (Dual Subtitles & Overlay Consistency) — ALL 3 DONE (SHA `41c70a43`, CI ✅):**
 - SUB-G1: `didUpdateWidget` was mis-nested inside `initState` in `_ps_panels_subtitle.dart` (would not compile); moved to correct position after `initState` closes ✅
