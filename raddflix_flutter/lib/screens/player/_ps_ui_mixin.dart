@@ -5178,7 +5178,6 @@ class _LiveChannelSwitcherSheetState extends State<_LiveChannelSwitcherSheet> {
 
   @override
   void dispose() {
-    _bvApplyTimer?.cancel(); // PLAY-I1
     _ctrl.dispose();
     super.dispose();
   }
