@@ -16,6 +16,10 @@ class DownloadsState {
   final Map<String, String> speedLabels;    // "1.2 MB/s"
   final Map<String, String> etaLabels;      // "3m 12s left"
   final List<String> recentlyCompleted;     // titles for completion SnackBar
+  // DL-K6: tracks which fileIds are currently in the "paused" UI state
+  // (awaiting user's Resume tap). Separate from DB status='paused' so the
+  // UI can optimistically hide the progress row before the cancel propagates.
+  final Set<String> pausedIds;
 
   const DownloadsState({
     this.downloads = const [],
@@ -25,6 +29,7 @@ class DownloadsState {
     this.speedLabels = const {},
     this.etaLabels = const {},
     this.recentlyCompleted = const [],
+    this.pausedIds = const {},
   });
 
   DownloadsState copyWith({
@@ -37,6 +42,7 @@ class DownloadsState {
     Map<String, String>? etaLabels,
     List<String>? recentlyCompleted,
     bool clearRecentlyCompleted = false,
+    Set<String>? pausedIds,
   }) {
     return DownloadsState(
       downloads: downloads ?? this.downloads,
@@ -48,6 +54,7 @@ class DownloadsState {
       recentlyCompleted: clearRecentlyCompleted
           ? const []
           : (recentlyCompleted ?? this.recentlyCompleted),
+      pausedIds: pausedIds ?? this.pausedIds,
     );
   }
 
@@ -276,8 +283,51 @@ class DownloadsNotifier extends StateNotifier<DownloadsState> {
     final updProg  = Map<String, double>.from(state.activeProgress)..remove(fileId);
     final updSpeed = Map<String, String>.from(state.speedLabels)..remove(fileId);
     final updEta   = Map<String, String>.from(state.etaLabels)..remove(fileId);
-    state = state.copyWith(activeProgress: updProg, speedLabels: updSpeed, etaLabels: updEta);
+    final updPaused = Set<String>.from(state.pausedIds)..remove(fileId);
+    state = state.copyWith(
+        activeProgress: updProg, speedLabels: updSpeed, etaLabels: updEta,
+        pausedIds: updPaused);
     await loadDownloads();
+  }
+
+  /// DL-K6: Pause an in-progress download. Keeps the partial file on disk
+  /// and sets DB status to 'paused'. The item stays in the downloads list
+  /// with a Resume button.
+  Future<void> pauseDownload(String fileId) async {
+    if (!state.isDownloading(fileId)) return;
+    DownloadService.pauseDownload(fileId);
+    _downloadStartMs.remove(fileId);
+    _lastUiUpdateMs.remove(fileId);
+    final updProg   = Map<String, double>.from(state.activeProgress)..remove(fileId);
+    final updSpeed  = Map<String, String>.from(state.speedLabels)..remove(fileId);
+    final updEta    = Map<String, String>.from(state.etaLabels)..remove(fileId);
+    final updPaused = Set<String>.from(state.pausedIds)..add(fileId);
+    state = state.copyWith(
+        activeProgress: updProg, speedLabels: updSpeed, etaLabels: updEta,
+        pausedIds: updPaused);
+    // Brief delay so the service's cancel/pause handler has time to write
+    // 'paused' to the DB before we refresh the list.
+    await Future.delayed(const Duration(milliseconds: 300));
+    await loadDownloads();
+  }
+
+  /// DL-K6: Resume a paused download. Re-looks up stream URL from local DB
+  /// and restarts from the beginning (current partial file is overwritten).
+  Future<void> resumeDownload({
+    required String fileId,
+    required String titleText,
+    String? posterUrl,
+    String? contentType,
+  }) async {
+    final updPaused = Set<String>.from(state.pausedIds)..remove(fileId);
+    state = state.copyWith(pausedIds: updPaused);
+    // retryDownload already handles: DB lookup, decode, delete old row, restart.
+    await retryDownload(
+      fileId: fileId,
+      titleText: titleText,
+      posterUrl: posterUrl,
+      contentType: contentType,
+    );
   }
 
   Future<void> deleteDownload(String fileId) async {

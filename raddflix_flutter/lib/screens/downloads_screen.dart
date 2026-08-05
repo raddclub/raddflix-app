@@ -120,6 +120,9 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   bool _isComplete(Map m)    => _status(m) == 'completed';
   bool _isDownloading(Map m) => _status(m) == 'downloading' || _status(m) == 'pending';
   bool _isFailed(Map m)      => _status(m) == 'failed';
+  // DL-K6: paused items have their own distinct state — partial file exists on
+  // disk; DB status is 'paused'; Resume CTA replaces the action button.
+  bool _isPaused(Map m)      => _status(m) == 'paused';
 
   String _fmtSize(int bytes) {
     if (bytes == 0) return '—';
@@ -534,6 +537,10 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
               onRetry:  () => ref.read(downloadsProvider.notifier).retryDownload(
                 fileId: id, titleText: _title(d),
                 posterUrl: _posterUrl(d), contentType: d['content_type'] as String?).ignore(),
+              onPause:  isActive ? () => ref.read(downloadsProvider.notifier).pauseDownload(id).ignore() : null,
+              onResume: _isPaused(d) ? () => ref.read(downloadsProvider.notifier).resumeDownload(
+                fileId: id, titleText: _title(d),
+                posterUrl: _posterUrl(d), contentType: d['content_type'] as String?).ignore() : null,
               speedLabel:    state.speedOf(id),
               etaLabel:      state.etaOf(id),
               queuePosition: state.queuePositionOf(id),
@@ -587,6 +594,10 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
             onRetry:  () => ref.read(downloadsProvider.notifier).retryDownload(
               fileId: id, titleText: _title(d),
               posterUrl: _posterUrl(d), contentType: d['content_type'] as String?).ignore(),
+            onPause:  isActive ? () => ref.read(downloadsProvider.notifier).pauseDownload(id).ignore() : null,
+            onResume: _isPaused(d) ? () => ref.read(downloadsProvider.notifier).resumeDownload(
+              fileId: id, titleText: _title(d),
+              posterUrl: _posterUrl(d), contentType: d['content_type'] as String?).ignore() : null,
             speedLabel: state.speedOf(id),
             etaLabel:   state.etaOf(id),
             localPath: _path(d),
@@ -971,6 +982,9 @@ class _DownloadCard extends StatefulWidget {
   final VoidCallback onTap, onLongPress, onDelete;
   final VoidCallback? onCancel;
   final VoidCallback? onRetry;
+  // DL-K6: pause/resume callbacks — both null when feature not applicable
+  final VoidCallback? onPause;
+  final VoidCallback? onResume;
   final String speedLabel;
   final String etaLabel;
   final int    queuePosition;
@@ -978,7 +992,8 @@ class _DownloadCard extends StatefulWidget {
       required this.statusStr, required this.progress, required this.isActive,
       required this.isComplete, required this.isSelected, required this.isSelecting,
       required this.onTap, required this.onLongPress, required this.onDelete,
-      this.onCancel, this.onRetry, this.speedLabel = '', this.etaLabel = '',
+      this.onCancel, this.onRetry, this.onPause, this.onResume,
+      this.speedLabel = '', this.etaLabel = '',
       this.queuePosition = 0, this.localPath = '', this.posterUrl});
   @override State<_DownloadCard> createState() => _DownloadCardState();
 }
@@ -1140,6 +1155,19 @@ class _DownloadCardState extends State<_DownloadCard> {
                         color: Colors.white,
                         fontSize: 8,
                         fontWeight: FontWeight.w800)))),
+                // DL-K6: Paused badge
+                if (widget.statusStr == 'paused')
+                  Positioned(top: 6, left: 6, child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.72),
+                        borderRadius: BorderRadius.circular(3),
+                        border: Border.all(color: AppColors.primary.withOpacity(0.5), width: 0.8)),
+                    child: Text('PAUSED', style: TextStyle(
+                        color: AppColors.primary,
+                        fontSize: 8,
+                        fontWeight: FontWeight.w800)))),
               ])),
               // Info strip
               Padding(
@@ -1164,27 +1192,42 @@ class _DownloadCardState extends State<_DownloadCard> {
                       Text(widget.sizeStr,
                           style: TextStyle(color: t.textMuted, fontSize: 10)),
                     const Spacer(),
+                    // DL-K6: action button area — pause/resume/cancel/retry/delete
                     if (!widget.isSelecting)
-                      GestureDetector(
-                        onTap: widget.isActive
-                            ? (widget.onCancel ?? widget.onDelete)
-                            : widget.statusStr == 'failed'
-                                ? (widget.onRetry ?? widget.onDelete)
-                                : widget.onDelete,
-                        child: Icon(
-                          widget.isActive
-                              ? AppIcons.stopIcon
-                              : widget.statusStr == 'failed'
-                                  ? AppIcons.refresh
-                                  : AppIcons.trash,
-                          size: 16,
-                          color: widget.isActive
-                              ? AppColors.error.withOpacity(0.75)
-                              : widget.statusStr == 'failed'
-                                  ? AppColors.primary.withOpacity(0.8)
-                                  : t.textMuted,
+                      if (widget.isActive)
+                        // Active: Pause + Cancel side by side
+                        Row(mainAxisSize: MainAxisSize.min, children: [
+                          GestureDetector(
+                            onTap: widget.onPause,
+                            child: Icon(AppIcons.pause, size: 16,
+                                color: AppColors.primary.withOpacity(0.85)),
+                          ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: widget.onCancel ?? widget.onDelete,
+                            child: Icon(AppIcons.stopIcon, size: 16,
+                                color: AppColors.error.withOpacity(0.75)),
+                          ),
+                        ])
+                      else if (widget.statusStr == 'paused')
+                        // Paused: Resume button
+                        GestureDetector(
+                          onTap: widget.onResume ?? widget.onDelete,
+                          child: Icon(AppIcons.play, size: 16,
+                              color: AppColors.primary.withOpacity(0.85)),
+                        )
+                      else if (widget.statusStr == 'failed')
+                        GestureDetector(
+                          onTap: widget.onRetry ?? widget.onDelete,
+                          child: Icon(AppIcons.refresh, size: 16,
+                              color: AppColors.primary.withOpacity(0.8)),
+                        )
+                      else
+                        GestureDetector(
+                          onTap: widget.onDelete,
+                          child: Icon(AppIcons.trash, size: 16,
+                              color: t.textMuted),
                         ),
-                      ),
                   ]),
                   if (widget.isActive && widget.etaLabel.isNotEmpty) ...[
                     const SizedBox(height: 2),
@@ -1219,13 +1262,17 @@ class _DownloadListTile extends StatefulWidget {
   final VoidCallback onTap, onLongPress, onDelete;
   final VoidCallback? onCancel;
   final VoidCallback? onRetry;
+  // DL-K6: pause/resume callbacks
+  final VoidCallback? onPause;
+  final VoidCallback? onResume;
   final String speedLabel;
   final String etaLabel;
   const _DownloadListTile({required this.title, required this.sizeStr,
       required this.statusStr, required this.progress, required this.isActive,
       required this.isComplete, required this.isSelected, required this.isSelecting,
       required this.onTap, required this.onLongPress, required this.onDelete,
-      this.onCancel, this.onRetry, this.speedLabel = '', this.etaLabel = '',
+      this.onCancel, this.onRetry, this.onPause, this.onResume,
+      this.speedLabel = '', this.etaLabel = '',
       this.localPath = '', this.posterUrl});
   @override State<_DownloadListTile> createState() => _DownloadListTileState();
 }
@@ -1315,6 +1362,16 @@ class _DownloadListTileState extends State<_DownloadListTile> {
                     child: Text('FAILED', style: TextStyle(
                         color: AppColors.error, fontSize: 9, fontWeight: FontWeight.w700))),
               ],
+              // DL-K6: paused badge in size row
+              if (widget.statusStr == 'paused') ...[
+                SizedBox(width: RaddSpace.sm),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(3)),
+                    child: Text('PAUSED', style: TextStyle(
+                        color: AppColors.primary, fontSize: 9, fontWeight: FontWeight.w700))),
+              ],
             ]),
             if (widget.isActive) ...[
               SizedBox(height: 6),
@@ -1329,6 +1386,17 @@ class _DownloadListTileState extends State<_DownloadListTile> {
                 '${widget.etaLabel.isNotEmpty ? "  ${widget.etaLabel}" : ""}',
                 style: TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.w700)),
             ],
+            // DL-K6: paused — show greyed-out partial progress bar
+            if (widget.statusStr == 'paused' && widget.progress > 0) ...[
+              SizedBox(height: 6),
+              LinearProgressIndicator(value: widget.progress,
+                  backgroundColor: t.card,
+                  valueColor: AlwaysStoppedAnimation<Color>(t.textMuted),
+                  minHeight: 2),
+              SizedBox(height: 3),
+              Text('${(widget.progress * 100).toStringAsFixed(0)}% downloaded — tap ▶ to resume',
+                  style: TextStyle(color: t.textMuted, fontSize: 10)),
+            ],
             if (widget.statusStr == 'failed') ...[
               SizedBox(height: 3),
               Text('Failed — tap retry or delete to remove',
@@ -1336,31 +1404,59 @@ class _DownloadListTileState extends State<_DownloadListTile> {
                       fontSize: 10, fontWeight: FontWeight.w500)),
             ],
           ])),
+          // DL-K6: action buttons — active/paused/failed/complete
           if (!widget.isSelecting)
-            widget.statusStr == 'failed'
-              // Failed: show Retry + Delete side by side
-              ? Row(mainAxisSize: MainAxisSize.min, children: [
-                  IconButton(
-                    icon: Icon(AppIcons.refresh, size: 18, color: AppColors.primary.withOpacity(0.85)),
-                    tooltip: 'Retry download',
-                    onPressed: widget.onRetry ?? widget.onDelete,
-                  ),
-                  IconButton(
-                    icon: Icon(AppIcons.trash, size: 18, color: t.textMuted),
-                    tooltip: 'Remove',
-                    onPressed: widget.onDelete,
-                  ),
-                ])
-              : IconButton(
-                  icon: Icon(
-                    widget.isActive ? AppIcons.stopIcon : AppIcons.trash,
-                    size: 18,
-                    color: widget.isActive ? AppColors.error.withOpacity(0.75) : t.textMuted,
-                  ),
-                  onPressed: widget.isActive
-                      ? (widget.onCancel ?? widget.onDelete)
-                      : widget.onDelete,
+            if (widget.isActive)
+              // Active: Pause + Cancel
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                IconButton(
+                  icon: Icon(AppIcons.pause, size: 18,
+                      color: AppColors.primary.withOpacity(0.85)),
+                  tooltip: 'Pause download',
+                  onPressed: widget.onPause,
                 ),
+                IconButton(
+                  icon: Icon(AppIcons.stopIcon, size: 18,
+                      color: AppColors.error.withOpacity(0.75)),
+                  tooltip: 'Cancel download',
+                  onPressed: widget.onCancel ?? widget.onDelete,
+                ),
+              ])
+            else if (widget.statusStr == 'paused')
+              // Paused: Resume + Delete
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                IconButton(
+                  icon: Icon(AppIcons.play, size: 18,
+                      color: AppColors.primary.withOpacity(0.85)),
+                  tooltip: 'Resume download',
+                  onPressed: widget.onResume ?? widget.onDelete,
+                ),
+                IconButton(
+                  icon: Icon(AppIcons.trash, size: 18, color: t.textMuted),
+                  tooltip: 'Remove',
+                  onPressed: widget.onDelete,
+                ),
+              ])
+            else if (widget.statusStr == 'failed')
+              // Failed: Retry + Delete
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                IconButton(
+                  icon: Icon(AppIcons.refresh, size: 18,
+                      color: AppColors.primary.withOpacity(0.85)),
+                  tooltip: 'Retry download',
+                  onPressed: widget.onRetry ?? widget.onDelete,
+                ),
+                IconButton(
+                  icon: Icon(AppIcons.trash, size: 18, color: t.textMuted),
+                  tooltip: 'Remove',
+                  onPressed: widget.onDelete,
+                ),
+              ])
+            else
+              IconButton(
+                icon: Icon(AppIcons.trash, size: 18, color: t.textMuted),
+                onPressed: widget.onDelete,
+              ),
         ]),
       ),
     );

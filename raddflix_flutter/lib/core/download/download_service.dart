@@ -31,6 +31,10 @@ String _resolveDownloadExtension({String? targetFilename, required String resolv
 class DownloadService {
   static final Dio _dio = Dio();
   static final _cancelTokens = <String, CancelToken>{};
+  // DL-K6: tracks fileIds that were paused (vs fully cancelled) so the
+  // catch block can keep the partial file and set status='paused' instead
+  // of deleting the file and removing the DB row.
+  static final _pausedDownloads = <String>{};
 
 
   static Future<void> _checkDownloadQuota() async {
@@ -199,13 +203,25 @@ class DownloadService {
       onProgress(1.0, fileSize, fileSize);
     } on DioException catch (e) {
       if (CancelToken.isCancel(e)) {
-        // Delete partial file and remove DB record entirely so the item
-        // disappears from the downloads list and the episode tile resets to
-        // "not downloaded". Previously a stale 'cancelled' row and partial
-        // .mp4 file were left on disk wasting storage.
-        try { await File(localPath).delete(); } catch (_) {}
-        await LocalDb.deleteDownload(fileId);
-        return; // cancelled by user — not an error
+        if (_pausedDownloads.remove(fileId)) {
+          // DL-K6: Paused — keep the partial file so a future resume can reuse
+          // it (or at least show accurate progress). Record current byte count
+          // so the progress bar reflects where we stopped.
+          final partialSize = await File(localPath).exists()
+              ? await File(localPath).length()
+              : 0;
+          final partialPct = expectedTotal > 0
+              ? (partialSize / expectedTotal).clamp(0.0, 1.0)
+              : 0.0;
+          await LocalDb.updateDownloadStatus(fileId, 'paused', partialPct, partialSize);
+        } else {
+          // User cancelled — delete partial file and remove DB row entirely so
+          // the item disappears from the downloads list and the episode tile
+          // resets to "not downloaded".
+          try { await File(localPath).delete(); } catch (_) {}
+          await LocalDb.deleteDownload(fileId);
+        }
+        return; // cancelled or paused — not an error
       }
       // DL-K3: delete partial file on network/HTTP errors (including 4xx from
       // DL-K1 fix). Without this, a partial or HTML error body sits on disk
@@ -225,8 +241,17 @@ class DownloadService {
 
   /// Cancel an in-progress download. No-op if not downloading.
   static void cancelDownload(String fileId) {
+    _pausedDownloads.remove(fileId); // ensure cancel path, not pause path
     _cancelTokens[fileId]?.cancel('User cancelled');
     _cancelTokens.remove(fileId);
+  }
+
+  /// Pause an in-progress download. Keeps the partial file on disk and sets
+  /// DB status to 'paused' so the user can resume later. No-op if not active.
+  static void pauseDownload(String fileId) {
+    if (!_cancelTokens.containsKey(fileId)) return;
+    _pausedDownloads.add(fileId);
+    _cancelTokens[fileId]?.cancel('Paused');
   }
 
   static Future<void> deleteDownload(String fileId) async {
