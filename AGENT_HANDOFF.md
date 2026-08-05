@@ -5,7 +5,19 @@
 
 ---
 
-## Current State (2026-08-05 — Phase I complete)
+## Current State (2026-08-05 — Phase K complete)
+
+**Phase K (Downloads & Local Media Reliability) — ALL 7 DONE:**
+- DL-K1: `validateStatus: (s) => s != null && s >= 200 && s < 300` (prior session, `b5838217`) ✅
+- DL-K2: `_cancelTokens.containsKey(fileId)` guard prevents duplicate downloads ✅
+- DL-K3: Partial file deleted in both catch blocks on network/HTTP errors ✅
+- DL-K4: `File(path).existsSync()` check in `_loadResume()` — clears stale prefs if file gone ✅ (`4dd133d3`)
+- DL-K5: `if (!mounted) return;` guards added before every post-await `setState` in `_load()` and `_loadMusic()` ✅ (`4dd133d3`)
+- DL-K6: Pause/Resume downloads — `_pausedDownloads` set in service; pause keeps partial file + sets DB status='paused'; Pause+Cancel buttons (active) / Resume+Delete buttons (paused) in both grid card and list tile; `pausedIds` in `DownloadsState`; `resumeDownload()` reuses retry logic ✅ (`9756d6b1`)
+- DL-K7: `DownloadService.deleteDownload()` and `LocalDb.deleteDownload()` both delete physical file before removing DB row ✅ (already implemented, verified)
+
+**Pre-existing CI fix applied this session:**
+- `_bvApplyTimer?.cancel()` was accidentally inside `_LiveChannelSwitcherSheetState.dispose()` (wrong class — no such field). Removed; this was the sole `error •` breaking `dart analyze` CI.
 
 **Phase I (Player Gesture & Control Bugs) — ALL 9 DONE:**
 - PLAY-I1: `_bvApplyTimer` 16ms throttle on brightness/volume OS calls ✅ (prior session)
@@ -13,12 +25,12 @@
 - PLAY-I3: Lock overlay structure correctly shows only lock icon on tap when locked ✅ (prior session)
 - PLAY-I4: `_pendingPosition` accumulates rapid seek taps so each tap builds on the last ✅ (prior session)
 - PLAY-I5: `_buildCenterControls()` intentionally empty — cinematic design ✅ RESOLVED
-- PLAY-I6: `_seekDragTick` ValueNotifier drives seekbar/preview rebuild without full setState ✅ this session (`_ps_ui_mixin.dart`, `player_screen.dart`)
+- PLAY-I6: `_seekDragTick` ValueNotifier drives seekbar/preview rebuild without full setState ✅ (prior session)
 - PLAY-I7: Error stream always sets `_streamError` regardless of playing state ✅ (prior session)
 - PLAY-I8: All `_player.open()` calls wrapped in try/catch; error displayed ✅ (prior session)
 - PLAY-I9: `_completionHandled` guard prevents duplicate `completed` event handling ✅ (prior session)
 
-**Next priority: Phase K (DL-K4/K5/K6/K7), Phase L (DET-L1–L4, HIST-L5–L7), Phase M (AUTH-M1–M4), Phase N (ACTOR-N1–N3, DL-N5, NAV-N6, NAV-N7)**
+**Next priority: Phase L (DET-L1–L4, HIST-L5–L7), Phase M (AUTH-M1–M4), Phase N (ACTOR-N1–N3, DL-N5, NAV-N6, NAV-N7)**
 
 **Phase G (Dual Subtitles & Overlay Consistency) — ALL 3 DONE (SHA `41c70a43`, CI ✅):**
 - SUB-G1: `didUpdateWidget` was mis-nested inside `initState` in `_ps_panels_subtitle.dart` (would not compile); moved to correct position after `initState` closes ✅

@@ -3046,3 +3046,56 @@ Seek drag previously called `setState(() {})` on every pointer event (~60/s), re
 | SHA | Description |
 |---|---|
 | (this push) | PLAY-I6: _seekDragTick ValueNotifier limits seek-drag rebuild to seekbar+preview; mark I1–I9 DONE |
+
+---
+
+## Session 2026-08-05 — Phase K: Downloads & Local Media Reliability (DL-K4–K7) + CI fix
+
+### Summary
+All 4 open Phase K tasks completed. Pre-existing CI `dart analyze` error also fixed.
+
+### DL-K4 — Stale resume path validation (`local_media_screen.dart`)
+`_loadResume()` read `resume_local_path` from SharedPreferences and showed the Resume CTA even when the file had been deleted/moved. Fixed: added `File(path).existsSync()` check immediately after reading the pref; if the file is gone, `prefs.remove()` both keys and return early (no CTA shown). Also added `import 'dart:io'` which was missing.  
+Commit: `4dd133d3`
+
+### DL-K5 — mounted guards in `_load()` and `_loadMusic()` (`local_media_screen.dart`)
+Both methods called `setState()` after `await` gaps without checking `if (!mounted)`. If the user navigated away while a permission dialog or media query was in flight, this caused "setState on disposed widget" crashes. Fixed: added `if (!mounted) return;` before every post-await `setState` in both methods, including the early-return permission-denied path.  
+Commit: `4dd133d3`
+
+### DL-K6 — Pause/Resume downloads
+Added full pause/resume support across service → provider → UI:
+
+**`download_service.dart`:**
+- Added `static final _pausedDownloads = <String>{}` to distinguish paused from cancelled in the cancel/exception handler.
+- Modified the `CancelToken.isCancel` catch: if `fileId` is in `_pausedDownloads`, keep the partial file and call `LocalDb.updateDownloadStatus(fileId, 'paused', partialPct, partialSize)`; otherwise delete partial file + `LocalDb.deleteDownload`.
+- Added `pauseDownload(fileId)`: adds to `_pausedDownloads`, calls `_cancelTokens[fileId]?.cancel('Paused')`.
+- Modified `cancelDownload()`: calls `_pausedDownloads.remove(fileId)` first to ensure the cancel path (not pause path) is taken.
+
+**`downloads_provider.dart`:**
+- Added `pausedIds` (`Set<String>`) to `DownloadsState` and `copyWith`.
+- Added `pauseDownload(fileId)`: calls `DownloadService.pauseDownload`, clears active progress/speed/eta state, adds to `pausedIds`, waits 300ms for DB write, reloads.
+- Added `resumeDownload(fileId, ...)`: removes from `pausedIds`, then calls `retryDownload` which handles DB lookup + re-download.
+
+**`downloads_screen.dart`:**
+- Added `_isPaused(Map m)` helper.
+- Added `onPause`/`onResume` optional callbacks to both `_DownloadCard` and `_DownloadListTile` constructors.
+- Both call sites in `_moviesGrid` and `_moviesList` pass the new callbacks, gated on `isActive` (for pause) and `_isPaused(d)` (for resume).
+- Grid card: when active shows Pause icon + Stop icon side by side; when paused shows Play (resume) icon + PAUSED badge overlay.
+- List tile: when active shows Pause + Cancel `IconButton` row; when paused shows Resume + Delete row; when failed shows Retry + Delete row (unchanged).
+- Paused list tile shows a greyed-out partial progress bar with "X% downloaded — tap ▶ to resume" label.
+
+Commit: `9756d6b1`
+
+### DL-K7 — Bulk delete file leak (verified as already done)
+`DownloadService.deleteDownload()` already fetches `local_path` from DB before deleting the row, then deletes the file via `File.delete()`. `LocalDb.deleteDownload()` also deletes the file independently. Both code paths had this correct behavior; task marked ✅ DONE without code change.
+
+### Pre-existing CI fix
+`_bvApplyTimer?.cancel() // PLAY-I1` had been accidentally placed inside `_LiveChannelSwitcherSheetState.dispose()` (a separate sheet widget with no such field). This was the sole `error •` causing all recent CI runs to fail at the `dart analyze` step. Removed the misplaced line from the sheet's dispose.  
+Commit: `3d115d47`
+
+### Commits
+| SHA | Description |
+|---|---|
+| `4dd133d3` | DL-K4/K5: validate resume file exists + mounted guards in _load/_loadMusic |
+| `9756d6b1` | DL-K6: pause/resume downloads — keep partial file, service+notifier+UI |
+| `3d115d47` | PLAY-I1 fix: remove stray _bvApplyTimer cancel from _LiveChannelSwitcherSheetState |
