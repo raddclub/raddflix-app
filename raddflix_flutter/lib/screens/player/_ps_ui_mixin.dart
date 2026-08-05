@@ -765,19 +765,29 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
     } else if (_dragIntent == 'brightness') {
       final newVal = (_startBrightness - dy / constraints.maxHeight * 1.5).clamp(0.0, 1.0);
       _brightness = newVal;
-      ScreenBrightness().setScreenBrightness(newVal);
+      // PLAY-I1: throttle OS platform-channel call to ~60fps — identical to
+      // the _onDragUpdate brightness path so single-finger scale and drag
+      // gestures behave consistently on slow devices.
+      _bvApplyTimer?.cancel();
+      _bvApplyTimer = Timer(const Duration(milliseconds: 16), () {
+        ScreenBrightness().setScreenBrightness(newVal);
+      });
       _showBrightnessIndicator = true;
       _indicatorTimer?.cancel();
       if (mounted) setState(() {});
     } else if (_dragIntent == 'volume') {
       final newVal = (_startVolume - dy / constraints.maxHeight * 3.0).clamp(0.0, 2.5);
       _volume = newVal;
-      VolumeController().setVolume(newVal.clamp(0.0, 1.0));
-      if (newVal > 1.0) {
-        _np.setProperty('volume', (newVal * 100).clamp(100, 250).round().toString());
-      } else {
-        _np.setProperty('volume', '100');
-      }
+      // PLAY-I1: throttle OS/MPV calls to ~60fps — identical to _onDragUpdate.
+      _bvApplyTimer?.cancel();
+      _bvApplyTimer = Timer(const Duration(milliseconds: 16), () {
+        VolumeController().setVolume(newVal.clamp(0.0, 1.0));
+        if (newVal > 1.0) {
+          _np.setProperty('volume', (newVal * 100).clamp(100, 250).round().toString());
+        } else {
+          _np.setProperty('volume', '100');
+        }
+      });
       _showVolumeIndicator = true;
       _indicatorTimer?.cancel();
       if (mounted) setState(() {});

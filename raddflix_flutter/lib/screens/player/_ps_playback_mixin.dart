@@ -648,7 +648,16 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
       }
       if (mounted) setState(() { _streamError = null; _isLinkLoading = false; _ended = false; });
       _videoOpened = true;
-      await _player.open(Media(url));
+      // PLAY-I8: a bad HLS URL or codec mismatch inside media_kit throws an
+      // exception that was previously unhandled, silently leaving the player
+      // in a stuck state. Catch and surface a readable error instead.
+      try {
+        await _player.open(Media(url));
+      } catch (e) {
+        DebugLogger.logError('PLAYER', 'Live open failed', e);
+        if (mounted) setState(() { _streamError = _friendlyError(e.toString()); _isLinkLoading = false; });
+        return;
+      }
       _scheduleHide();
       _fetchLiveRenditions(); // LIVE-P7-A: populate quality picker (fire-and-forget)
       return;
@@ -668,7 +677,14 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
       }
       if (mounted) setState(() { _streamError = null; _isLinkLoading = false; _ended = false; });
       _videoOpened = true;
-      await _player.open(Media(url));
+      // PLAY-I8: same guard as the live path — network stream open can throw.
+      try {
+        await _player.open(Media(url));
+      } catch (e) {
+        DebugLogger.logError('PLAYER', 'Network stream open failed', e);
+        if (mounted) setState(() { _streamError = _friendlyError(e.toString()); _isLinkLoading = false; });
+        return;
+      }
       _scheduleHide();
       _fetchLiveRenditions(); // picks up HLS renditions when URL is an m3u8 master
       return;
@@ -746,7 +762,19 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
       if (mounted) setState(() { _streamError = null; _ended = false; _position = Duration.zero; });
       _videoOpened = true;
       final _subForThisOpen = _currentSubFile; // capture before async open
-      await _player.open(Media(effectivePath));
+      // PLAY-I8: a corrupt file or missing codec inside media_kit throws an
+      // exception that was previously unhandled, silently leaving the player
+      // stuck on a spinner. Catch and surface a readable error instead.
+      try {
+        await _player.open(Media(effectivePath));
+      } catch (e) {
+        DebugLogger.logError('PLAYER', 'Local file open failed', e);
+        if (mounted) setState(() {
+          _streamError = 'Cannot open file: ${e.toString().split('\n').first}';
+          _isLinkLoading = false;
+        });
+        return;
+      }
       _applyCompanionSub(_subForThisOpen); // load companion SRT after media opens
       await _restoreWatchPos();
       _startSavePositionTimer();
