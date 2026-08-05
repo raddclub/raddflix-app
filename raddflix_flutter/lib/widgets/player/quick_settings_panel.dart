@@ -830,7 +830,12 @@ class _QuickSettingsPanelState extends State<QuickSettingsPanel>
         _QsRow(
           label: 'Screen Wake',
           child: DropdownButton<int>(
-            value: _p.wakeTimeoutMins,
+            // PROD-H3: guard against a persisted value from an older version
+            // that is not in the items list — DropdownButton asserts if value
+            // is not null and not present in items.
+            value: const {0, 10, 20, 30}.contains(_p.wakeTimeoutMins)
+                ? _p.wakeTimeoutMins
+                : 0,
             dropdownColor: const Color(0xFF352A1F),
             style: const TextStyle(color: Colors.white70, fontSize: 12),
             underline: const SizedBox(),

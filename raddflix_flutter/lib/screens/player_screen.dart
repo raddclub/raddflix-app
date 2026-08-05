@@ -545,6 +545,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
           if (_sidebarOrder.isEmpty) _sidebarOrder = ['cc','audio','eq','vivid','episodes','speed','loop','pip'];
         } catch (_) {}
       }
+      // PROD-H2: remove any IDs persisted from older app versions that no
+      // longer exist in _allSidebarIds — they would silently appear as empty
+      // slots. Re-save prefs if anything was stripped so the stale IDs are
+      // not reloaded on the next launch.
+      final _sbBefore = _sidebarOrder.length;
+      _sidebarOrder.removeWhere((id) => !_allSidebarIds.contains(id));
+      if (_sidebarOrder.length != _sbBefore) _scheduleSavePrefs();
       // Rebuild reverb AF string from loaded preset
       switch (_reverbPreset) {
         case 'Small Room': _currentReverbAf = 'aecho=0.8:0.9:30:0.4'; break;

@@ -59,52 +59,14 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
   double _subSync = 0.0; // seconds
   double _subSpeed = 1.0; // 0.5..2.0
   String? _currentSubFile;
-  int _subtitleStyleReapplyGeneration = 0;
-
   List<SubtitleTrack> get _realSubtitleTracks =>
       _subtitleTracks.where((t) => t.id != null && int.tryParse(t.id!) != null).toList();
 
-  // 0B PLAYER-PERF: debounce state — collapses rapid back-to-back calls
-  // (show/hide transitions fire this multiple times per gesture) into a
-  // single MPV property write after 16 ms. The latest controlsVisible value
-  // is captured in _subMarginLastVisible so the timer always applies the
-  // most recent intent even if several ticks arrive before it fires.
-  bool? _subMarginLastVisible;
-  Timer?  _subMarginDebounce;
-
-  void _applySubtitleMargin({required bool controlsVisible}) {
-    // When controls are visible, push subs 140px above bottom controls so they
-    // clear the seek bar AND transport row.
-    //
-    // BUG-SUB-STYLE-01 (root cause of "customization changes preview but not
-    // the real player"): this function runs on nearly every controls
-    // show/hide transition — far more often than any style edit — so it is
-    // the de-facto last writer of `sub-ass-override` on every real playback
-    // session. It used to set 'yes', which lets an embedded ASS/SSA
-    // subtitle's own baked-in style block win over our custom sub-color/
-    // sub-font-size/sub-margin-y properties. The panel's style callbacks set
-    // 'force' right before pushing a style change, but the very next
-    // controls toggle (a few seconds later, or immediately via a tap)
-    // silently downgraded it back to 'yes', undoing the override — so
-    // embedded subtitles always snapped back to their built-in look/position
-    // moments after a customization, which is exactly the reported symptom.
-    //
-    // Fix: 'sub-ass-override' must always be 'force' everywhere it's touched
-    // (here, in `_loadSubPrefs`, on track selection, and on episode reset) —
-    // never 'yes'. Do not reintroduce 'yes' in any of those call sites.
-    _subMarginLastVisible = controlsVisible;
-    _subMarginDebounce?.cancel();
-    _subMarginDebounce = Timer(const Duration(milliseconds: 16), () {
-      if (!mounted) return;
-      final base = _subBottomMarginMain;
-      final cv = _subMarginLastVisible ?? controlsVisible;
-      final marginY = cv ? (base + 140).round() : base.round();
-      try {
-        _np.setProperty('sub-ass-override', 'force');
-        _np.setProperty('sub-margin-y', marginY.toString());
-      } catch (_) {}
-    });
-  }
+  // PROD-H1: MPV subtitle margin calls removed — Flutter SubtitleOverlay
+  // (Phase A) owns all subtitle rendering; MPV subs are off via
+  // SubtitleViewConfiguration(visible: false). Raise is driven by
+  // _subtitleRaiseNotifier → controlsRaiseDp on SubtitleOverlay.
+  void _applySubtitleMargin({required bool controlsVisible}) {}
 
   void _adjustSubSync(double delta) {
     _subSync = (_subSync + delta);
@@ -138,65 +100,14 @@ mixin _PlayerSubtitleMixin on ConsumerState<PlayerScreen> {
     } catch (_) {}
   }
 
-  // Called from _loadPrefs() at player startup so saved subtitle style/position
-  // is applied to MPV immediately — without requiring the user to open the
-  // subtitle panel first (which was the only place _loadSubPrefs() ran before).
-  Future<void> _applySubtitleStylePrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    const mpvFonts = ['sans-serif', 'serif', 'monospace', 'sans-serif'];
-    final fontIdx    = prefs.getInt('pref_sub_font_idx')    ?? 0;
-    final size       = prefs.getDouble('pref_sub_size')     ?? 22.0;
-    final bold       = prefs.getBool('pref_sub_bold')       ?? false;
-    final colorVal   = prefs.getInt('pref_sub_color')       ?? Colors.white.value;
-    final bgColorVal = prefs.getInt('pref_sub_bg_color')    ?? Colors.transparent.value;
-    final opacity    = prefs.getDouble('pref_sub_opacity')  ?? 1.0;
-    final shadowIdx  = prefs.getInt('pref_sub_shadow')      ?? 2;
-    final alignX     = prefs.getInt('pref_sub_align_x')     ?? 1;
-    final alignY     = prefs.getInt('pref_sub_align_y')     ?? 2;
-    final edgePad    = prefs.getDouble('pref_sub_edge_pad') ?? 16.0;
-    final fitToVideo = prefs.getBool('pref_sub_fit')        ?? true;
-    try {
-      // Force ASS override FIRST (BUG-SUB-STYLE-01) — the same rule that
-      // applies in _loadSubPrefs, _applySubtitleMargin, and track selection.
-      _np.setProperty('sub-ass-override',          'force');
-      _np.setProperty('sub-font',                  mpvFonts[fontIdx.clamp(0, 3)]);
-      _np.setProperty('sub-font-size',             size.round().toString());
-      _np.setProperty('sub-bold',                  bold ? 'yes' : 'no');
-      _np.setProperty('sub-color',                 _mpvSubColor(Color(colorVal)));
-      _np.setProperty('sub-back-color',            _mpvSubBackColor(Color(bgColorVal)));
-      _np.setProperty('sub-opacity',               opacity.toStringAsFixed(2));
-      _np.setProperty('sub-align-x',               ['left','center','right'][alignX.clamp(0, 2)]);
-      _np.setProperty('sub-align-y',               ['top','center','bottom'][alignY.clamp(0, 2)]);
-      _np.setProperty('sub-margin-x',              edgePad.round().toString());
-      _np.setProperty('sub-ass-scale-with-window', fitToVideo ? 'yes' : 'no');
-      // Shadow: 0=None  1=Outline  2=Drop Shadow  3=Box
-      if (shadowIdx == 0) {
-        _np.setProperty('sub-shadow-offset', '0');
-        _np.setProperty('sub-outline-size',  '0');
-      } else if (shadowIdx == 1) {
-        _np.setProperty('sub-outline-size',  '2');
-        _np.setProperty('sub-shadow-offset', '0');
-      } else if (shadowIdx == 2) {
-        _np.setProperty('sub-shadow-offset', '3');
-        _np.setProperty('sub-outline-size',  '0.5');
-      } else if (shadowIdx == 3) {
-        _np.setProperty('sub-shadow-offset', '0');
-        _np.setProperty('sub-outline-size',  '0');
-      }
-    } catch (_) {}
-  }
+  // PROD-H1: MPV subtitle style calls removed — Flutter SubtitleOverlay
+  // (Phase A) owns all subtitle rendering; style prefs are consumed by
+  // PlayerPrefs / SubtitleOverlay directly. This stub satisfies call sites
+  // in player_screen.dart and _reapplySubtitleStyleAfterLifecycle.
+  Future<void> _applySubtitleStylePrefs() async {}
 
-  /// MPV may recreate its subtitle renderer after a track or `sub-file`
-  /// change. Reapply after that lifecycle event, rather than racing the
-  /// renderer while it is still loading the new subtitle stream.
-  void _reapplySubtitleStyleAfterLifecycle() {
-    final generation = ++_subtitleStyleReapplyGeneration;
-    Future.delayed(const Duration(milliseconds: 150), () async {
-      if (!mounted || generation != _subtitleStyleReapplyGeneration) return;
-      await _applySubtitleStylePrefs();
-    });
-  }
+  // PROD-H1: stub — _applySubtitleStylePrefs is now a no-op (MPV subs off).
+  void _reapplySubtitleStyleAfterLifecycle() {}
 
   void _openSubtitlePanel() {
       final panel = _SubtitlePanel(
