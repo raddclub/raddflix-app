@@ -99,6 +99,20 @@ class ApiClient {
 
   Future<Response> put(String path, {dynamic data}) =>
       _dio.put(path, data: data);
+
+  // ── AUTH-M2: force-logout signal ─────────────────────────────────────────
+  // When a token refresh fails mid-session, ApiClient clears the stored tokens
+  // but has no direct access to Riverpod. AuthNotifier registers this callback
+  // so the app's UI state is immediately driven to unauthenticated — without
+  // waiting for the next API call to observe the empty Keystore.
+  static void Function()? _onForceLogout;
+
+  /// Register a callback that fires when a mid-session token refresh fails.
+  /// Called by AuthNotifier in its constructor so the callback is always set
+  /// before any intercepted request can fail.
+  static void registerForceLogoutCallback(void Function() cb) {
+    _onForceLogout = cb;
+  }
 }
 
 // ── Tamper Interceptor ────────────────────────────────────────────────────────
@@ -303,6 +317,9 @@ class _AuthInterceptor extends Interceptor {
       DebugLogger.logError('AUTH', 'Refresh failed — clearing tokens, user must log in');
       // Refresh failed — clear tokens so app goes to login
       await Keystore.clearAll();
+      // AUTH-M2: drive Riverpod auth state to unauthenticated immediately so the
+      // UI reflects the logged-out condition without waiting for the next API call.
+      ApiClient._onForceLogout?.call();
     }
     handler.next(err);
   }

@@ -2,7 +2,9 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api/auth_api.dart';
+import '../core/api/api_client.dart';
 import '../core/db/local_db.dart';
+import '../core/debug/debug_logger.dart';
 import '../core/security/keystore.dart';
 import '../core/constants.dart';
 import '../models/user.dart';
@@ -54,7 +56,19 @@ class AuthState {
 }
 
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier(this._ref) : super(const AuthState());
+  AuthNotifier(this._ref) : super(const AuthState()) {
+    // AUTH-M2: register a callback so ApiClient can drive UI state to
+    // unauthenticated immediately when a mid-session token refresh fails.
+    // Without this, Keystore is cleared by the interceptor but the Riverpod
+    // state stays 'authenticated', leaving the user stuck behind auth screens
+    // while every API call silently fails with no token attached.
+    ApiClient.registerForceLogoutCallback(() {
+      if (state.status == AuthStatus.authenticated) {
+        DebugLogger.logWarn('AUTH', 'Force-logout via ApiClient callback — refresh failed mid-session');
+        state = const AuthState(status: AuthStatus.unauthenticated);
+      }
+    });
+  }
   final Ref _ref;
 
   Future<void> checkAuth() async {
@@ -122,6 +136,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(StorageKeys.isGuest);
       _ref.read(authConfigProvider.notifier).setGuestMode(false);
+      // AUTH-M4: clear guest-owned local data before applying the new account
+      // session so continue-watching entries and watchlist items accumulated
+      // as a guest do not bleed into the newly signed-in account.
+      _clearLocalSession();
       final user = await AuthApi.getMe();
       await _saveUserCache(user, prefs);
       state = AuthState(status: AuthStatus.authenticated, user: user);
@@ -219,17 +237,25 @@ class AuthNotifier extends StateNotifier<AuthState> {
     });
   }
 
+  /// AUTH-M4: clears Riverpod-held per-session state that must NOT bleed into
+  /// the next account — watchlist entries, cached profile, and player prefs.
+  /// Called by both logout() and login() (on the guest→auth transition path)
+  /// so guest-owned data never survives into a signed-in session.
+  void _clearLocalSession() {
+    _ref.read(authConfigProvider.notifier).resetOnLogout();
+    _ref.read(watchlistProvider.notifier).clear();
+    _ref.read(profileProvider.notifier).reset();
+    _ref.read(playerPrefsProvider.notifier).reset();
+  }
+
   Future<void> logout() async {
     try { await AuthApi.logout(); } catch (_) {}
     await Keystore.clearAll();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(StorageKeys.isGuest);
     await _clearUserCache(prefs);
-    _ref.read(authConfigProvider.notifier).resetOnLogout();
-    // A5: clear per-user state so next account doesn't inherit previous session
-    _ref.read(watchlistProvider.notifier).clear();
-    _ref.read(profileProvider.notifier).reset();
-    _ref.read(playerPrefsProvider.notifier).reset();
+    // A5 / AUTH-M4: clear per-user state so next account doesn't inherit previous session
+    _clearLocalSession();
     state = const AuthState(status: AuthStatus.unauthenticated);
   }
 
