@@ -164,10 +164,13 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
         _seasonTab?.dispose();
         _seasonTab = null;
       }
+      // DET-L3: preserve the user's selected season across reloads (e.g. pull-to-refresh).
+      final savedSeason = _selectedSeason;
       setState(() {
         _episodes = eps;
         _seasons = seasonNums.isEmpty ? [1] : seasonNums;
-        _selectedSeason = _seasons.first;
+        // Restore saved season if it still exists; otherwise fall back to first.
+        _selectedSeason = _seasons.contains(savedSeason) ? savedSeason : _seasons.first;
         _watchProgress = prog;
         _overrides = overrides;
         _resumeEpisodeIndex = resumeIdx;
@@ -175,9 +178,11 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
         if (willHaveMultipleSeasons) {
           _seasonTab = TabController(length: _seasons.length, vsync: this);
           _seasonTab!.addListener(() {
-            if (!_seasonTab!.indexIsChanging) {
-              setState(() => _selectedSeason = _seasons[_seasonTab!.index]);
-            }
+            // DET-L3: copy the ref before the async gap — _seasonTab can be set
+            // to null between the listener firing and this callback running (dispose).
+            final tab = _seasonTab;
+            if (tab == null || tab.indexIsChanging) return;
+            setState(() => _selectedSeason = _seasons[tab.index]);
           });
         }
       });
@@ -207,26 +212,41 @@ class _ShowDetailScreenState extends ConsumerState<ShowDetailScreen>
       .length;
 
   List<Map<String, dynamic>> get _currentEpisodesWithGaps {
-    final eps = _currentEpisodes;
-    if (eps.isEmpty) return eps;
-    final result = <Map<String, dynamic>>[];
-    for (int i = 0; i < eps.length; i++) {
+    // DET-L1: gaps must be computed on an ascending episode list.
+    // In descending mode prevNum > thisNum, so the g < thisNum loop never fires
+    // and placeholder gaps are never inserted.  Always build gapped list in
+    // ascending order, then reverse the whole result for descending display.
+    final ascEps = _episodes
+        .where((e) => (e['season'] as int? ?? 1) == _selectedSeason)
+        .toList(); // _episodes retains DB insertion order (ascending)
+    if (ascEps.isEmpty) return ascEps;
+    final gapped = <Map<String, dynamic>>[];
+    for (int i = 0; i < ascEps.length; i++) {
       if (i > 0) {
-        final prevNum = eps[i - 1]['episode'] as int? ?? 0;
-        final thisNum = eps[i]['episode'] as int? ?? 0;
+        final prevNum = ascEps[i - 1]['episode'] as int? ?? 0;
+        final thisNum = ascEps[i]['episode'] as int? ?? 0;
         for (int g = prevNum + 1; g < thisNum; g++) {
-          result.add({
+          gapped.add({
             '_placeholder': true,
             'episode': g,
-            'season': eps[i]['season'] ?? _selectedSeason,
+            'season': ascEps[i]['season'] ?? _selectedSeason,
             'label': 'S${_selectedSeason.toString().padLeft(2, '0')}E${g.toString().padLeft(2, '0')}',
             '_override': _overrides['${_selectedSeason}_$g'],
           });
         }
       }
-      result.add({...eps[i], '_realIndex': i});
+      gapped.add(ascEps[i]);
     }
-    return result;
+    final sorted = _sortAscending ? gapped : gapped.reversed.toList();
+    // DET-L2: assign _realIndex as each real episode's position in the FINAL
+    // sorted list so onPlay(realIdx) always indexes into _currentEpisodes at
+    // the correct offset regardless of sort direction.
+    // Placeholders never have _realIndex — they are not playable.
+    int realCount = 0;
+    return sorted.map((ep) {
+      if (ep['_placeholder'] == true) return ep;
+      return {...ep, '_realIndex': realCount++};
+    }).toList();
   }
 
   // BUG-RACE-EP-01: guards against rapid multi-tap on the episode list. _playEpisode
@@ -1146,7 +1166,10 @@ class _EpisodeListSection extends ConsumerWidget {
           }
           final realIdx = ep['_realIndex'] as int;
           final fileId = ep['file_id']?.toString() ?? '';
-          final progress = watchProgress[fileId] ?? 0.0;
+          // DET-L4: episodes with an empty file_id must not share a progress entry —
+          // all blank IDs key to watchProgress[''], producing a false common value
+          // across unrelated episodes.
+          final progress = fileId.isNotEmpty ? (watchProgress[fileId] ?? 0.0) : 0.0;
           // E7 note: _parseFree is a file-private static — accessible here.
           final isFree =
               _ShowDetailScreenState._parseFree(ep['is_free']) || item.isFree;
@@ -2073,7 +2096,9 @@ class _GlassEpisodeCard extends StatelessWidget {
                               width: 52,
                               height: 52,
                               child: CircularProgressIndicator(
-                                value: completed ? 1.0 : progress,
+                                // DET-L4: clamp to [0,1] — out-of-range values
+                                // assert in debug and paint incorrectly in release.
+                                value: (completed ? 1.0 : progress).clamp(0.0, 1.0),
                                 strokeWidth: 3.0,
                                 backgroundColor:
                                     t.border.withOpacity(0.35),
