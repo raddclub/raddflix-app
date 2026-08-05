@@ -316,6 +316,10 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   PlayerIcons get _icons =>
       iconsFor(iconPackFromString(ref.read(playerPrefsProvider).iconPack));
 
+  // A3: button shape — returns the user's chosen ButtonShape for play/pause buttons.
+  ButtonShape get _playBtnShape =>
+      buttonShapeFromString(ref.read(playerPrefsProvider).buttonShape);
+
   int _progressBarStyle = 0;
 
   String _seekPreviewLabel = '';
@@ -1524,14 +1528,9 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
             // ── Play/pause — always centered via Stack.center ──────────────────
             GestureDetector(
               onTap: () { _player.playOrPause(); _scheduleHide(); },
-              child: Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.12),
-                  border: Border.all(
-                      color: Colors.white.withOpacity(0.35), width: 1.2),
-                ),
+              child: wrapWithButtonShape(
+                shape: _playBtnShape,
+                size: 44,
                 child: Icon(
                   _playing ? _icons.pause : _icons.play,
                   color: Colors.white,
@@ -1930,14 +1929,9 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
             Center(
               child: GestureDetector(
                 onTap: () { _player.playOrPause(); _scheduleHide(); },
-                child: Container(
-                  width: 44, height: 44,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.12),
-                    border: Border.all(
-                        color: Colors.white.withOpacity(0.35), width: 1.2),
-                  ),
+                child: wrapWithButtonShape(
+                  shape: _playBtnShape,
+                  size: 44,
                   child: Icon(
                     _playing ? _icons.pause : _icons.play,
                     color: Colors.white,
@@ -2266,14 +2260,9 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
             // Play/pause — always pixel-centred via Stack
             GestureDetector(
               onTap: () { _player.playOrPause(); _scheduleHide(); },
-              child: Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.12),
-                  border: Border.all(
-                      color: Colors.white.withOpacity(0.35), width: 1.2),
-                ),
+              child: wrapWithButtonShape(
+                shape: _playBtnShape,
+                size: 44,
                 child: Icon(
                   _playing ? _icons.pause : _icons.play,
                   color: Colors.white,
@@ -3519,15 +3508,11 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
             // Play/pause — always pixel-centered via Stack
             GestureDetector(
               onTap: () { _player.playOrPause(); _scheduleHide(); },
-              child: Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.14),
-                  border: Border.all(
-                      color: Colors.white.withOpacity(0.40), width: 1.2),
-                ),
+              child: wrapWithButtonShape(
+                shape: _playBtnShape,
+                size: 52,
+                fillColor: Colors.white.withOpacity(0.14),
+                borderColor: Colors.white.withOpacity(0.40),
                 child: Icon(
                   _playing ? _icons.pause : _icons.play,
                   color: Colors.white,
@@ -4310,51 +4295,19 @@ void _openPanel({
     }
 
     void _showLayoutDesignerSheet(BuildContext ctx) {
-      _openRightPanel(Padding(
-          padding: const EdgeInsets.fromLTRB(16, 20, 16, 36),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Player Layout', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              for (final item in [
-                ('default', Icons.dashboard_rounded,    'Default',  'Full controls, skip buttons, progress overlay'),
-                ('cinema',  Icons.theaters_rounded,      'Cinema',   'Minimal chrome — skip buttons hidden until tap'),
-                ('compact', Icons.fit_screen_rounded,   'Compact',  'Smaller UI — tighter padding, shorter transport row'),
-              ])
-                GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _layoutPreset = item.$1;
-                      if (item.$1 == 'cinema') _showSkipBtns = false;
-                      if (item.$1 == 'default' || item.$1 == 'compact') _showSkipBtns = true;
-                    });
-                    _scheduleSavePrefs();
-                    Navigator.of(ctx).pop();
-                  },
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: _layoutPreset == item.$1 ? Colors.white.withOpacity(0.12) : const Color(0xFF2A2A2A),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: _layoutPreset == item.$1 ? Colors.white38 : Colors.transparent),
-                    ),
-                    child: Row(children: [
-                      Icon(item.$2, color: _layoutPreset == item.$1 ? Colors.white : Colors.white54, size: 24),
-                      const SizedBox(width: 12),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(item.$3, style: TextStyle(color: _layoutPreset == item.$1 ? Colors.white : Colors.white70, fontSize: 14, fontWeight: FontWeight.bold)),
-                        Text(item.$4, style: const TextStyle(color: Colors.white38, fontSize: 11)),
-                      ])),
-                      if (_layoutPreset == item.$1) const Icon(Icons.check_rounded, color: Colors.white, size: 18),
-                    ]),
-                  ),
-                ),
-            ],
-          ),
-        ),);;
+      // Phase B: Push the full drag-and-drop Layout Designer screen.
+      // Close any open panel/sheet first so the player chrome is dismissed cleanly.
+      if (Navigator.of(ctx).canPop()) Navigator.of(ctx).pop();
+      Navigator.of(ctx).push(MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => LayoutDesignerScreen(
+          prefs: ref.read(playerPrefsProvider),
+          onSave: (updated) async {
+            await ref.read(playerPrefsProvider.notifier).set(updated);
+            if (mounted) setState(() {});
+          },
+        ),
+      ));
     }
 
     Future<void> _takeScreenshot({bool withSubtitles = false}) async {
