@@ -2947,3 +2947,39 @@ A prior session inserted `@override void didUpdateWidget` inside the body of `in
 | SHA | Description |
 |---|---|
 | `41c70a43` | SUB-G1/G2/G3: fix didUpdateWidget nesting, wire controlsRaiseDp, add font resolution to DualSubtitleOverlay |
+
+---
+
+## Session 2026-08-05a — Phase H Production Hygiene Tweaks (PROD-H1/H2/H3)
+
+**Tasks completed:** PROD-H1, PROD-H2, PROD-H3 — all ✅ DONE.
+
+### What was done
+
+**PROD-H1 — Remove dead MPV subtitle-property calls (`_ps_subtitle_mixin.dart`):**
+After Phase A established `SubtitleViewConfiguration(visible: false)`, all MPV subtitle `setProperty` calls became no-ops — Flutter's `SubtitleOverlay` owns all subtitle rendering. Three areas cleaned up:
+- `_applySubtitleMargin()`: Removed the 16ms debounce timer and the two `setProperty` calls inside it (`sub-ass-override` + `sub-margin-y`). Removed dead fields `_subMarginLastVisible`, `_subMarginDebounce`. Removed the stale BUG-SUB-STYLE-01 comment block (historical, now misleading). Function is now an empty stub — its 12 call sites across `_ps_ui_mixin.dart` and `_ps_playback_mixin.dart` are satisfied without doing anything, since raise is driven by `_subtitleRaiseNotifier → controlsRaiseDp` on `SubtitleOverlay`.
+- `_applySubtitleStylePrefs()`: Removed SharedPreferences load + 14 `setProperty` calls (font, size, bold, colour, opacity, alignment, edge padding, shadow, ASS override). Removed dead field `_subtitleStyleReapplyGeneration`. Function is now an empty async stub — satisfies call site in `player_screen.dart` L628 and `_reapplySubtitleStyleAfterLifecycle`.
+- `_reapplySubtitleStyleAfterLifecycle()`: Removed 150ms delayed timer (only purpose was to call `_applySubtitleStylePrefs`). Stubbed to empty body — satisfies 3 call sites in `_ps_playback_mixin.dart`.
+
+**PROD-H2 — Clean stale sidebar IDs on startup (`player_screen.dart`):**
+`_sidebarOrder` is decoded from JSON prefs in `_loadPrefs()`. IDs from old app versions not in the current `_allSidebarIds` set would silently be filtered at render time (`visibleItems = _sidebarOrder.where((id) => defs.containsKey(id))`) but never removed from the persisted list — so they reload on every launch. Added after the JSON decode:
+```dart
+final _sbBefore = _sidebarOrder.length;
+_sidebarOrder.removeWhere((id) => !_allSidebarIds.contains(id));
+if (_sidebarOrder.length != _sbBefore) _scheduleSavePrefs();
+```
+This strips stale IDs once and re-persists, so subsequent launches are clean.
+
+**PROD-H3 — Wake timeout DropdownButton assertion guard (`quick_settings_panel.dart`):**
+`DropdownButton<int>` asserts (in debug) and misbehaves (in release) when `value` is non-null and not present in `items`. If a user had persisted an old wake-timeout value (e.g. 5 or 60 from a prior version) it would trigger this. Items list is `[0, 10, 20, 30]`. Fixed:
+```dart
+value: const {0, 10, 20, 30}.contains(_p.wakeTimeoutMins) ? _p.wakeTimeoutMins : 0,
+```
+Falls back to `0` (Always On) for any unrecognised stored value.
+
+### Commits
+
+| SHA | Description |
+|---|---|
+| `c15a2584` | PROD-H1/H2/H3: remove dead MPV sub setProperty calls, clean stale sidebar IDs, guard wake DropdownButton value |
