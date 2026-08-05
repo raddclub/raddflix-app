@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../core/design/app_icons.dart';
@@ -113,20 +114,35 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
     final prefs = await SharedPreferences.getInstance();
     final path  = prefs.getString('resume_local_path');
     final title = prefs.getString('resume_title');
-    if (path != null && path.isNotEmpty && mounted) {
-      setState(() {
-        _resumePath  = path;
-        _resumeTitle = title ?? path.split('/').last;
-      });
+    if (path != null && path.isNotEmpty) {
+      // DL-K4: validate the file still exists on disk — a path left over from a
+      // deleted, vault-imported, or moved file leads to a nonexistent-file open
+      // attempt when the Resume CTA is tapped. Clear the stale prefs immediately
+      // so the CTA disappears rather than showing a broken entry.
+      if (!File(path).existsSync()) {
+        await prefs.remove('resume_local_path');
+        await prefs.remove('resume_title');
+        return;
+      }
+      if (mounted) {
+        setState(() {
+          _resumePath  = path;
+          _resumeTitle = title ?? path.split('/').last;
+        });
+      }
     }
   }
 
   Future<void> _load({bool refresh = false}) async {
+    if (!mounted) return;
     setState(() => _loading = true);
     final hasPermission = await LocalMediaService.checkPermission();
     if (!hasPermission) {
       final granted = await LocalMediaService.requestPermission();
       if (!granted) {
+        // DL-K5: guard before every post-await setState — user may have left
+        // the screen while the permission dialog was open.
+        if (!mounted) return;
         setState(() { _loading = false; _permissionDenied = true; });
         return;
       }
@@ -143,6 +159,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
     for (final f in folders) {
       f.newCount = f.videos.where((v) => !seen.contains(v.filePath)).length;
     }
+    if (!mounted) return;
     setState(() { _folders = folders; _loading = false; _permissionDenied = false; });
     _loadThumbnails(folders);
   }
@@ -182,6 +199,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
   // ── Music tab methods ──────────────────────────────────────────────────────
   Future<void> _loadMusic({bool refresh = false}) async {
     if (_musicLoading && !refresh) return;
+    if (!mounted) return;
     setState(() { _musicLoading = true; });
     bool hasAudio = await LocalMediaService.checkAudioPermission();
     if (!hasAudio) {
@@ -190,6 +208,7 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
         // that request already covers READ_MEDIA_AUDIO too.  Bail silently
         // here; _load() will call _loadMusic(refresh:true) once the user
         // grants permission and both paths settle.
+        if (!mounted) return;
         setState(() { _musicLoading = false; });
         return;
       }
@@ -197,11 +216,13 @@ class _LocalMediaScreenState extends State<LocalMediaScreen>
       final granted = await LocalMediaService.requestPermission();
       if (granted) hasAudio = await LocalMediaService.checkAudioPermission();
       if (!hasAudio) {
+        if (!mounted) return;
         setState(() { _musicLoading = false; _audioPermissionDenied = true; });
         return;
       }
     }
     final tracks = await LocalMediaService.queryAllAudio();
+    if (!mounted) return;
     setState(() { _musicTracks = tracks; _musicLoading = false; _audioPermissionDenied = false; });
     _loadAlbumArts(tracks);
   }
