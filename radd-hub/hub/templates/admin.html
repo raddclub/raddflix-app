@@ -1193,24 +1193,65 @@ async function dbRestore(){
   try{
     const r = await api('/admin/api/db/restore',{method:'POST'});
     if(r.ok){
-      const started = (r.started||[]).map(a=>a.msisdn||('#'+a.id)).join(', ');
+      const startedAccts = r.started||[];
       const skipped = (r.skipped||[]).map(a=>(a.msisdn||('#'+a.id))+' ('+a.reason+')').join(', ');
       const errs    = (r.errors||[]).map(a=>(a.msisdn||('#'+a.id))+': '+a.error).join(', ');
       let html = `<span style="color:var(--ok);font-weight:600">✔ ${r.message||'Restore started'}</span>`;
-      if(started) html += `<br><span style="font-size:11px;color:var(--muted)">Scanning: ${started}</span>`;
       if(skipped) html += `<br><span style="font-size:11px;color:var(--muted)">Skipped: ${skipped}</span>`;
       if(errs)    html += `<br><span style="font-size:11px;color:var(--err)">Errors: ${errs}</span>`;
-      html += `<br><span style="font-size:11px;color:var(--muted)">Check the <a href="/scan/">Scan page</a> for live progress.</span>`;
       if(msgEl){ msgEl.innerHTML=html; }
       toast('Restore scan started');
+      if(startedAccts.length > 0){
+        // Poll per-account progress every 4 s until all done or 10 min elapsed
+        const aids = startedAccts.map(a=>a.id);
+        const msisdns = Object.fromEntries(startedAccts.map(a=>[a.id, a.msisdn||('#'+a.id)]));
+        let polls=0; const maxPolls=150; // 10 min at 4s
+        const iv = setInterval(async()=>{
+          polls++;
+          try{
+            const results = await Promise.all(aids.map(aid=>
+              fetch(`/scan/api/accounts/${aid}/progress`,{credentials:'same-origin'})
+                .then(res=>res.ok?res.json():null).catch(()=>null)
+            ));
+            // Build per-account status lines
+            const lines = aids.map((aid,i)=>{
+              const p = results[i];
+              if(!p){ return `<span style="color:var(--muted)">${msisdns[aid]}: …</span>`; }
+              const running = p.running||false;
+              const pct = p.progress_pct!=null ? Math.round(p.progress_pct)+'%' : '?%';
+              const scanned = p.files_scanned!=null ? `${p.files_scanned} files` : '';
+              if(!running && polls>1){
+                return `<span style="color:var(--ok)">✔ ${msisdns[aid]}: done (${scanned})</span>`;
+              }
+              return `<span style="color:var(--muted)">⏳ ${msisdns[aid]}: ${pct}${scanned?' — '+scanned:''}</span>`;
+            });
+            let updHtml = `<span style="color:var(--ok);font-weight:600">✔ Restore in progress</span><br>${lines.join('<br>')}`;
+            if(skipped) updHtml += `<br><span style="font-size:11px;color:var(--muted)">Skipped: ${skipped}</span>`;
+            if(msgEl){ msgEl.innerHTML=updHtml; }
+            const allDone = results.every((p,i)=> p && !p.running && polls>1);
+            if(allDone || polls>=maxPolls){
+              clearInterval(iv);
+              const finalLines = aids.map((aid,i)=>{
+                const p=results[i];
+                const scanned = p&&p.files_scanned!=null?`${p.files_scanned} files`:'?';
+                return `<span style="color:var(--ok)">✔ ${msisdns[aid]}: done (${scanned})</span>`;
+              });
+              if(msgEl){ msgEl.innerHTML=`<span style="color:var(--ok);font-weight:600">✔ Restore complete</span><br>${finalLines.join('<br>')}`; }
+              if(btn){ btn.disabled=false; btn.textContent='↺ Restore from JazzDrive'; }
+            }
+          }catch(_){}
+        }, 4000);
+      } else {
+        if(btn){ btn.disabled=false; btn.textContent='↺ Restore from JazzDrive'; }
+      }
     } else {
       if(msgEl){ msgEl.innerHTML=`<span style="color:var(--err)">✗ ${r.error||'Failed to start restore'}</span>`; }
       toast('Restore failed: '+(r.error||'?'), 4000);
+      if(btn){ btn.disabled=false; btn.textContent='↺ Restore from JazzDrive'; }
     }
   }catch(e){
     if(msgEl){ msgEl.innerHTML=`<span style="color:var(--err)">✗ ${e.message}</span>`; }
     toast('Error: '+e.message, 4000);
-  } finally {
     if(btn){ btn.disabled=false; btn.textContent='↺ Restore from JazzDrive'; }
   }
 }
