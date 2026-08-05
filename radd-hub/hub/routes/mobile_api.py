@@ -1088,6 +1088,24 @@ def get_history(_user_id, _phone):
         return jsonify({"ok": True, "history": []})
 
 
+@bp_hist.route("", methods=["DELETE"], strict_slashes=False)
+@_require_auth
+def clear_history(_user_id, _phone):
+    """DELETE /api/history — wipe all server-side watch history for this user.
+    Called by the Flutter client when the user taps "Clear All" in History screen.
+    Guest users (user_id=0) are a no-op.
+    """
+    if _user_id == 0:
+        return jsonify({"ok": True})
+    try:
+        with db.conn() as c:
+            c.execute("DELETE FROM watch_history WHERE user_id=?", (_user_id,))
+        return jsonify({"ok": True})
+    except Exception as e:
+        log.warning("clear_history error: %s", e)
+        return jsonify({"ok": False, "error": "db_error"}), 500
+
+
 @bp_hist.route("/<file_id>", methods=["POST"])
 @_require_auth
 def save_history(file_id, _user_id, _phone):
