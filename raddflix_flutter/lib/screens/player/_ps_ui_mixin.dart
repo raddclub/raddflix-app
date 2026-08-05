@@ -129,6 +129,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   Duration _dragStartPos = Duration.zero;
 
   double? _seekBarDelta; // fractional 0..1 during seekbar drag
+  Duration? _pendingPosition; // PLAY-I4: intended seek target across rapid taps
 
   // ── Volume / Brightness ──────────────────────────────────────────────────────
   double _brightness = 0.5;
@@ -140,6 +141,7 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
   bool _showVolumeIndicator = false;
 
   Timer? _indicatorTimer;
+  Timer? _bvApplyTimer; // PLAY-I1: throttles OS brightness/volume calls to ~60fps
 
   bool _showSeekFlash = false;
 
@@ -457,8 +459,20 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
 
   void _seekRelative(int seconds) {
     HapticFeedback.lightImpact();
-    final target = _position + Duration(seconds: seconds);
-    _player.seek(target.isNegative ? Duration.zero : target);
+    // PLAY-I4: use _pendingPosition as the base for rapid taps — _position
+    // only updates when the player stream ticks, so back-to-back taps would
+    // otherwise seek from the same stale position instead of accumulating.
+    final base = _pendingPosition ?? _position;
+    final unclamped = base + Duration(seconds: seconds);
+    final target = unclamped.isNegative
+        ? Duration.zero
+        : (_duration > Duration.zero && unclamped > _duration ? _duration : unclamped);
+    _pendingPosition = target;
+    _player.seek(target);
+    // Clear pending once the player position stream has had time to update.
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) _pendingPosition = null;
+    });
     setState(() {
       _showSeekFlash = true;
       _seekFlashLeft = seconds < 0;
@@ -647,7 +661,13 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
     } else if (_dragIntent == 'brightness') {
       final newVal = (_startBrightness - dy / constraints.maxHeight * 1.5).clamp(0.0, 1.0);
       _brightness = newVal;
-      ScreenBrightness().setScreenBrightness(newVal);
+      // PLAY-I1: throttle the OS API call to ~60fps (16ms). setState is left
+      // unbounded so the indicator label refreshes every pointer frame (cheap),
+      // while ScreenBrightness() — a platform channel call — runs far less often.
+      _bvApplyTimer?.cancel();
+      _bvApplyTimer = Timer(const Duration(milliseconds: 16), () {
+        ScreenBrightness().setScreenBrightness(newVal);
+      });
       _showBrightnessIndicator = true;
       _indicatorTimer?.cancel();
       if (mounted) setState(() {});
@@ -655,14 +675,18 @@ mixin _PlayerUIMixin on ConsumerState<PlayerScreen> {
       // Volume 0–100% = OS volume, 100–250% = MPV audio boost
       final newVal = (_startVolume - dy / constraints.maxHeight * 3.0).clamp(0.0, 2.5);
       _volume = newVal;
-      // OS volume only goes 0-1.0 (100%)
-      VolumeController().setVolume(newVal.clamp(0.0, 1.0));
-      // MPV audio amp for boost above 100%
-      if (newVal > 1.0) {
-        _np.setProperty('volume', (newVal * 100).clamp(100, 250).round().toString());
-      } else {
-        _np.setProperty('volume', '100');
-      }
+      // PLAY-I1: throttle OS/MPV calls to ~60fps; UI setState is unbounded (cheap).
+      _bvApplyTimer?.cancel();
+      _bvApplyTimer = Timer(const Duration(milliseconds: 16), () {
+        // OS volume only goes 0-1.0 (100%)
+        VolumeController().setVolume(newVal.clamp(0.0, 1.0));
+        // MPV audio amp for boost above 100%
+        if (newVal > 1.0) {
+          _np.setProperty('volume', (newVal * 100).clamp(100, 250).round().toString());
+        } else {
+          _np.setProperty('volume', '100');
+        }
+      });
       _showVolumeIndicator = true;
       _indicatorTimer?.cancel();
       if (mounted) setState(() {});
@@ -5106,6 +5130,7 @@ class _LiveChannelSwitcherSheetState extends State<_LiveChannelSwitcherSheet> {
 
   @override
   void dispose() {
+    _bvApplyTimer?.cancel(); // PLAY-I1
     _ctrl.dispose();
     super.dispose();
   }

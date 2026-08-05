@@ -79,6 +79,7 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
   Duration _buffered = Duration.zero;
   double _bufferedFraction = 0.0;
   bool _ended = false;
+  bool _completionHandled = false; // PLAY-I9: guard against duplicate 'completed' events
   String? _streamError;
   bool _isLinkLoading = false;
   // ── Current episode ─────────────────────────────────────────────────────────
@@ -455,13 +456,21 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
       }),
       _player.stream.completed.listen((v) {
         if (v && mounted) {
+          // PLAY-I9: MPV can fire 'completed' more than once on the same stream
+          // (e.g. on loop end, network stall recovery). Guard with a per-media flag
+          // to prevent _onVideoCompleted() running multiple times for one file.
+          if (_completionHandled) return;
+          _completionHandled = true;
           setState(() => _ended = true);
           _onVideoCompleted();
         }
       }),
       _player.stream.error.listen((e) {
         DebugLogger.logError('PLAYER', 'MPV error', e);
-        if (mounted && !_playing) {
+        // PLAY-I7: previously skipped errors while _playing==true, making errors
+        // invisible during active playback (e.g. mid-stream network cut). Show
+        // the error regardless of playing state so the user can retry.
+        if (mounted) {
           setState(() => _streamError = 'Playback error. Please retry.');
         }
       }),
@@ -619,6 +628,7 @@ mixin _PlayerPlaybackMixin on ConsumerState<PlayerScreen> {
 
   Future<void> _openMedia(String fileId, {String? localPath}) async {
     _currentFileId = fileId.isNotEmpty ? fileId : _currentFileId;
+    _completionHandled = false; // PLAY-I9: reset per-media completion guard
 
     final isLocal = (localPath != null && localPath.isNotEmpty) ||
         (fileId.startsWith('/') || fileId.startsWith('content://'));

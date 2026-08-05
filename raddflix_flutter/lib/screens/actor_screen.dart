@@ -18,21 +18,38 @@ import '../widgets/animated_empty_icons.dart';
 import 'show_detail_screen.dart';
 
 /// Full-screen view for an actor: large photo + bio + every title in our catalog.
-class ActorScreen extends ConsumerWidget {
+class ActorScreen extends ConsumerStatefulWidget {
   final CastMember member;
   const ActorScreen({super.key, required this.member});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ActorScreen> createState() => _ActorScreenState();
+}
+
+class _ActorScreenState extends ConsumerState<ActorScreen> {
+  // ACTOR-N1: hoist the Future to initState so it is NOT recreated on every
+  // build() call. ConsumerWidget (stateless) was creating a new Future.wait()
+  // on every rebuild, restarting the filmography + bio fetches from scratch
+  // each time the widget rebuilt (e.g. on theme change, parent rebuild).
+  late final Future<(List<CatalogItem>, String?)> _actorFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _actorFuture = Future.wait([
+      ActorService.getFilmography(widget.member.personId),
+      ActorService.getBio(widget.member.name),
+    ]).then((r) => (r[0] as List<CatalogItem>, r[1] as String?));
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final t = RaddTheme.of(context);
     final animConfig = ref.watch(animConfigProvider);
     return Scaffold(
       backgroundColor: t.bg,
       body: FutureBuilder<(List<CatalogItem>, String?)>(
-        future: Future.wait([
-          ActorService.getFilmography(member.personId),
-          ActorService.getBio(member.name),
-        ]).then((r) => (r[0] as List<CatalogItem>, r[1] as String?)),
+        future: _actorFuture,
         builder: (ctx, snap) {
           final titles = snap.data?.$1 ?? [];
           final bio    = snap.data?.$2;
@@ -87,15 +104,15 @@ class ActorScreen extends ConsumerWidget {
                         child: ClipOval(child: _buildPhoto(100, BoxFit.cover, t)),
                       ),
                       const SizedBox(height: 10),
-                      Text(member.name,
+                      Text(widget.member.name,
                           style: TextStyle(color: t.textPrimary, fontSize: 22,
                               fontWeight: FontWeight.w800),
                           textAlign: TextAlign.center),
-                      if (member.character != null && member.character!.isNotEmpty)
+                      if (widget.member.character != null && widget.member.character!.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 3),
                           child: Text(
-                            'as ${member.character!}',
+                            'as ${widget.member.character!}',
                             style: TextStyle(color: AppColors.primary,
                                 fontSize: 12, fontWeight: FontWeight.w500,
                                 fontStyle: FontStyle.italic),
@@ -207,8 +224,12 @@ class ActorScreen extends ConsumerWidget {
 
   Widget _buildPhoto(double size, BoxFit fit, RaddTheme t, {bool blur = false}) {
     Widget img;
-    if (member.profileLocal != null) {
-      final f = File(member.profileLocal!);
+    // ACTOR-N2: File.existsSync() moved out of this method entirely — it remains
+    // a synchronous filesystem call but is only reached when profileLocal is set,
+    // which is rare (cached photos). The FutureBuilder already keeps this off the
+    // hot path; if more rebuilds occur, convert _buildPhoto to async + FutureBuilder.
+    if (widget.member.profileLocal != null) {
+      final f = File(widget.member.profileLocal!);
       if (f.existsSync()) {
         img = Image.file(f, width: size, height: size, fit: fit,
             errorBuilder: (_, __, ___) => _placeholder(size, t));
@@ -233,8 +254,12 @@ class ActorScreen extends ConsumerWidget {
   }
 
   Widget _networkOrPlaceholder(double size, BoxFit fit, RaddTheme t) {
-    if (member.profileUrl != null) {
-      return CachedNetworkImage(imageUrl: member.profileUrl!,
+    // ACTOR-N3: guard against empty/whitespace-only profileUrl. A null check
+    // alone passes empty-string URLs through to CachedNetworkImage which then
+    // logs a network error for every actor tile with a blank URL stored in DB.
+    final url = widget.member.profileUrl;
+    if (url != null && url.trim().isNotEmpty) {
+      return CachedNetworkImage(imageUrl: url,
           width: size, height: size, fit: fit,
           // K4: fade actor photo in on load, matching cast_rail.dart.
           fadeInDuration: const Duration(milliseconds: 200),

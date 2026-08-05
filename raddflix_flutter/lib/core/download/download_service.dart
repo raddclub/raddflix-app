@@ -230,7 +230,16 @@ class DownloadService {
   }
 
   static Future<void> deleteDownload(String fileId) async {
+    // DL-K7: get the recorded local path BEFORE removing the DB row so we can
+    // delete the physical file. Previously only the DB row was removed and the
+    // file was silently left on disk, wasting storage indefinitely.
+    final downloads = await LocalDb.getDownloads();
+    final match = downloads.where((d) => d['file_id'] == fileId).firstOrNull;
+    final localPath = match?['local_path'] as String?;
     await LocalDb.deleteDownload(fileId);
+    if (localPath != null && localPath.isNotEmpty) {
+      try { await File(localPath).delete(); } catch (_) {}
+    }
   }
 
   // Real on-disk extension varies per file now (BUG-DL-EXT-01 fix — downloads

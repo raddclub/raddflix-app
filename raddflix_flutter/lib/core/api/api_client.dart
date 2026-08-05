@@ -247,6 +247,14 @@ class _AuthInterceptor extends Interceptor {
   void onError(DioException err, ErrorInterceptorHandler handler) async {
     // Never attempt token refresh for auth endpoints — a 401 there means bad credentials
     final _noRefreshPaths = [ApiPaths.login, ApiPaths.register, ApiPaths.refresh, ApiPaths.guest];
+    // AUTH-M1: if this request already had one retry after a token refresh,
+    // bail immediately to prevent an infinite 401 → refresh → retry → 401 loop.
+    // This guards the case where the new token is also rejected (revoked session,
+    // server-side sign-out, etc.). The retried fetch shares the same requestOptions
+    // object, so marking it in extra is reliable.
+    if (err.requestOptions.extra['_auth_retried'] == true) {
+      return handler.next(err);
+    }
     // BUG-F04 fix: if refresh already in progress, wait for it then retry
     if (err.response?.statusCode == 401 && _refreshCompleter != null && !_noRefreshPaths.contains(err.requestOptions.path)) {
       final refreshed = await _refreshCompleter!.future;
@@ -254,6 +262,7 @@ class _AuthInterceptor extends Interceptor {
         final newToken = await Keystore.getAccessToken();
         final opts = err.requestOptions;
         opts.headers['Authorization'] = 'Bearer $newToken';
+        opts.extra['_auth_retried'] = true; // AUTH-M1: mark before retry
         final response = await _dio.fetch(opts);
         return handler.resolve(response);
       }
@@ -281,6 +290,7 @@ class _AuthInterceptor extends Interceptor {
           final opts = err.requestOptions;
           opts.headers['Authorization'] = 'Bearer $newToken';
           DebugLogger.log('AUTH', 'Token refreshed — retrying ${opts.path}');
+          opts.extra['_auth_retried'] = true; // AUTH-M1: mark before retry
           final response = await _dio.fetch(opts);
           return handler.resolve(response);
       }
