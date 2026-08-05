@@ -60,6 +60,8 @@ import '../widgets/player/word_definition_sheet.dart';
 import '../widgets/player/subtitle_overlay.dart'; // SUB-OVERLAY-FIX
 import '../widgets/player/controls_background.dart'; // A4
 import '../core/player/icon_packs.dart'; // A3
+import '../core/player/button_shape_painter.dart'; // A3 button shapes
+import 'player/layout_designer_screen.dart'; // Phase B
 import '../widgets/player/dual_subtitle_overlay.dart'; // DUAL-SUB
 import '../core/player/subtitle_style.dart';
 import '../widgets/player/quick_settings_panel.dart'; // Phase A: Style panel
