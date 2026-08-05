@@ -71,6 +71,14 @@ class DownloadService {
   }) async {
     await _checkDownloadQuota();
 
+    // DL-K2: guard against concurrent downloads for the same fileId — a second
+    // call while one is in-flight would share the same local_path and corrupt
+    // the partial file being written by the first.
+    if (_cancelTokens.containsKey(fileId)) {
+      DebugLogger.logWarn('DOWNLOAD', 'Already downloading $fileId — skipped duplicate enqueue');
+      return;
+    }
+
     String resolvedUrl = streamUrl;
     String? resolvedFilename = targetFilename;
 
@@ -160,7 +168,11 @@ class DownloadService {
         options: Options(
           responseType: ResponseType.stream,
           followRedirects: true,
-          validateStatus: (s) => s != null && s < 500,
+          // DL-K1: only accept 2xx — 4xx responses (401 Unauthorized, 403
+          // Forbidden, 404 Not Found) must throw DioException so they land in
+          // the error handler below and are NOT saved as a completed file.
+          // Previously `s < 500` silently accepted HTML error pages as content.
+          validateStatus: (s) => s != null && s >= 200 && s < 300,
         ),
       );
 
@@ -195,9 +207,15 @@ class DownloadService {
         await LocalDb.deleteDownload(fileId);
         return; // cancelled by user — not an error
       }
+      // DL-K3: delete partial file on network/HTTP errors (including 4xx from
+      // DL-K1 fix). Without this, a partial or HTML error body sits on disk
+      // forever alongside a 'failed' DB row, wasting storage.
+      try { await File(localPath).delete(); } catch (_) {}
       await LocalDb.updateDownloadStatus(fileId, 'failed', 0.0, 0);
       rethrow;
     } catch (e) {
+      // DL-K3: also clean up on generic errors (validation failure, etc.)
+      try { await File(localPath).delete(); } catch (_) {}
       await LocalDb.updateDownloadStatus(fileId, 'failed', 0.0, 0);
       rethrow;
     } finally {
