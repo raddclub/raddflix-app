@@ -550,7 +550,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       // slots. Re-save prefs if anything was stripped so the stale IDs are
       // not reloaded on the next launch.
       final _sbBefore = _sidebarOrder.length;
-      _sidebarOrder.removeWhere((id) => !_allSidebarIds.contains(id));
+      _sidebarOrder.removeWhere((id) => !_PlayerUIMixin._allSidebarIds.contains(id));
       if (_sidebarOrder.length != _sbBefore) _scheduleSavePrefs();
       // Rebuild reverb AF string from loaded preset
       switch (_reverbPreset) {
