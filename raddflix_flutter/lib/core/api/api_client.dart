@@ -100,6 +100,9 @@ class ApiClient {
   Future<Response> put(String path, {dynamic data}) =>
       _dio.put(path, data: data);
 
+  Future<Response> delete(String path, {dynamic data}) =>
+      _dio.delete(path, data: data);
+
   // ── AUTH-M2: force-logout signal ─────────────────────────────────────────
   // When a token refresh fails mid-session, ApiClient clears the stored tokens
   // but has no direct access to Riverpod. AuthNotifier registers this callback
