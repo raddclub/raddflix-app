@@ -200,6 +200,26 @@ class RaddFlixApp extends ConsumerWidget {
         }
         return null;
       },
+      // NAV-N6: deep links or push notifications pointing at removed or renamed
+      // content routes would previously crash the navigator with an
+      // "unhandled route" exception. Now they silently fall back to HomeScreen
+      // with a brief "Content not found" snackbar so the user lands somewhere
+      // useful instead of seeing a blank or crashed screen.
+      onUnknownRoute: (settings) => MaterialPageRoute<void>(
+        builder: (context) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final messenger = ScaffoldMessenger.maybeOf(context);
+            messenger?.showSnackBar(
+              const SnackBar(
+                content: Text('Content not found'),
+                behavior: SnackBarBehavior.floating,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          });
+          return const HomeScreen();
+        },
+      ),
       builder: (context, child) {
         // UX4-03: removed forced textScaler=1.0 — restore system font-size
         // accessibility so Android's Display Size / Font Size settings work.
