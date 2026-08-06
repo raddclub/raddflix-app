@@ -5,7 +5,7 @@
 
 ---
 
-## Current State (2026-08-05 — Phases M + N complete)
+## Current State (2026-08-06 — FEATURES_ROADMAP A3 + Phase B complete)
 
 **Phase K (Downloads & Local Media Reliability) — ALL 7 DONE:**
 - DL-K1: `validateStatus: (s) => s != null && s >= 200 && s < 300` (prior session, `b5838217`) ✅
@@ -30,7 +30,12 @@
 - PLAY-I8: All `_player.open()` calls wrapped in try/catch; error displayed ✅ (prior session)
 - PLAY-I9: `_completionHandled` guard prevents duplicate `completed` event handling ✅ (prior session)
 
-**All phases A–N complete. Next: resume `FEATURES_ROADMAP.md` Phase A remaining (A3 button/icon styles, A4 controls background style), then Phase B (drag-drop layout editor).**
+**All phases A–N complete. FEATURES_ROADMAP A3 (button shapes) + Phase B (layout designer) now wired. APP-F3 permanently deferred (Oracle SSH required).**
+
+**FEATURES_ROADMAP Phase A3 + Phase B — DONE (SHAs `e59caa18`, `439efc4f`, CI ✅):**
+- **A3 — Button shapes wired:** Created `core/player/button_shape_painter.dart` — `ButtonShape` enum (circle/squircle/rounded/sharp/pill), `playerBtnDecoration()`, `wrapWithButtonShape()`, `SquircleClipper`. All play/pause buttons in `_ps_ui_mixin.dart` (size-44 ×3, size-52 ×1) replaced from hardcoded `BoxDecoration(shape: BoxShape.circle)` to `wrapWithButtonShape(shape: _playBtnShape, …)`. `_playBtnShape` getter reads `ref.read(playerPrefsProvider).buttonShape` via `buttonShapeFromString()`.
+- **B — Layout Designer routed:** `_showLayoutDesignerSheet()` previously opened a simple preset picker (default/cinema/compact) via `_openRightPanel`. Replaced with `Navigator.push(MaterialPageRoute(builder: (_) => LayoutDesignerScreen(…)))` — pops any open panel first, passes current prefs, saves via `playerPrefsProvider.notifier.set()` on return.
+- Added imports for `button_shape_painter.dart` + `layout_designer_screen.dart` in `player_screen.dart`.
 
 **Phase G (Dual Subtitles & Overlay Consistency) — ALL 3 DONE (SHA `41c70a43`, CI ✅):**
 - SUB-G1: `didUpdateWidget` was mis-nested inside `initState` in `_ps_panels_subtitle.dart` (would not compile); moved to correct position after `initState` closes ✅

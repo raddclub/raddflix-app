@@ -3125,3 +3125,34 @@ Audited all open Phase M (AUTH-M1–M4) and Phase N (ACTOR-N1–N3, DL-N5, NAV-N
 | SHA | Description |
 |---|---|
 | `f5993feb` | NAV-N7: copy _currentFileId + _currentEpIdx from PlaybackService on mini-player reattach |
+
+---
+
+## Session 2026-08-06 — FEATURES_ROADMAP A3 + Phase B
+
+**Commits:**
+| SHA | Description |
+|---|---|
+| `e59caa18` | A3+B: button_shape_painter.dart + player_screen imports |
+| `439efc4f` | A3+B: wire button shapes to play/pause; route Layout Designer to full screen |
+
+**CI:** Both runs completed success ✅
+
+### What was done
+
+**A3 — Button shape painter (new file):**
+- Created `raddflix_flutter/lib/core/player/button_shape_painter.dart`
+- Defines `ButtonShape` enum (circle/squircle/rounded/sharp/pill), `buttonShapeFromString()`, `playerBtnDecoration()`, `wrapWithButtonShape()`, `SquircleClipper` (continuous-corner iOS-style clipper)
+- `PlayerPrefs.buttonShape` was already stored and selectable in QS panel but all buttons used hardcoded `BoxShape.circle`
+
+**A3 — Wired into player UI (`_ps_ui_mixin.dart`):**
+- Added `_playBtnShape` getter reading `ref.read(playerPrefsProvider).buttonShape` via `buttonShapeFromString()`
+- Replaced all 4 play/pause button containers (3× size-44, 1× size-52) with `wrapWithButtonShape(shape: _playBtnShape, …)`
+
+**Phase B — Layout Designer routed:**
+- `_showLayoutDesignerSheet()` previously showed a simple preset picker (default/cinema/compact) inline via `_openRightPanel`
+- Replaced with full-screen push to `LayoutDesignerScreen` (541-line drag-drop screen already fully implemented at `screens/player/layout_designer_screen.dart`)
+- Route `/layout-designer` in `app.dart` was already present but unreachable — now reachable from QS panel
+
+### Still deferred
+- APP-F3: admin bulk scan progress feedback — needs Oracle SSH for Flask SSE endpoint
