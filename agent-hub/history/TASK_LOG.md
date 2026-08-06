@@ -3156,3 +3156,37 @@ Audited all open Phase M (AUTH-M1–M4) and Phase N (ACTOR-N1–N3, DL-N5, NAV-N
 
 ### Still deferred
 - APP-F3: admin bulk scan progress feedback — needs Oracle SSH for Flask SSE endpoint
+
+---
+
+## Session 2026-08-06 — APP-F3: Admin bulk-scan progress feedback (Oracle deploy)
+
+**Deployed directly to Oracle (`92.4.95.252`) via SSH — no Flutter APK involved.**
+
+### Root cause
+`POST /admin/api/rescan-metadata` and `GET /admin/api/rescan-metadata/<job_id>` were called
+by `rescanMeta()` in `admin.html` but neither endpoint existed in `admin.py`. Clicking
+"Fix Missing Metadata" in the admin panel always returned a network error.
+
+### What was built
+
+**`/opt/jazzmax/radd-hub/hub/routes/admin.py`** — inserted before `/api/schema-health`:
+- `_rescan_meta_jobs: dict` — in-process job store (same pattern as `_reimport_jobs`)
+- `POST /api/rescan-metadata` — finds up to 500 titles with `confidence < 60` OR missing
+  `imdb_id / plot / poster`; queues them in a background thread; returns `{ok, job_id, total, message}`
+- Background worker: iterates candidates, calls `metadata.enrich_title()` (IMDbAPI→OMDB→TMDB→AI→YouTube)
+  with round-robin key rotation; updates `processed`, `matched`, `current_title` on every iteration
+- `GET /api/rescan-metadata/<job_id>` — returns full job dict including live `processed`, `matched`,
+  `current_title`, `still_missing`, `status`
+
+**`/opt/jazzmax/radd-hub/hub/templates/admin.html`** — `rescanMeta()` upgraded:
+- Polls every 3 s while running; shows `N/T (pct%) — K matched — <current title>` live
+- "0 titles" fast-path: instant clean message without starting a job
+- 9-minute safety timeout (180 polls × 3 s)
+- Button label cycles: "⏳ Scanning…" → "✔ Fix Missing Metadata" on done
+
+### Verification
+- Python syntax: `py_compile` clean
+- Service restart: `supervisorctl restart raddflix_radd` → RUNNING pid 2113317
+- Smoke test: `POST /admin/api/rescan-metadata` → 302 (auth redirect, not 404/500) ✅
+              `GET /admin/api/rescan-metadata/test123` → 302 (auth redirect, not 404/500) ✅

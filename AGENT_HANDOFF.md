@@ -30,7 +30,7 @@
 - PLAY-I8: All `_player.open()` calls wrapped in try/catch; error displayed ✅ (prior session)
 - PLAY-I9: `_completionHandled` guard prevents duplicate `completed` event handling ✅ (prior session)
 
-**All phases A–N complete. FEATURES_ROADMAP A3 (button shapes) + Phase B (layout designer) now wired. APP-F3 permanently deferred (Oracle SSH required).**
+**All phases A–N complete. FEATURES_ROADMAP A3 (button shapes) + Phase B (layout designer) wired. APP-F3 now DONE (Oracle SSH confirmed available).**
 
 **FEATURES_ROADMAP Phase A3 + Phase B — DONE (SHAs `e59caa18`, `439efc4f`, CI ✅):**
 - **A3 — Button shapes wired:** Created `core/player/button_shape_painter.dart` — `ButtonShape` enum (circle/squircle/rounded/sharp/pill), `playerBtnDecoration()`, `wrapWithButtonShape()`, `SquircleClipper`. All play/pause buttons in `_ps_ui_mixin.dart` (size-44 ×3, size-52 ×1) replaced from hardcoded `BoxDecoration(shape: BoxShape.circle)` to `wrapWithButtonShape(shape: _playBtnShape, …)`. `_playBtnShape` getter reads `ref.read(playerPrefsProvider).buttonShape` via `buttonShapeFromString()`.
@@ -48,7 +48,7 @@
 - APP-F4: Expiry date already in profile_screen L388 + days-remaining countdown ✅
 - APP-F5: IndexedStack preserves HomeScreen scroll state natively — no changes needed ✅
 - APP-F6: Mic "Listening" HUD badge + `HapticFeedback.lightImpact()` on voice enable ✅
-- APP-F3: Deferred — needs Oracle SSH for Flask/admin SSE progress endpoint
+- APP-F3: **DONE** — `POST /admin/api/rescan-metadata` + `GET /admin/api/rescan-metadata/<job_id>` deployed to Oracle; `rescanMeta()` in `admin.html` shows live processed/total/pct/current_title every 3 s
 
 **Phase H (Production Hygiene Tweaks) — ALL 3 DONE (SHA `c15a2584`, CI ✅):**
 - PROD-H1: `_applySubtitleMargin()` emptied (debounce + 2 dead `setProperty` calls + fields removed); `_applySubtitleStylePrefs()` emptied (prefs load + 14 `setProperty` calls removed); `_reapplySubtitleStyleAfterLifecycle()` stubbed ✅
