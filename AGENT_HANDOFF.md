@@ -7,6 +7,15 @@
 
 ## Current State (2026-08-06 — FEATURES_ROADMAP A3 + Phase B complete)
 
+**JazzDrive login investigation (2026-08-23):**
+- Live Oracle logs showed recurring HTTP 401 responses during the post-OTP
+  `cloud.jazzdrive.com.pk/sapi/login/oauth` refresh/session exchange.
+- The admin scanner now uses the browser-rendered JazzDrive OTP form and no longer submits the
+  same OTP to the obsolete `keytype=otp` SAPI path before or after OAuth verification.
+- OAuth code exchange now preserves the same official client/redirect pair used to request the
+  code. Local Python syntax validation passed; Oracle deployment is pending because the server
+  checkout has unrelated uncommitted admin changes.
+
 **Phase K (Downloads & Local Media Reliability) — ALL 7 DONE:**
 - DL-K1: `validateStatus: (s) => s != null && s >= 200 && s < 300` (prior session, `b5838217`) ✅
 - DL-K2: `_cancelTokens.containsKey(fileId)` guard prevents duplicate downloads ✅

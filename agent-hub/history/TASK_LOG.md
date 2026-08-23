@@ -3190,3 +3190,17 @@ by `rescanMeta()` in `admin.html` but neither endpoint existed in `admin.py`. Cl
 - Service restart: `supervisorctl restart raddflix_radd` → RUNNING pid 2113317
 - Smoke test: `POST /admin/api/rescan-metadata` → 302 (auth redirect, not 404/500) ✅
               `GET /admin/api/rescan-metadata/test123` → 302 (auth redirect, not 404/500) ✅
+
+## 2026-08-23 — JazzDrive browser OTP login
+
+- Researched the live JazzDrive authorization page and confirmed the current browser flow is
+  `authorization.php` → signup form → verify form → OAuth code redirect.
+- Found the admin scanner was sending the same SMS OTP to the legacy `keytype=otp` SAPI
+  endpoint before/after OAuth verification, while the live server was repeatedly failing the
+  follow-up SAPI session exchange with HTTP 401.
+- Switched admin OTP initiation to the browser-rendered form, kept the official `fnbroot`
+  OAuth client paired with `clientoauth.html`, propagated the client/redirect values through
+  OTP state, and removed the obsolete duplicate OTP SAPI calls.
+- Local verification: Python bytecode compilation and `git diff --check` passed.
+- Deployment remains pending because the Oracle checkout currently has unrelated uncommitted
+  changes in `radd-hub/hub/routes/admin.py` and `radd-hub/hub/templates/admin.html`.

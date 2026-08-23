@@ -803,8 +803,12 @@ def jazzdrive_login(msisdn: str, use_android: bool = True, proxies: Optional[dic
         client_id    = ANDROID_CLIENT_ID
         redirect_uri = ANDROID_REDIRECT_URI
     else:
-        client_id    = "web"
-        redirect_uri = f"{CLOUD_BASE}/ui/html/oauth.html"
+        # Render the browser login form but keep the official OAuth client
+        # and redirect pair.  The previous "web"/oauth.html combination was
+        # later exchanged with the Android redirect URI, which invalidated the
+        # authorization code after a correct OTP.
+        client_id    = ANDROID_CLIENT_ID
+        redirect_uri = ANDROID_REDIRECT_URI
 
     # Step 1: GET authorization.php with allow_redirects=True → lands on signup.php
     try:
@@ -914,7 +918,8 @@ def jazzdrive_login(msisdn: str, use_android: bool = True, proxies: Optional[dic
         )
 
     return {"verify_url": verify_url, "session": sess,
-            "use_android": use_android, "msisdn": msisdn}
+            "use_android": use_android, "client_id": client_id,
+            "redirect_uri": redirect_uri, "msisdn": msisdn}
 
 
 
@@ -946,7 +951,9 @@ def _decode_access_token(access_token_str: str) -> dict:
 def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
                          use_android: bool = True,
                          msisdn: str = "",
-                         proxies: Optional[dict] = None) -> dict:
+                         proxies: Optional[dict] = None,
+                         client_id: Optional[str] = None,
+                         redirect_uri: Optional[str] = None) -> dict:
     """Submit OTP and exchange the auth code for long-lived Android tokens.
 
     Verified flow (jazzdrive_test.py — all 13 tests passing):
@@ -1095,7 +1102,11 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
     log.info("Auth code extracted (len=%d), POSTing to /oauth2/token.php ...", len(code))
 
     # ── Step 4: POST /oauth2/token.php — standard OAuth2 code exchange ─────────
-    # VERIFIED: this is the ONLY endpoint that works.
+    # The code must be exchanged with the same redirect URI used to request it.
+    # Keep defaults for older Android callers while allowing the browser flow
+    # to carry its exact authorization parameters.
+    _oauth_client_id = client_id or ANDROID_CLIENT_ID
+    _oauth_redirect_uri = redirect_uri or ANDROID_REDIRECT_URI
     # /sapi/login/oauth?keytype=oauth2code always returns HTTP 400 (JazzDrive homepage).
     try:
         r4 = sess.post(
@@ -1103,9 +1114,9 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
             data={
                 "grant_type":    "authorization_code",
                 "code":          code,
-                "client_id":     ANDROID_CLIENT_ID,
+                "client_id":     _oauth_client_id,
                 "client_secret": ANDROID_CLIENT_SECRET,
-                "redirect_uri":  ANDROID_REDIRECT_URI,
+                "redirect_uri":  _oauth_redirect_uri,
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
             timeout=30,
