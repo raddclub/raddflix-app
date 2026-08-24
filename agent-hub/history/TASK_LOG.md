@@ -3202,5 +3202,7 @@ by `rescanMeta()` in `admin.html` but neither endpoint existed in `admin.py`. Cl
   OAuth client paired with `clientoauth.html`, propagated the client/redirect values through
   OTP state, and removed the obsolete duplicate OTP SAPI calls.
 - Local verification: Python bytecode compilation and `git diff --check` passed.
-- Deployment remains pending because the Oracle checkout currently has unrelated uncommitted
-  changes in `radd-hub/hub/routes/admin.py` and `radd-hub/hub/templates/admin.html`.
+- Oracle deployment completed on 2026-08-24 at commit `a95de388`; the unrelated admin edits
+  were preserved and restored after the pull. Service restart and `/healthz` verification passed.
+- A corrected authorization smoke test against `https://jazzdrive.com.pk` returned HTTP 200 and
+  redirected to `signup.php`. A real SMS OTP submission is still required for end-to-end proof.

@@ -1,1 +1,2 @@
 - [Network contentType routing](network-contenttype-routing.md) — http/https URIs from intents must be detected in Dart and routed as `content_type: 'network'`, not `movie`.
+- [JazzDrive host routing](jazzdrive-host-routing.md) — OAuth begins on jazzdrive.com.pk; cloud.jazzdrive.com.pk serves callback and SAPI/session endpoints.
