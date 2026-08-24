@@ -1209,10 +1209,32 @@ def jazzdrive_verify_otp(sess: requests.Session, verify_url: str, otp: str,
                     'access_token':    raw_at,
                 }
             elif _jid_from_chain:
-                # JSESSIONID from clientoauth.html but VK missing — fall through to SAPI
-                log.info("JSESSIONID from clientoauth.html but VK missing — continuing to SAPI. jid=%s...", _jid_from_chain[:16])
+                log.info("JSESSIONID from clientoauth.html but VK missing — "
+                         "web flow will not use Android SAPI. jid=%s...", _jid_from_chain[:16])
         except Exception as _coe:
             log.debug("clientoauth.html fetch failed: %s", _coe)
+
+    # The browser callback is a complete web OAuth login.  Do not turn it into
+    # an Android login by calling /sapi/login/oauth with platform=Android.
+    # That endpoint returns 401 for this web session and can also discard the
+    # valid browser cookie.  Return the OAuth material so the caller can keep
+    # the session and present the browser-cookie activation path if VK is not
+    # included by JazzDrive's callback.
+    if not use_android:
+        log.info(
+            "Web OAuth completed without validation key; preserving browser "
+            "JSESSIONID and skipping Android SAPI activation (jid=%s)",
+            bool(_jid_from_chain),
+        )
+        return {
+            "validation_key":  _vk_from_chain,
+            "jsessionid":      _jid_from_chain,
+            "node":            (_jid_from_chain.split(".")[-1] if "." in _jid_from_chain else ""),
+            "refresh_token":   raw_rt,
+            "raw_accesstoken": raw_at,
+            "access_token":    raw_at,
+            "_sapi_blocked":   not bool(_vk_from_chain),
+        }
 
     # Last resort: SAPI silent-login using the raw_accesstoken.
     # Clear any stale cloud.jazzdrive cookies first.

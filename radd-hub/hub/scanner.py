@@ -288,9 +288,11 @@ def verify_otp(account_id: int, otp: str) -> dict:
                   account_id, _last_std_err)
         return {"ok": False, "error": f"Verification failed: {_last_std_err}"}
 
-    # ── Handle partial result (SAPI keytype=accesstoken did not return VK) ────
-    # jazzdrive_verify_otp returns _sapi_blocked=True when the SAPI silent-login
-    # (keytype=accesstoken) step did not return a validationkey.
+    # ── Handle a web OAuth result without VK ──────────────────────────────────
+    # The browser callback can return OAuth tokens + JSESSIONID without the
+    # validation key required by JazzDrive SAPI calls.  Keep those values, but
+    # never try to obtain VK through the Android SAPI/refresh path for a web
+    # login.
     # The OTP was accepted and we have a valid refresh_token + raw_accesstoken,
     # but the SAPI step did not produce a JSESSIONID/validationkey.
     # Save the tokens so keepalive can attempt refresh, and tell the UI to prompt
@@ -305,10 +307,8 @@ def verify_otp(account_id: int, otp: str) -> dict:
             "vk=False jid=%s rt=%s rat=%s",
             account_id, bool(jid_partial), bool(rt), bool(rat),
         )
-        # FIX-JD-LOGIN-2: Persist partial tokens including JSESSIONID (fixed by FIX-1).
-        # Then immediately try android_refresh_session which uses the OAuth2 refresh
-        # path to get VK. Note: both platform=web and platform=Android keytype=accesstoken
-        # are blocked from Oracle IP — only works from Jazz SIM network.
+        # Persist partial tokens including the browser JSESSIONID.  The web
+        # path deliberately stops here instead of attempting Android SAPI.
         _exp = int(time.time() + (86400 * 30 if rt else 3300))
         db.update_account_session(
             account_id,
@@ -328,24 +328,25 @@ def verify_otp(account_id: int, otp: str) -> dict:
             except Exception as _dbe:
                 log.debug("verify_otp: raw_accesstoken DB write (partial): %s", _dbe)
 
-        # Try android_refresh_session to get VK via OAuth2 refresh path.
-        # This is the same path used by keepalive. NOTE: keytype=accesstoken is
-        # blocked from Oracle IP — if this returns a VK it came via wg0 Jazz SIM route.
         _refresh_vk = ""
-        try:
-            from . import jazzdrive as _jd_mod
-            log.info("verify_otp: SAPI step failed — trying android_refresh_session "
-                     "for account %s to obtain VK via OAuth2 refresh path", account_id)
-            _ar = _jd_mod.android_refresh_session(rt, account_id=account_id)
-            if _ar.get("ok"):
-                _refresh_vk = _ar.get("validation_key") or _ar.get("vk") or ""
-                log.info("verify_otp: android_refresh_session OK — vk=%s jid=%s",
-                         bool(_refresh_vk), bool(_ar.get("jsessionid")))
-            else:
-                log.info("verify_otp: android_refresh_session returned not-ok: %s",
-                         _ar.get("error", "?")[:100])
-        except Exception as _ar_e:
-            log.warning("verify_otp: android_refresh_session attempt failed: %s", _ar_e)
+        if sess.get("use_android", True):
+            try:
+                from . import jazzdrive as _jd_mod
+                log.info("verify_otp: Android flow partial result — trying "
+                         "android_refresh_session for account %s", account_id)
+                _ar = _jd_mod.android_refresh_session(rt, account_id=account_id)
+                if _ar.get("ok"):
+                    _refresh_vk = _ar.get("validation_key") or _ar.get("vk") or ""
+                    log.info("verify_otp: android_refresh_session OK — vk=%s jid=%s",
+                             bool(_refresh_vk), bool(_ar.get("jsessionid")))
+                else:
+                    log.info("verify_otp: android_refresh_session returned not-ok: %s",
+                             _ar.get("error", "?")[:100])
+            except Exception as _ar_e:
+                log.warning("verify_otp: android_refresh_session attempt failed: %s", _ar_e)
+        else:
+            log.info("verify_otp: web flow — skipping android_refresh_session for account %s",
+                     account_id)
 
         db.append_scan_log(
             account_id, "otp",
@@ -463,7 +464,8 @@ def verify_otp(account_id: int, otp: str) -> dict:
 
     db.append_scan_log(
         account_id, "otp",
-        f"OTP verified via Android OAuth2 (has_refresh_token={bool(rt)}, has_raw_at={bool(raw_at)}), session stored"
+        f"OTP verified via {'Android' if sess.get('use_android', True) else 'web'} OAuth2 "
+        f"(has_refresh_token={bool(rt)}, has_raw_at={bool(raw_at)}), session stored"
     )
     with _otp_lock:
         _otp_sessions.pop(account_id, None)
